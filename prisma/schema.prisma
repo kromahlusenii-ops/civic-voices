@@ -1,0 +1,104 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  researchJobs  ResearchJob[]
+
+  @@map("users")
+}
+
+model ResearchJob {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  queryJson     Json           // Search query parameters (keywords, subreddits, filters, etc.)
+  status        JobStatus      @default(PENDING)
+
+  // Metadata
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  // Counts and stats
+  totalResults  Int            @default(0)
+
+  // Relations
+  sourceResults SourceResult[]
+  insights      Insight[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("research_jobs")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model SourceResult {
+  id                String       @id @default(cuid())
+  jobId             String
+  job               ResearchJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  source            Source       // reddit, x, tiktok, youtube, linkedin
+  externalId        String       // External platform ID (e.g., Reddit post ID)
+  url               String       // Full URL to the content
+
+  title             String?      // Optional title (post title, tweet text preview, etc.)
+  text              String       // Main text content
+  rawJson           Json         // Raw API response for full data preservation
+
+  createdAtExternal DateTime?    // When the content was created on the external platform
+  score             Int?         // Upvotes, likes, views, etc. (platform-specific)
+
+  createdAt         DateTime     @default(now())
+
+  @@index([jobId, source])
+  @@index([jobId, createdAt])
+  @@unique([jobId, source, externalId])
+  @@map("source_results")
+}
+
+enum Source {
+  REDDIT
+  X
+  TIKTOK
+  YOUTUBE
+  LINKEDIN
+}
+
+model Insight {
+  id          String       @id @default(cuid())
+  jobId       String
+  job         ResearchJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  outputJson  Json         // LLM-generated insights (themes, sentiment, quotes, etc.)
+  model       String       // Model used (e.g., "gpt-4", "claude-3-opus")
+  tokensUsed  Int?         // Token count if available
+
+  createdAt   DateTime     @default(now())
+
+  @@index([jobId, createdAt(sort: Desc)])
+  @@map("insights")
+}
