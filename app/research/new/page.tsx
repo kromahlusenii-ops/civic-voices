@@ -235,10 +235,10 @@ export default function ResearchDashboard() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 lg:ml-20">
-        <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
+      <main className="flex min-h-screen flex-1 items-center justify-center lg:ml-20">
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8">
           {/* Hero section */}
-          <div className="mb-12 text-center">
+          <div className="mb-8 text-center">
             <h1 className="text-4xl font-normal text-[#9CA3AF]" data-testid="dashboard-greeting">
               Discover what people buzz about
             </h1>
