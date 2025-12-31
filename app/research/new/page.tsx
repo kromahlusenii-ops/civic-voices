@@ -238,14 +238,10 @@ export default function ResearchDashboard() {
       <main className="flex-1 lg:ml-20">
         <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
           {/* Hero section */}
-          <div className="mb-12">
-            <h1 className="text-4xl font-bold text-[#2C2C2C]" data-testid="dashboard-greeting">
-              Hello{firstName ? `, ${firstName}` : ""}
+          <div className="mb-12 text-center">
+            <h1 className="text-4xl font-normal text-[#9CA3AF]" data-testid="dashboard-greeting">
+              Discover what people buzz about
             </h1>
-            <p className="mt-2 text-lg text-[#666666]">
-              Discover civic conversations across social platforms
-            </p>
-            <p className="mt-1 text-sm text-[#666666]">Welcome back!</p>
           </div>
 
           {/* Search module */}
@@ -265,7 +261,7 @@ export default function ResearchDashboard() {
               <button
                 onClick={handleStartResearch}
                 disabled={selectedSources.length === 0 || !searchQuery.trim()}
-                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-accent-blue text-white transition hover:bg-accent-blue/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
+                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-black text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
                 data-testid="start-research-btn"
                 aria-label="Start research"
               >

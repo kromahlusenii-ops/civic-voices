@@ -27,7 +27,7 @@ describe("Research Dashboard", () => {
     // Check greeting
     const greeting = screen.getByTestId("dashboard-greeting");
     expect(greeting).toBeInTheDocument();
-    expect(greeting).toHaveTextContent("Hello, John");
+    expect(greeting).toHaveTextContent("Discover what people buzz about");
 
     // Check search input
     const searchInput = screen.getByTestId("search-input");
@@ -132,7 +132,7 @@ describe("Research Dashboard", () => {
     expect(tiktokOption).toBeDisabled();
   });
 
-  it("renders greeting without name when user has no name", () => {
+  it("renders consistent greeting for all users", () => {
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: { user: { email: "user@example.com" } },
       status: "authenticated",
@@ -141,8 +141,7 @@ describe("Research Dashboard", () => {
     render(<ResearchDashboard />);
 
     const greeting = screen.getByTestId("dashboard-greeting");
-    expect(greeting).toHaveTextContent("Hello");
-    expect(greeting).not.toHaveTextContent("Hello,");
+    expect(greeting).toHaveTextContent("Discover what people buzz about");
   });
 
   it("start research button is disabled when no query or no sources selected", () => {
