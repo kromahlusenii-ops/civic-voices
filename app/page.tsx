@@ -1,79 +1,207 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+const TYPEWRITER_WORDS = ["Pains", "Needs", "Emotions", "Insights"];
 
 export default function Home() {
+  const [typewriterText, setTypewriterText] = useState(TYPEWRITER_WORDS[0]);
+  const [wordIndex, setWordIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setWordIndex((prev) => (prev + 1) % TYPEWRITER_WORDS.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    setTypewriterText(TYPEWRITER_WORDS[wordIndex]);
+  }, [wordIndex]);
+
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-navy">
+      {/* Sticky Nav */}
+      <nav className="sticky top-0 z-50 border-b border-navy-border bg-navy/95 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div className="text-xl font-bold text-white">Civic Voices</div>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="rounded-full border-2 border-white px-6 py-2 text-sm font-semibold text-white transition hover:bg-white hover:text-navy"
+              data-testid="nav-login"
+            >
+              Log in
+            </Link>
+            <Link
+              href="/signup"
+              className="rounded-full bg-white px-6 py-2 text-sm font-semibold text-navy transition hover:bg-gray-100"
+              data-testid="nav-signup"
+            >
+              Try for free
+            </Link>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero Section */}
-      <section className="relative bg-gray-900 text-white overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 opacity-50" />
-        <div className="relative mx-auto max-w-7xl px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
-          <div className="grid gap-12 lg:grid-cols-2 lg:gap-8">
-            <div className="flex flex-col justify-center">
-              <h1 className="text-5xl font-bold leading-tight tracking-tight sm:text-6xl lg:text-7xl">
-                Turn community insight chaos{" "}
-                <span className="text-coral-500">into clarity</span>
-              </h1>
-              <p className="mt-6 text-xl text-gray-300">
-                Get real-time insights from civic conversations across social
-                platforms and community forums.
-              </p>
-              <p className="mt-4 text-lg text-gray-400">
-                Is your community actually for or against your initiative?
-              </p>
-              <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                <Link
-                  href="/signup"
-                  className="rounded-md bg-white px-8 py-3 text-center text-base font-semibold text-gray-900 shadow-sm hover:bg-gray-100"
-                  data-testid="hero-cta-signup"
-                >
-                  Try for free
-                </Link>
-                <Link
-                  href="/login"
-                  className="rounded-md border-2 border-white px-8 py-3 text-center text-base font-semibold text-white hover:bg-white hover:text-gray-900"
-                >
-                  Log in
-                </Link>
-              </div>
+      <section className="relative min-h-screen overflow-hidden pt-20">
+        {/* Floating Cards */}
+        <div
+          className="absolute left-[10%] top-[15%] hidden w-64 rounded-2xl bg-navy-secondary p-4 shadow-2xl lg:block"
+          style={{ transform: "translateY(0px)" }}
+          data-parallax="0.3"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-accent-blue/20" />
+            <div>
+              <div className="text-sm font-medium text-white">@user_handle</div>
+              <div className="text-xs text-gray-400">2h ago</div>
             </div>
-            <div className="relative hidden lg:block">
-              <div className="absolute right-0 top-0 h-96 w-96 rounded-2xl bg-gradient-to-br from-coral-500 to-teal-500 opacity-20 blur-3xl" />
-              <div className="relative space-y-4">
-                <div className="rounded-xl bg-gray-800 p-6 shadow-2xl">
-                  <div className="h-48 rounded-lg bg-gradient-to-br from-gray-700 to-gray-600" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="h-32 rounded-xl bg-gray-800" />
-                  <div className="h-32 rounded-xl bg-gray-800" />
-                </div>
-              </div>
+          </div>
+          <p className="mt-3 text-sm text-gray-300">
+            This civic initiative would really help our community...
+          </p>
+          <div className="mt-2 flex gap-2">
+            <span className="rounded bg-navy-border px-2 py-1 text-xs text-gray-400">
+              Reddit
+            </span>
+          </div>
+        </div>
+
+        <div
+          className="absolute right-[8%] top-[20%] hidden w-72 rounded-2xl bg-navy-secondary p-4 shadow-2xl lg:block"
+          data-parallax="0.4"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-accent-blue/20" />
+            <div>
+              <div className="text-sm font-medium text-white">Community Member</div>
+              <div className="text-xs text-gray-400">5m ago</div>
             </div>
+          </div>
+          <p className="mt-3 text-sm text-gray-300">
+            I&apos;m concerned about the impact on local businesses...
+          </p>
+          <div className="mt-2 flex gap-2">
+            <span className="rounded bg-navy-border px-2 py-1 text-xs text-gray-400">
+              X
+            </span>
+          </div>
+        </div>
+
+        <div
+          className="absolute bottom-[25%] right-[12%] hidden w-64 rounded-2xl bg-navy-secondary p-4 shadow-2xl lg:block"
+          data-parallax="0.35"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-accent-blue/20" />
+            <div>
+              <div className="text-sm font-medium text-white">Civic Leader</div>
+              <div className="text-xs text-gray-400">1d ago</div>
+            </div>
+          </div>
+          <p className="mt-3 text-sm text-gray-300">
+            We need more transparency in this process...
+          </p>
+          <div className="mt-2 flex gap-2">
+            <span className="rounded bg-navy-border px-2 py-1 text-xs text-gray-400">
+              LinkedIn
+            </span>
+          </div>
+        </div>
+
+        {/* Center Content */}
+        <div className="relative mx-auto max-w-4xl px-4 py-32 text-center sm:px-6 lg:px-8">
+          {/* Badge Row */}
+          <div className="mb-8 flex flex-wrap justify-center gap-3">
+            <span className="rounded-full border border-navy-border bg-navy-dark px-4 py-1.5 text-xs text-gray-300">
+              Featured Tool
+            </span>
+            <span className="rounded-full border border-navy-border bg-navy-dark px-4 py-1.5 text-xs text-gray-300">
+              Civic Partner
+            </span>
+            <span className="rounded-full border border-navy-border bg-navy-dark px-4 py-1.5 text-xs text-gray-300">
+              Innovation Award
+            </span>
+          </div>
+
+          {/* Headline */}
+          <h1 className="text-5xl font-bold leading-tight text-white sm:text-6xl lg:text-7xl">
+            Research Social Media Conversations for
+          </h1>
+
+          {/* Typewriter */}
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <span
+              className="text-4xl font-bold text-accent-blue sm:text-5xl lg:text-6xl"
+              data-testid="typewriter-text"
+            >
+              {typewriterText}
+            </span>
+            <span className="inline-block h-12 w-1 animate-blink bg-accent-blue sm:h-14 lg:h-16" />
+          </div>
+
+          {/* Subtitle */}
+          <p className="mt-8 text-lg text-gray-300 sm:text-xl">
+            Understand what your community truly thinks. Analyze conversations
+            across Reddit, X, TikTok, and more to uncover real insights that
+            drive better decisions.
+          </p>
+
+          {/* CTA */}
+          <div className="mt-10">
+            <Link
+              href="/signup"
+              className="inline-block rounded-full bg-white px-10 py-4 text-base font-semibold text-navy shadow-lg transition hover:bg-gray-100"
+              data-testid="hero-cta"
+            >
+              Try for free
+            </Link>
+          </div>
+
+          {/* Platform Badges */}
+          <div className="mt-12 flex flex-wrap justify-center gap-4">
+            {["Reddit", "X", "TikTok", "Instagram", "LinkedIn", "YouTube"].map(
+              (platform) => (
+                <div
+                  key={platform}
+                  className="flex items-center gap-2 rounded-lg border border-navy-border bg-navy-dark px-4 py-2"
+                >
+                  <div className="h-5 w-5 rounded bg-accent-blue/20" />
+                  <span className="text-sm text-gray-400">{platform}</span>
+                </div>
+              )
+            )}
           </div>
         </div>
       </section>
 
-      {/* Trust & Credibility */}
-      <section className="border-b bg-white py-12">
+      {/* Social Proof */}
+      <section className="border-y border-navy-border bg-navy-dark py-16">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm font-medium text-gray-500">
-            Used by founders, marketers, and civic leaders from
+          <p className="text-center text-sm font-medium text-gray-400">
+            Trusted by teams exploring civic sentiment
           </p>
-          <div className="mt-8 grid grid-cols-2 gap-8 md:grid-cols-4 lg:grid-cols-4">
+          <div className="mt-10 grid grid-cols-2 gap-8 md:grid-cols-5">
             {[
-              "Civic Org",
-              "Tech Nonprofit",
-              "Policy Lab",
-              "Community Fund",
-              "Product Hunt",
-              "Civic Tech",
-              "Partner",
-              "StartupHub",
-            ].map((name) => (
+              "Org A",
+              "Org B",
+              "Org C",
+              "Org D",
+              "Org E",
+              "Org F",
+              "Org G",
+              "Org H",
+              "Org I",
+              "Org J",
+            ].map((name, i) => (
               <div
-                key={name}
-                className="col-span-1 flex justify-center rounded-lg bg-gray-50 p-4"
+                key={i}
+                className="flex items-center justify-center rounded-lg bg-navy-secondary p-4"
               >
-                <div className="text-center text-sm font-medium text-gray-400">
+                <div className="text-center text-sm font-medium text-gray-500">
                   {name}
                 </div>
               </div>
@@ -85,139 +213,70 @@ export default function Home() {
       {/* Use Cases */}
       <section className="bg-gray-50 py-24" data-testid="use-cases-section">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Build insights that resonate with your community
-            </h2>
+          <div className="mb-4 text-center text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Use cases
           </div>
-          <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+          <h2 className="text-center text-4xl font-bold text-gray-900 sm:text-5xl">
+            Build narratives that resonate
+          </h2>
+          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {[
               {
-                title: "Startup Founders",
-                subtitle: "Market Validation",
-                description:
-                  "Understand if your civic product or idea resonates before launch.",
-                metric: "304k conversations analyzed",
+                title: "Analyze conversations",
+                description: "Deep-dive into community discussions and sentiment",
+                metric: "10k+ analyzed",
               },
               {
-                title: "Marketers",
-                subtitle: "Audience Intelligence",
-                description:
-                  "Segment civic-minded audiences by values, interests, and engagement.",
-                metric: "16.7k engagements tracked",
+                title: "Synthetic audiences",
+                description: "Segment and understand audience demographics",
+                metric: "89% accuracy",
               },
               {
-                title: "Civic Leaders",
-                subtitle: "Policy Sensing",
-                description:
-                  "Identify community needs and sentiment around initiatives.",
-                metric: "89% sentiment accuracy",
+                title: "Market insights",
+                description: "Discover unmet needs and pain points",
+                metric: "304k insights",
               },
-            ].map((useCase) => (
+              {
+                title: "Competitor research",
+                description: "Track what people say about alternatives",
+                metric: "Real-time",
+              },
+              {
+                title: "Track narratives",
+                description: "Follow evolving stories and themes",
+                metric: "Live updates",
+              },
+              {
+                title: "Go beyond sentiment",
+                description: "Understand nuanced emotions and context",
+                metric: "12 emotions",
+              },
+              {
+                title: "Engage communities",
+                description: "AI-powered reply drafts for authentic engagement",
+                metric: "Beta",
+              },
+              {
+                title: "Export insights",
+                description: "Share findings with your team seamlessly",
+                metric: "CSV, PDF",
+              },
+            ].map((useCase, i) => (
               <div
-                key={useCase.title}
-                className="rounded-2xl bg-white p-8 shadow-lg"
+                key={i}
+                className="rounded-2xl bg-white p-6 shadow-md transition hover:scale-105 hover:shadow-xl"
                 data-testid="use-case-card"
               >
-                <h3 className="text-xl font-bold text-gray-900">
+                <h3 className="text-lg font-bold text-gray-900">
                   {useCase.title}
                 </h3>
-                <p className="mt-1 text-sm font-medium text-coral-600">
-                  {useCase.subtitle}
+                <p className="mt-2 text-sm text-gray-600">
+                  {useCase.description}
                 </p>
-                <p className="mt-4 text-gray-600">{useCase.description}</p>
-                <div className="mt-6 h-32 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50" />
-                <p className="mt-4 text-sm font-medium text-gray-500">
+                <div className="mt-4 h-16 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50" />
+                <div className="mt-3 text-xs font-medium text-accent-blue">
                   {useCase.metric}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Core Features */}
-      <section className="bg-white py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="grid gap-16 lg:grid-cols-2">
-            {[
-              {
-                title: "Market Insights & Needs Detection",
-                subtitle: "Analyze what people are actually saying",
-                description:
-                  "Uncover pain points and unmet needs from real conversations.",
-              },
-              {
-                title: "Audience Segmentation",
-                subtitle: "Understand who cares about what",
-                description:
-                  "Segment audiences by demographics, interests, and engagement patterns.",
-              },
-              {
-                title: "Sentiment & Emotion Analysis",
-                subtitle: "Go beyond positive vs negative",
-                description:
-                  "Track nuanced emotions like fear, surprise, and hope in community discourse.",
-              },
-              {
-                title: "Narrative Tracking",
-                subtitle: "Monitor stories that matter",
-                description:
-                  "Follow evolving narratives and trending topics in real-time.",
-              },
-            ].map((feature) => (
-              <div key={feature.title} className="flex flex-col">
-                <h3 className="text-2xl font-bold text-gray-900">
-                  {feature.title}
-                </h3>
-                <p className="mt-2 text-lg font-medium text-teal-600">
-                  {feature.subtitle}
-                </p>
-                <p className="mt-4 text-gray-600">{feature.description}</p>
-                <div className="mt-6 h-48 rounded-xl bg-gradient-to-br from-gray-100 to-gray-50 shadow-inner" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="bg-gray-50 py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              How It Works
-            </h2>
-          </div>
-          <div className="mt-16 grid gap-12 md:grid-cols-3">
-            {[
-              {
-                step: "1",
-                title: "Search a topic or community",
-                description:
-                  "Enter keywords, hashtags, or select specific communities to analyze.",
-              },
-              {
-                step: "2",
-                title: "Analyze conversations",
-                description:
-                  "Our AI processes thousands of discussions to extract meaningful patterns.",
-              },
-              {
-                step: "3",
-                title: "Get actionable insights",
-                description:
-                  "Receive clear reports with verified quotes and data-driven recommendations.",
-              },
-            ].map((step) => (
-              <div key={step.step} className="text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-coral-500 text-2xl font-bold text-white">
-                  {step.step}
                 </div>
-                <h3 className="mt-6 text-xl font-bold text-gray-900">
-                  {step.title}
-                </h3>
-                <p className="mt-4 text-gray-600">{step.description}</p>
               </div>
             ))}
           </div>
@@ -225,44 +284,45 @@ export default function Home() {
       </section>
 
       {/* Testimonials */}
-      <section className="bg-gray-900 py-24 text-white">
+      <section className="bg-navy py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              People say
-            </h2>
+          <div className="mb-4 text-center text-sm font-semibold uppercase tracking-wide text-gray-500">
+            People say
           </div>
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
+          <div className="mt-12 grid gap-8 md:grid-cols-3">
             {[
               {
                 quote:
-                  "Civic Voices helped us validate our product direction before investing in development. The insights were invaluable.",
-                name: "Sarah Chen",
-                title: "Founder",
-                org: "Community Platform",
+                  "Civic Voices helped us understand community sentiment before launching our initiative. The insights were invaluable.",
+                name: "Alex Rivera",
+                title: "Community Organizer",
+                org: "Local Impact Fund",
               },
               {
                 quote:
-                  "We reduced our campaign research time by 70% and increased engagement by understanding what truly matters to our audience.",
-                name: "Marcus Johnson",
-                title: "Marketing Director",
-                org: "Social Impact Org",
+                  "We reduced our research time by 70% and made better decisions by understanding what truly matters to our audience.",
+                name: "Jordan Lee",
+                title: "Strategy Director",
+                org: "Policy Lab",
               },
               {
                 quote:
-                  "Finally, a tool that helps us understand community sentiment on policy initiatives in real-time.",
-                name: "Dr. Aisha Patel",
-                title: "Policy Director",
-                org: "City Council",
+                  "Finally, a tool that helps us track community conversations in real-time across multiple platforms.",
+                name: "Sam Chen",
+                title: "Research Lead",
+                org: "Civic Tech Collective",
               },
             ].map((testimonial, i) => (
               <div
                 key={i}
-                className="rounded-2xl bg-gray-800 p-8 shadow-xl"
+                className="rounded-2xl bg-navy-secondary p-8 shadow-xl"
+                data-testid="testimonial-card"
               >
-                <p className="text-lg text-gray-300">&ldquo;{testimonial.quote}&rdquo;</p>
+                <p className="text-base text-gray-300">
+                  &ldquo;{testimonial.quote}&rdquo;
+                </p>
                 <div className="mt-6">
-                  <p className="font-bold">{testimonial.name}</p>
+                  <p className="font-bold text-accent-blue">{testimonial.name}</p>
                   <p className="text-sm text-gray-400">
                     {testimonial.title}, {testimonial.org}
                   </p>
@@ -273,185 +333,302 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Pricing */}
+      {/* Sample Reports */}
+      <section className="border-y border-navy-border bg-navy-dark py-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 className="text-center text-4xl font-bold text-white sm:text-5xl">
+            Discover what your community is saying
+          </h2>
+
+          {/* Platform Filter Pills */}
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            {["Reddit", "TikTok", "YouTube", "Instagram", "X", "LinkedIn"].map(
+              (platform) => (
+                <button
+                  key={platform}
+                  className="rounded-full border border-navy-border bg-navy px-5 py-2 text-sm font-medium text-gray-300 transition hover:bg-navy-secondary"
+                >
+                  {platform}
+                </button>
+              )
+            )}
+          </div>
+
+          {/* Horizontal Scroll Carousel */}
+          <div className="mt-12 overflow-x-auto pb-4">
+            <div className="flex gap-6">
+              {[
+                {
+                  title: "Community Housing Initiative Discussion",
+                  views: "12.4k",
+                  platform: "Reddit",
+                },
+                {
+                  title: "Local Transportation Sentiment",
+                  views: "8.9k",
+                  platform: "X",
+                },
+                {
+                  title: "Education Policy Reactions",
+                  views: "15.2k",
+                  platform: "TikTok",
+                },
+                {
+                  title: "Environmental Concerns Thread",
+                  views: "6.7k",
+                  platform: "Reddit",
+                },
+                {
+                  title: "Economic Development Feedback",
+                  views: "9.3k",
+                  platform: "LinkedIn",
+                },
+                {
+                  title: "Public Health Initiative Commentary",
+                  views: "11.8k",
+                  platform: "YouTube",
+                },
+                {
+                  title: "Safety Measures Discussion",
+                  views: "7.1k",
+                  platform: "Instagram",
+                },
+                {
+                  title: "Community Events Engagement",
+                  views: "5.4k",
+                  platform: "X",
+                },
+              ].map((report, i) => (
+                <div
+                  key={i}
+                  className="min-w-[280px] rounded-2xl bg-navy p-6 shadow-lg"
+                >
+                  <div className="mb-3 inline-block rounded bg-navy-border px-3 py-1 text-xs text-gray-400">
+                    {report.platform}
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">
+                    {report.title}
+                  </h3>
+                  <div className="mt-4 text-sm text-gray-400">
+                    {report.views} views (example)
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* AI Chat Strip */}
+      <section className="border-b border-navy-border bg-navy py-16">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3 rounded-2xl border border-navy-border bg-navy-dark p-4">
+            <input
+              type="text"
+              placeholder="Ask anything..."
+              className="flex-1 bg-transparent text-white placeholder-gray-500 outline-none"
+              disabled
+            />
+            <button className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-blue text-white transition hover:bg-accent-blue/80">
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M14 5l7 7m0 0l-7 7m7-7H3"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
       <section className="bg-gray-50 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-              Simple, transparent pricing
-            </h2>
+          <div className="mb-4 text-center text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Features
           </div>
-          <div className="mt-16 grid gap-8 md:grid-cols-3">
+          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              {
-                name: "Free",
-                price: "$0",
-                features: [
-                  "100 conversations/month",
-                  "Basic sentiment analysis",
-                  "Community access",
-                ],
-              },
-              {
-                name: "Pro",
-                price: "$49",
-                features: [
-                  "10k conversations/month",
-                  "Advanced analytics",
-                  "Export reports",
-                  "API access",
-                ],
-                highlighted: true,
-              },
-              {
-                name: "Team",
-                price: "$199",
-                features: [
-                  "Unlimited conversations",
-                  "Team collaboration",
-                  "Priority support",
-                  "Custom integrations",
-                ],
-              },
-            ].map((plan) => (
-              <div
-                key={plan.name}
-                className={`rounded-2xl p-8 ${
-                  plan.highlighted
-                    ? "bg-gray-900 text-white shadow-2xl"
-                    : "bg-white shadow-lg"
-                }`}
-              >
-                <h3 className="text-2xl font-bold">{plan.name}</h3>
-                <p className="mt-4 flex items-baseline">
-                  <span className="text-5xl font-bold">{plan.price}</span>
-                  <span className="ml-2 text-gray-500">/month</span>
-                </p>
-                <ul className="mt-8 space-y-4">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex items-center gap-3">
-                      <svg
-                        className="h-5 w-5 text-teal-500"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/signup"
-                  className={`mt-8 block rounded-md px-6 py-3 text-center font-semibold ${
-                    plan.highlighted
-                      ? "bg-white text-gray-900 hover:bg-gray-100"
-                      : "bg-gray-900 text-white hover:bg-gray-700"
-                  }`}
+              "AI-first conversation analysis",
+              "Multi-platform ready architecture",
+              "Analyze by keyword or link",
+              "Localize by language",
+              "Export insights to CSV/PDF",
+              "Narrative watchlists",
+              "Sentiment trend tracking",
+              "Custom date range filtering",
+              "Team collaboration",
+              "Real-time updates",
+              "Verified quote extraction",
+              "Privacy-focused design",
+            ].map((feature, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <svg
+                  className="mt-1 h-5 w-5 flex-shrink-0 text-accent-blue"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  Get started
-                </Link>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span className="text-gray-900">{feature}</span>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section
-        className="bg-gray-900 py-24 text-white"
-        data-testid="final-cta-section"
-      >
+      {/* Mid-page CTA */}
+      <section className="bg-navy py-24">
         <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            Ready to understand your community better?
+          <h2 className="text-4xl font-bold text-white sm:text-5xl">
+            Start understanding your community today
           </h2>
           <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
             <Link
               href="/signup"
-              className="rounded-md bg-white px-8 py-3 text-center text-base font-semibold text-gray-900 shadow-sm hover:bg-gray-100"
-              data-testid="final-cta-signup"
+              className="rounded-full bg-white px-10 py-4 text-base font-semibold text-navy transition hover:bg-gray-100"
             >
               Try for free
             </Link>
-            <button className="rounded-md border-2 border-white px-8 py-3 text-base font-semibold text-white hover:bg-white hover:text-gray-900">
-              Schedule a demo
+            <button className="rounded-full border-2 border-white px-10 py-4 text-base font-semibold text-white transition hover:bg-white hover:text-navy">
+              Book a demo
             </button>
           </div>
-          <p className="mt-6 text-sm text-gray-400">
-            No credit card required. See results in minutes.
+          <p className="mt-6 text-sm text-gray-400">Cancel anytime</p>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="bg-navy-dark py-24">
+        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
+          <h2 className="text-4xl font-bold text-white sm:text-5xl">
+            Turn conversations into winning strategies
+          </h2>
+          <p className="mt-6 text-lg text-gray-300">
+            Join teams using Civic Voices to make data-driven decisions based on
+            real community insights.
           </p>
+          <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
+            <Link
+              href="/signup"
+              className="rounded-full bg-white px-10 py-4 text-base font-semibold text-navy transition hover:bg-gray-100"
+              data-testid="final-cta"
+            >
+              Try for free
+            </Link>
+            <button className="rounded-full border-2 border-white px-10 py-4 text-base font-semibold text-white transition hover:bg-white hover:text-navy">
+              Book a demo
+            </button>
+          </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400">
-        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+      <footer className="border-t border-navy-border bg-navy-secondary text-gray-400">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="grid gap-12 md:grid-cols-3">
             <div>
-              <h3 className="text-lg font-bold text-white">Civic Voices</h3>
-              <p className="mt-4 text-sm">
-                Turn community insight chaos into clarity.
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold text-white">Product</h4>
-              <ul className="mt-4 space-y-2 text-sm">
+              <h3 className="text-lg font-bold text-white">About</h3>
+              <ul className="mt-4 space-y-3 text-sm">
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    Features
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Our Story
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    Pricing
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Team
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    Docs
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Careers
                   </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-white">Company</h4>
-              <ul className="mt-4 space-y-2 text-sm">
+              <h4 className="text-lg font-bold text-white">Contact</h4>
+              <ul className="mt-4 space-y-3 text-sm">
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    About
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Support
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    Contact
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Documentation
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Contact Us
                   </Link>
                 </li>
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold text-white">Legal</h4>
-              <ul className="mt-4 space-y-2 text-sm">
+              <h4 className="text-lg font-bold text-white">Legal</h4>
+              <ul className="mt-4 space-y-3 text-sm">
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    Privacy
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Privacy Policy
                   </Link>
                 </li>
                 <li>
-                  <Link href="#" className="hover:text-white">
-                    Terms
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Terms of Service
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="#"
+                    className="transition hover:text-accent-blue"
+                  >
+                    Cookie Policy
                   </Link>
                 </li>
               </ul>
             </div>
           </div>
-          <div className="mt-8 border-t border-gray-800 pt-8 text-center text-sm">
+          <div className="mt-12 border-t border-navy-border pt-8 text-center text-sm">
             <p>&copy; 2025 Civic Voices. All rights reserved.</p>
           </div>
         </div>

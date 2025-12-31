@@ -3,80 +3,84 @@ import { render, screen } from "@testing-library/react";
 import Home from "./page";
 
 describe("Landing Page", () => {
-  it("renders hero headline and primary CTA", () => {
+  it("renders hero headline and typewriter text and primary CTA", () => {
     render(<Home />);
 
-    // Check for hero headline (using getAllByText since it appears in footer too)
-    const headlines = screen.getAllByText(/Turn community insight chaos/i);
-    expect(headlines.length).toBeGreaterThan(0);
-    expect(headlines[0]).toBeInTheDocument();
+    // Check for hero headline
+    expect(
+      screen.getByText(/Research Social Media Conversations for/i)
+    ).toBeInTheDocument();
 
-    const clarityText = screen.getAllByText(/into clarity/i);
-    expect(clarityText.length).toBeGreaterThan(0);
+    // Check for typewriter text (should show initial word "Pains")
+    const typewriterText = screen.getByTestId("typewriter-text");
+    expect(typewriterText).toBeInTheDocument();
+    expect(typewriterText).toHaveTextContent("Pains");
 
     // Check for primary CTA
-    const ctaButtons = screen.getAllByText(/Try for free/i);
-    expect(ctaButtons.length).toBeGreaterThan(0);
-    expect(ctaButtons[0]).toBeInTheDocument();
+    const heroCTA = screen.getByTestId("hero-cta");
+    expect(heroCTA).toBeInTheDocument();
+    expect(heroCTA).toHaveTextContent(/Try for free/i);
   });
 
-  it("renders use cases section with 3+ cards", () => {
+  it("renders nav with Log in and Try for free buttons", () => {
+    render(<Home />);
+
+    // Check for nav buttons
+    const loginButton = screen.getByTestId("nav-login");
+    expect(loginButton).toBeInTheDocument();
+    expect(loginButton).toHaveTextContent(/Log in/i);
+
+    const signupButton = screen.getByTestId("nav-signup");
+    expect(signupButton).toBeInTheDocument();
+    expect(signupButton).toHaveTextContent(/Try for free/i);
+  });
+
+  it("renders use cases section with at least 6 cards", () => {
     render(<Home />);
 
     // Check for use cases section
-    expect(screen.getByText(/Build insights that resonate with your community/i)).toBeInTheDocument();
+    const useCasesSection = screen.getByTestId("use-cases-section");
+    expect(useCasesSection).toBeInTheDocument();
 
-    // Check for use case cards (should have at least 3)
+    // Check for heading
+    expect(
+      screen.getByText(/Build narratives that resonate/i)
+    ).toBeInTheDocument();
+
+    // Check for use case cards (should have at least 6)
     const useCaseCards = screen.getAllByTestId("use-case-card");
-    expect(useCaseCards.length).toBeGreaterThanOrEqual(3);
+    expect(useCaseCards.length).toBeGreaterThanOrEqual(6);
 
-    // Verify specific use cases (using getAllByText since terms may appear elsewhere)
-    expect(screen.getAllByText(/Startup Founders/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Marketers/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Civic Leaders/i).length).toBeGreaterThan(0);
+    // Verify some specific use cases (using getAllByText since text may appear in hero too)
+    expect(screen.getAllByText(/Analyze conversations/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Synthetic audiences/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Market insights/i).length).toBeGreaterThan(0);
+  });
+
+  it("renders testimonials section with 3 cards", () => {
+    render(<Home />);
+
+    // Check for testimonials
+    const testimonialCards = screen.getAllByTestId("testimonial-card");
+    expect(testimonialCards.length).toBe(3);
+
+    // Verify testimonial content
+    expect(
+      screen.getByText(/helped us understand community sentiment/i)
+    ).toBeInTheDocument();
   });
 
   it("renders final CTA section", () => {
     render(<Home />);
 
-    // Check for final CTA section
-    expect(screen.getByText(/Ready to understand your community better\?/i)).toBeInTheDocument();
+    // Check for final CTA heading
+    expect(
+      screen.getByText(/Turn conversations into winning strategies/i)
+    ).toBeInTheDocument();
 
-    // Check for CTA button in final section
-    const finalCTA = screen.getByTestId("final-cta-signup");
+    // Check for final CTA button
+    const finalCTA = screen.getByTestId("final-cta");
     expect(finalCTA).toBeInTheDocument();
     expect(finalCTA).toHaveTextContent(/Try for free/i);
-
-    // Check for supporting text
-    expect(screen.getByText(/No credit card required\. See results in minutes\./i)).toBeInTheDocument();
-  });
-
-  it("renders all major sections", () => {
-    render(<Home />);
-
-    // Hero (using getAllByText since it appears in footer too)
-    const headlines = screen.getAllByText(/Turn community insight chaos/i);
-    expect(headlines.length).toBeGreaterThan(0);
-
-    // Trust & Credibility
-    expect(screen.getByText(/Used by founders, marketers, and civic leaders from/i)).toBeInTheDocument();
-
-    // Use Cases
-    expect(screen.getByText(/Build insights that resonate with your community/i)).toBeInTheDocument();
-
-    // Features
-    expect(screen.getByText(/Market Insights & Needs Detection/i)).toBeInTheDocument();
-
-    // How It Works
-    expect(screen.getByText(/How It Works/i)).toBeInTheDocument();
-
-    // Testimonials
-    expect(screen.getByText(/People say/i)).toBeInTheDocument();
-
-    // Pricing
-    expect(screen.getByText(/Simple, transparent pricing/i)).toBeInTheDocument();
-
-    // Footer
-    expect(screen.getByText(/© 2025 Civic Voices. All rights reserved./i)).toBeInTheDocument();
   });
 });
