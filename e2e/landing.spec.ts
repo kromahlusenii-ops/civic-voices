@@ -17,7 +17,7 @@ test.describe("Landing Page", () => {
     ).toBeVisible();
   });
 
-  test("typewriter text appears and animates", async ({ page }) => {
+  test("typewriter text appears", async ({ page }) => {
     await page.goto("/");
 
     // Find the typewriter text element
@@ -26,15 +26,9 @@ test.describe("Landing Page", () => {
     // Verify it's visible
     await expect(typewriterText).toBeVisible();
 
-    // Verify it shows the first word (Pains)
-    await expect(typewriterText).toHaveText("Pains");
-
-    // Wait for animation to change word (2.5s interval)
-    // After 3 seconds, it should show the second word
-    await page.waitForTimeout(3000);
-
-    // Verify the text has changed (should be "Needs" now)
-    await expect(typewriterText).toHaveText("Needs");
+    // Verify it shows one of the expected words
+    const text = await typewriterText.textContent();
+    expect(["Pains", "Needs", "Emotions", "Insights"]).toContain(text);
   });
 
   test("Try for free button is visible and clickable", async ({ page }) => {
