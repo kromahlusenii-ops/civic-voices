@@ -34,16 +34,15 @@ describe("Research Dashboard", () => {
     expect(searchInput).toBeInTheDocument();
     expect(searchInput).toHaveAttribute(
       "placeholder",
-      "Search an issue, candidate, or ballot measure"
+      "Search a topic or paste a URL"
     );
 
     // Check start research button
     const startBtn = screen.getByTestId("start-research-btn");
     expect(startBtn).toBeInTheDocument();
-    expect(startBtn).toHaveTextContent("Start Research");
   });
 
-  it("renders source chips with Reddit and at least 3 others", () => {
+  it("renders filter chips for source, time, and location", () => {
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: null,
       status: "unauthenticated",
@@ -51,22 +50,20 @@ describe("Research Dashboard", () => {
 
     render(<ResearchDashboard />);
 
-    // Check Reddit chip
-    const redditChip = screen.getByTestId("source-chip-reddit");
-    expect(redditChip).toBeInTheDocument();
-    expect(redditChip).toHaveTextContent("Reddit");
+    // Check filter chips exist
+    const sourceChip = screen.getByTestId("source-filter-chip");
+    const timeChip = screen.getByTestId("time-filter-chip");
+    const locationChip = screen.getByTestId("location-filter-chip");
 
-    // Check other chips exist
-    const tiktokChip = screen.getByTestId("source-chip-tiktok");
-    const instagramChip = screen.getByTestId("source-chip-instagram");
-    const xChip = screen.getByTestId("source-chip-x");
-
-    expect(tiktokChip).toBeInTheDocument();
-    expect(instagramChip).toBeInTheDocument();
-    expect(xChip).toBeInTheDocument();
+    expect(sourceChip).toBeInTheDocument();
+    expect(sourceChip).toHaveTextContent("Reddit");
+    expect(timeChip).toBeInTheDocument();
+    expect(timeChip).toHaveTextContent("Last 3 months");
+    expect(locationChip).toBeInTheDocument();
+    expect(locationChip).toHaveTextContent("All regions");
   });
 
-  it("toggling source chips updates selected state", () => {
+  it("clicking source filter chip opens dropdown with all sources", () => {
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: null,
       status: "unauthenticated",
@@ -74,29 +71,22 @@ describe("Research Dashboard", () => {
 
     render(<ResearchDashboard />);
 
-    const redditChip = screen.getByTestId("source-chip-reddit");
-    const tiktokChip = screen.getByTestId("source-chip-tiktok");
+    const sourceChip = screen.getByTestId("source-filter-chip");
 
-    // Reddit should be selected by default
-    expect(redditChip).toHaveClass("border-accent-blue");
-    expect(redditChip).toHaveClass("bg-accent-blue");
+    // Dropdown should not be visible initially
+    expect(screen.queryByTestId("source-option-reddit")).not.toBeInTheDocument();
 
-    // TikTok should not be selected
-    expect(tiktokChip).toHaveClass("border-gray-300");
-    expect(tiktokChip).toHaveClass("bg-white");
+    // Click to open dropdown
+    fireEvent.click(sourceChip);
 
-    // Click TikTok to select it
-    fireEvent.click(tiktokChip);
-    expect(tiktokChip).toHaveClass("border-accent-blue");
-    expect(tiktokChip).toHaveClass("bg-accent-blue");
-
-    // Click Reddit to deselect it
-    fireEvent.click(redditChip);
-    expect(redditChip).toHaveClass("border-gray-300");
-    expect(redditChip).toHaveClass("bg-white");
+    // Check all source options are now visible
+    expect(screen.getByTestId("source-option-reddit")).toBeInTheDocument();
+    expect(screen.getByTestId("source-option-tiktok")).toBeInTheDocument();
+    expect(screen.getByTestId("source-option-instagram")).toBeInTheDocument();
+    expect(screen.getByTestId("source-option-x")).toBeInTheDocument();
   });
 
-  it("non-Reddit chip shows coming soon indicator on hover", () => {
+  it("toggling sources in dropdown updates selection", () => {
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: null,
       status: "unauthenticated",
@@ -104,19 +94,42 @@ describe("Research Dashboard", () => {
 
     render(<ResearchDashboard />);
 
-    const tiktokChip = screen.getByTestId("source-chip-tiktok");
+    const sourceChip = screen.getByTestId("source-filter-chip");
 
-    // Hover over TikTok chip
-    fireEvent.mouseEnter(tiktokChip);
+    // Open dropdown
+    fireEvent.click(sourceChip);
 
-    // Coming soon tooltip should appear
-    const tooltip = screen.getByTestId("coming-soon-tiktok");
-    expect(tooltip).toBeInTheDocument();
-    expect(tooltip).toHaveTextContent("Coming soon");
+    const redditOption = screen.getByTestId("source-option-reddit");
 
-    // Mouse leave should hide tooltip
-    fireEvent.mouseLeave(tiktokChip);
-    expect(screen.queryByTestId("coming-soon-tiktok")).not.toBeInTheDocument();
+    // Reddit should be selected by default (has checkmark)
+    expect(redditOption.querySelector("svg")).toBeInTheDocument();
+
+    // Click Reddit to deselect
+    fireEvent.click(redditOption);
+
+    // Chip label should update
+    fireEvent.click(sourceChip); // Reopen to check
+    expect(screen.getByTestId("source-filter-chip")).toHaveTextContent("Select source");
+  });
+
+  it("disabled sources show 'Coming soon' label", () => {
+    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
+
+    render(<ResearchDashboard />);
+
+    const sourceChip = screen.getByTestId("source-filter-chip");
+
+    // Open dropdown
+    fireEvent.click(sourceChip);
+
+    const tiktokOption = screen.getByTestId("source-option-tiktok");
+
+    // TikTok should show "Coming soon"
+    expect(tiktokOption).toHaveTextContent("Coming soon");
+    expect(tiktokOption).toBeDisabled();
   });
 
   it("renders greeting without name when user has no name", () => {
@@ -154,11 +167,53 @@ describe("Research Dashboard", () => {
     // Should be enabled now (has query and Reddit is selected by default)
     expect(startBtn).not.toBeDisabled();
 
-    // Deselect all sources
-    const redditChip = screen.getByTestId("source-chip-reddit");
-    fireEvent.click(redditChip);
+    // Open source dropdown and deselect Reddit
+    const sourceChip = screen.getByTestId("source-filter-chip");
+    fireEvent.click(sourceChip);
+    const redditOption = screen.getByTestId("source-option-reddit");
+    fireEvent.click(redditOption);
 
     // Should be disabled again (no sources selected)
     expect(startBtn).toBeDisabled();
+  });
+
+  it("clicking time filter chip opens dropdown", () => {
+    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
+
+    render(<ResearchDashboard />);
+
+    const timeChip = screen.getByTestId("time-filter-chip");
+
+    // Click to open dropdown
+    fireEvent.click(timeChip);
+
+    // Check time options are visible
+    expect(screen.getByTestId("time-option-7d")).toBeInTheDocument();
+    expect(screen.getByTestId("time-option-30d")).toBeInTheDocument();
+    expect(screen.getByTestId("time-option-3m")).toBeInTheDocument();
+    expect(screen.getByTestId("time-option-12m")).toBeInTheDocument();
+  });
+
+  it("clicking location filter chip opens dropdown", () => {
+    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
+
+    render(<ResearchDashboard />);
+
+    const locationChip = screen.getByTestId("location-filter-chip");
+
+    // Click to open dropdown
+    fireEvent.click(locationChip);
+
+    // Check location options are visible
+    expect(screen.getByTestId("location-option-all")).toBeInTheDocument();
+    expect(screen.getByTestId("location-option-us")).toBeInTheDocument();
+    expect(screen.getByTestId("location-option-nc")).toBeInTheDocument();
+    expect(screen.getByTestId("location-option-dc")).toBeInTheDocument();
   });
 });

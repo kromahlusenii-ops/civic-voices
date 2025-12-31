@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 const SOURCES = [
@@ -37,10 +37,36 @@ export default function ResearchDashboard() {
   const [timeFilter, setTimeFilter] = useState("3m");
   const [locationFilter, setLocationFilter] = useState("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [hoveredSource, setHoveredSource] = useState<string | null>(null);
+  const [showSourceDropdown, setShowSourceDropdown] = useState(false);
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+
+  const sourceDropdownRef = useRef<HTMLDivElement>(null);
+  const timeDropdownRef = useRef<HTMLDivElement>(null);
+  const locationDropdownRef = useRef<HTMLDivElement>(null);
 
   const user = session?.user;
   const firstName = user?.name?.split(" ")[0] || "";
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(event.target as Node)) {
+        setShowSourceDropdown(false);
+      }
+      if (timeDropdownRef.current && !timeDropdownRef.current.contains(event.target as Node)) {
+        setShowTimeDropdown(false);
+      }
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
+        setShowLocationDropdown(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const toggleSource = (sourceId: string) => {
     if (selectedSources.includes(sourceId)) {
@@ -53,6 +79,24 @@ export default function ResearchDashboard() {
   const handleStartResearch = () => {
     // Placeholder for research creation
     alert("Research starting with: " + selectedSources.join(", "));
+  };
+
+  // Get display names for selected values
+  const getSourceLabel = () => {
+    if (selectedSources.length === 0) return "Select source";
+    if (selectedSources.length === 1) {
+      const source = SOURCES.find((s) => s.id === selectedSources[0]);
+      return source?.name || "Source";
+    }
+    return `${selectedSources.length} sources`;
+  };
+
+  const getTimeLabel = () => {
+    return TIME_FILTERS.find((f) => f.id === timeFilter)?.label || "Time";
+  };
+
+  const getLocationLabel = () => {
+    return LOCATION_FILTERS.find((f) => f.id === locationFilter)?.label || "Location";
   };
 
   return (
@@ -205,111 +249,241 @@ export default function ResearchDashboard() {
           </div>
 
           {/* Search module */}
-          <div className="rounded-2xl bg-white p-8 shadow-md">
-            {/* Search input */}
-            <div className="mb-6">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search an issue, candidate, or ballot measure"
-                className="w-full rounded-lg border-2 border-gray-200 px-6 py-4 text-lg transition focus:border-accent-blue focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
-                data-testid="search-input"
-              />
+          <div className="rounded-2xl bg-white p-8 shadow-sm">
+            {/* Search bar with button */}
+            <div className="mb-4 flex gap-3">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search a topic or paste a URL"
+                  className="w-full rounded-lg border border-gray-300 px-5 py-3.5 text-base transition focus:border-accent-blue focus:outline-none focus:ring-2 focus:ring-accent-blue/20"
+                  data-testid="search-input"
+                />
+              </div>
+              <button
+                onClick={handleStartResearch}
+                disabled={selectedSources.length === 0 || !searchQuery.trim()}
+                className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-accent-blue text-white transition hover:bg-accent-blue/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
+                data-testid="start-research-btn"
+                aria-label="Start research"
+              >
+                <svg
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M14 5l7 7m0 0l-7 7m7-7H3"
+                  />
+                </svg>
+              </button>
             </div>
 
-            {/* Source filter chips */}
-            <div className="mb-6">
-              <label className="mb-3 block text-sm font-semibold text-[#2C2C2C]">
-                Sources
-              </label>
-              <div className="flex flex-wrap gap-2 overflow-x-auto">
-                {SOURCES.map((source) => {
-                  const isSelected = selectedSources.includes(source.id);
-                  const isComingSoon = !source.enabled;
+            {/* Filter chips */}
+            <div className="flex flex-wrap gap-2">
+              {/* Source filter dropdown */}
+              <div className="relative" ref={sourceDropdownRef}>
+                <button
+                  onClick={() => setShowSourceDropdown(!showSourceDropdown)}
+                  className="flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
+                  data-testid="source-filter-chip"
+                >
+                  <span className="text-base">
+                    {selectedSources.includes("reddit") && "🔴"}
+                    {selectedSources.includes("tiktok") && "🎵"}
+                    {selectedSources.includes("x") && "✖️"}
+                  </span>
+                  <span>{getSourceLabel()}</span>
+                  <svg
+                    className={`h-4 w-4 transition-transform ${showSourceDropdown ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
 
-                  return (
-                    <div
-                      key={source.id}
-                      className="relative"
-                      onMouseEnter={() =>
-                        isComingSoon && setHoveredSource(source.id)
-                      }
-                      onMouseLeave={() => setHoveredSource(null)}
-                    >
-                      <button
-                        onClick={() => toggleSource(source.id)}
-                        className={`flex items-center gap-2 rounded-full border-2 px-4 py-2 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2 ${
-                          isSelected
-                            ? "border-accent-blue bg-accent-blue text-white"
-                            : "border-gray-300 bg-white text-gray-700 hover:border-accent-blue"
-                        }`}
-                        data-testid={`source-chip-${source.id}`}
-                      >
-                        <span>{source.icon}</span>
-                        <span>{source.name}</span>
-                      </button>
+                {/* Source dropdown menu */}
+                {showSourceDropdown && (
+                  <div className="absolute left-0 top-full z-10 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
+                    {SOURCES.map((source) => {
+                      const isSelected = selectedSources.includes(source.id);
+                      const isDisabled = !source.enabled;
 
-                      {/* Coming soon tooltip */}
-                      {isComingSoon && hoveredSource === source.id && (
-                        <div
-                          className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-3 py-1 text-xs text-white"
-                          data-testid={`coming-soon-${source.id}`}
+                      return (
+                        <button
+                          key={source.id}
+                          onClick={() => {
+                            if (!isDisabled) {
+                              toggleSource(source.id);
+                            }
+                          }}
+                          disabled={isDisabled}
+                          className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition ${
+                            isDisabled
+                              ? "cursor-not-allowed opacity-50"
+                              : "hover:bg-gray-50"
+                          }`}
+                          data-testid={`source-option-${source.id}`}
                         >
-                          Coming soon
-                          <div className="absolute left-1/2 top-full h-0 w-0 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                          <span className="flex items-center gap-2">
+                            <span>{source.icon}</span>
+                            <span>{source.name}</span>
+                            {isDisabled && (
+                              <span className="text-xs text-gray-400">(Coming soon)</span>
+                            )}
+                          </span>
+                          {isSelected && (
+                            <svg
+                              className="h-5 w-5 text-accent-blue"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Time filter dropdown */}
+              <div className="relative" ref={timeDropdownRef}>
+                <button
+                  onClick={() => setShowTimeDropdown(!showTimeDropdown)}
+                  className="flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
+                  data-testid="time-filter-chip"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>{getTimeLabel()}</span>
+                  <svg
+                    className={`h-4 w-4 transition-transform ${showTimeDropdown ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+
+                {/* Time dropdown menu */}
+                {showTimeDropdown && (
+                  <div className="absolute left-0 top-full z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
+                    {TIME_FILTERS.map((filter) => (
+                      <button
+                        key={filter.id}
+                        onClick={() => {
+                          setTimeFilter(filter.id);
+                          setShowTimeDropdown(false);
+                        }}
+                        className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-gray-50"
+                        data-testid={`time-option-${filter.id}`}
+                      >
+                        <span>{filter.label}</span>
+                        {timeFilter === filter.id && (
+                          <svg
+                            className="h-5 w-5 text-accent-blue"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Location filter dropdown */}
+              <div className="relative" ref={locationDropdownRef}>
+                <button
+                  onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                  className="flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
+                  data-testid="location-filter-chip"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>{getLocationLabel()}</span>
+                  <svg
+                    className={`h-4 w-4 transition-transform ${showLocationDropdown ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+
+                {/* Location dropdown menu */}
+                {showLocationDropdown && (
+                  <div className="absolute left-0 top-full z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
+                    {LOCATION_FILTERS.map((filter) => (
+                      <button
+                        key={filter.id}
+                        onClick={() => {
+                          setLocationFilter(filter.id);
+                          setShowLocationDropdown(false);
+                        }}
+                        className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition hover:bg-gray-50"
+                        data-testid={`location-option-${filter.id}`}
+                      >
+                        <span>{filter.label}</span>
+                        {locationFilter === filter.id && (
+                          <svg
+                            className="h-5 w-5 text-accent-blue"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-
-            {/* Filters row */}
-            <div className="mb-6 flex flex-wrap gap-3">
-              {/* Time filter */}
-              <div className="relative">
-                <select
-                  value={timeFilter}
-                  onChange={(e) => setTimeFilter(e.target.value)}
-                  className="appearance-none rounded-full border-2 border-gray-300 bg-white px-4 py-2 pr-10 text-sm font-medium text-gray-700 transition hover:border-accent-blue focus:border-accent-blue focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
-                  data-testid="time-filter"
-                >
-                  {TIME_FILTERS.map((filter) => (
-                    <option key={filter.id} value={filter.id}>
-                      📅 {filter.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Location filter */}
-              <div className="relative">
-                <select
-                  value={locationFilter}
-                  onChange={(e) => setLocationFilter(e.target.value)}
-                  className="appearance-none rounded-full border-2 border-gray-300 bg-white px-4 py-2 pr-10 text-sm font-medium text-gray-700 transition hover:border-accent-blue focus:border-accent-blue focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
-                  data-testid="location-filter"
-                >
-                  {LOCATION_FILTERS.map((filter) => (
-                    <option key={filter.id} value={filter.id}>
-                      🗺️ {filter.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Start research button */}
-            <button
-              onClick={handleStartResearch}
-              disabled={selectedSources.length === 0 || !searchQuery.trim()}
-              className="w-full rounded-lg bg-accent-blue px-6 py-4 text-lg font-semibold text-white transition hover:bg-accent-blue/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
-              data-testid="start-research-btn"
-            >
-              Start Research
-            </button>
           </div>
 
           {/* Empty state / Recent research */}
