@@ -354,35 +354,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* AI Chat Strip */}
-      <section className="border-b border-navy-border bg-navy py-16">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3 rounded-2xl border border-navy-border bg-navy-dark p-4">
-            <input
-              type="text"
-              placeholder="Ask anything..."
-              className="flex-1 bg-transparent text-white placeholder-gray-500 outline-none"
-              disabled
-            />
-            <button className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-blue text-white transition hover:bg-accent-blue/80">
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M14 5l7 7m0 0l-7 7m7-7H3"
-                />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </section>
-
       {/* Features */}
       <section className="bg-gray-50 py-24">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -443,31 +414,6 @@ export default function Home() {
             </button>
           </div>
           <p className="mt-6 text-sm text-gray-400">Cancel anytime</p>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="bg-navy-dark py-24">
-        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold text-white sm:text-5xl">
-            Turn conversations into winning strategies
-          </h2>
-          <p className="mt-6 text-lg text-gray-300">
-            Join teams using Civic Voices to make data-driven decisions based on
-            real community insights.
-          </p>
-          <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
-            <Link
-              href="/signup"
-              className="rounded-full bg-white px-10 py-4 text-base font-semibold text-navy transition hover:bg-gray-100"
-              data-testid="final-cta"
-            >
-              Try for free
-            </Link>
-            <button className="rounded-full border-2 border-white px-10 py-4 text-base font-semibold text-white transition hover:bg-white hover:text-navy">
-              Book a demo
-            </button>
-          </div>
         </div>
       </section>
 

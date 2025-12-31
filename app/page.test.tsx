@@ -70,17 +70,16 @@ describe("Landing Page", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders final CTA section", () => {
+  it("renders mid-page CTA section", () => {
     render(<Home />);
 
-    // Check for final CTA heading
+    // Check for mid-page CTA heading
     expect(
-      screen.getByText(/Turn conversations into winning strategies/i)
+      screen.getByText(/Start understanding your community today/i)
     ).toBeInTheDocument();
 
-    // Check for final CTA button
-    const finalCTA = screen.getByTestId("final-cta");
-    expect(finalCTA).toBeInTheDocument();
-    expect(finalCTA).toHaveTextContent(/Try for free/i);
+    // Check for CTA buttons
+    const ctaButtons = screen.getAllByText(/Try for free/i);
+    expect(ctaButtons.length).toBeGreaterThan(0);
   });
 });

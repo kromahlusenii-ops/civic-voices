@@ -100,17 +100,16 @@ test.describe("Landing Page", () => {
     ).toBeVisible();
   });
 
-  test("final CTA section is interactive", async ({ page }) => {
+  test("mid-page CTA section is visible", async ({ page }) => {
     await page.goto("/");
 
-    // Check for final CTA button
-    const finalCtaButton = page.getByTestId("final-cta");
+    // Check for mid-page CTA heading
+    await expect(
+      page.getByText(/Start understanding your community today/i)
+    ).toBeVisible();
 
-    await expect(finalCtaButton).toBeVisible();
-    await expect(finalCtaButton).toHaveText(/Try for free/i);
-
-    // Click and verify navigation
-    await finalCtaButton.click();
-    await expect(page).toHaveURL(/\/signup/);
+    // Verify CTA buttons exist
+    const ctaButtons = page.getByText(/Try for free/i);
+    await expect(ctaButtons.first()).toBeVisible();
   });
 });
