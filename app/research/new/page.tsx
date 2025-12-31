@@ -485,53 +485,6 @@ export default function ResearchDashboard() {
               </div>
             </div>
           </div>
-
-          {/* Empty state / Recent research */}
-          <div className="mt-8 rounded-2xl bg-white p-8 text-center shadow-md">
-            <svg
-              className="mx-auto h-16 w-16 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
-            <h3 className="mt-4 text-lg font-semibold text-[#2C2C2C]">
-              No research yet
-            </h3>
-            <p className="mt-2 text-sm text-[#666666]">
-              Start by searching above.
-            </p>
-          </div>
-
-          {/* Footer info */}
-          <div className="mt-8 text-center">
-            <p className="text-sm text-[#666666]">
-              Monitor public conversations and sentiment across major social
-              platforms.
-            </p>
-            <button className="mt-2 inline-flex items-center gap-1 text-sm text-accent-blue hover:underline">
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              How to use Civic Voices
-            </button>
-          </div>
         </div>
       </main>
     </div>
