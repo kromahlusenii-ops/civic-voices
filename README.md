@@ -1,6 +1,12 @@
 # Civic Voices
 
-Reddit-first audience research tool that collects Reddit discussions and summarizes real public sentiment, pain points, and themes into an actionable dashboard with verified verbatim quotes.
+Civic Voices is a cross-platform conversation discovery and analysis tool that helps users understand how public issues are being discussed across major social platforms, including Reddit, TikTok, Instagram, Threads, and X.
+
+The platform aggregates public, platform-permitted content and generates high-level topic summaries, recurring questions, and discussion patterns so users can quickly understand large volumes of conversation without replacing or re-hosting the original content. All insights link directly back to the source platform, preserving attribution and context.
+
+Civic Voices is designed as a read-only system. It does not post, comment, vote, message users, or automate engagement on any platform. The application does not profile users, infer sensitive personal attributes, attempt to re-identify individuals, or train machine learning or foundation models on platform data.
+
+
 
 ## Local Setup
 
