@@ -1,8 +1,10 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import AuthModal from "../components/AuthModal";
 
 const SOURCES = [
   { id: "reddit", name: "Reddit", enabled: true, icon: "🔴" },
@@ -30,8 +32,9 @@ const LOCATION_FILTERS = [
   { id: "custom", label: "Custom..." },
 ];
 
-export default function ResearchDashboard() {
-  const { data: session } = useSession();
+function SearchPageContent() {
+  const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSources, setSelectedSources] = useState(["reddit"]);
   const [timeFilter, setTimeFilter] = useState("3m");
@@ -40,13 +43,21 @@ export default function ResearchDashboard() {
   const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingSearch, setPendingSearch] = useState(false);
 
   const sourceDropdownRef = useRef<HTMLDivElement>(null);
   const timeDropdownRef = useRef<HTMLDivElement>(null);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
 
-  const user = session?.user;
-  const firstName = user?.name?.split(" ")[0] || "";
+  const isAuthenticated = status === "authenticated";
+
+  // Check if user came from "Log In" button
+  useEffect(() => {
+    if (searchParams.get("auth") === "true" && !isAuthenticated && status !== "loading") {
+      setShowAuthModal(true);
+    }
+  }, [searchParams, isAuthenticated, status]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -76,9 +87,35 @@ export default function ResearchDashboard() {
     }
   };
 
+  const executeSearch = () => {
+    // TODO: Implement actual search execution
+    console.log("Executing search:", {
+      query: searchQuery,
+      sources: selectedSources,
+      timeFilter,
+      locationFilter,
+    });
+    alert(`Search executed: ${searchQuery}`);
+    setPendingSearch(false);
+  };
+
   const handleStartResearch = () => {
-    // Placeholder for research creation
-    alert("Research starting with: " + selectedSources.join(", "));
+    // If not authenticated, show modal and mark search as pending
+    if (!isAuthenticated) {
+      setPendingSearch(true);
+      setShowAuthModal(true);
+      return;
+    }
+
+    // If authenticated, execute search immediately
+    executeSearch();
+  };
+
+  const handleAuthSuccess = () => {
+    // After successful auth, execute search if it was pending
+    if (pendingSearch && searchQuery.trim()) {
+      executeSearch();
+    }
   };
 
   // Get display names for selected values
@@ -101,6 +138,13 @@ export default function ResearchDashboard() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+      />
+
       {/* Mobile hamburger */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -132,7 +176,7 @@ export default function ResearchDashboard() {
           {/* Top section */}
           <div className="flex flex-col items-center space-y-6">
             {/* Logo */}
-            <Link href="/research/new" className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-blue text-white">
+            <Link href="/search" className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-blue text-white">
               <span className="text-xl font-bold">CV</span>
             </Link>
 
@@ -203,7 +247,7 @@ export default function ResearchDashboard() {
               aria-label="User profile"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-700 transition hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
             >
-              {firstName ? firstName[0].toUpperCase() : "U"}
+              {isAuthenticated ? (session.user?.name?.[0]?.toUpperCase() || "U") : "?"}
             </button>
 
             <button
@@ -256,6 +300,11 @@ export default function ResearchDashboard() {
                   placeholder="Search a topic or paste a URL"
                   className="w-full rounded-lg border border-gray-300 px-5 py-3.5 text-base transition focus:border-accent-blue focus:outline-none focus:ring-2 focus:ring-accent-blue/20"
                   data-testid="search-input"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && searchQuery.trim() && selectedSources.length > 0) {
+                      handleStartResearch();
+                    }
+                  }}
                 />
               </div>
               <button
@@ -484,5 +533,13 @@ export default function ResearchDashboard() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <SearchPageContent />
+    </Suspense>
   );
 }

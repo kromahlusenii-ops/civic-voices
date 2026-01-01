@@ -44,11 +44,11 @@ test.describe("Landing Page", () => {
     await expect(heroCtaButton).toHaveText(/Try for free/i);
 
     // Verify button has href
-    await expect(heroCtaButton).toHaveAttribute("href", "/signup");
+    await expect(heroCtaButton).toHaveAttribute("href", "/search");
 
     // Click the button and verify navigation
     await heroCtaButton.click();
-    await expect(page).toHaveURL(/\/signup/);
+    await expect(page).toHaveURL(/\/search/);
   });
 
   test("nav renders Log in and Try for free buttons", async ({ page }) => {

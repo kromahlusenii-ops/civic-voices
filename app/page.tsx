@@ -28,14 +28,14 @@ export default function Home() {
           <div className="text-xl font-bold text-white">Civic Voices</div>
           <div className="flex items-center gap-3">
             <Link
-              href="/login"
+              href="/search?auth=true"
               className="rounded-full border-2 border-white px-6 py-2 text-sm font-semibold text-white transition hover:bg-white hover:text-navy"
               data-testid="nav-login"
             >
               Log in
             </Link>
             <Link
-              href="/signup"
+              href="/search"
               className="rounded-full bg-white px-6 py-2 text-sm font-semibold text-navy transition hover:bg-gray-100"
               data-testid="nav-signup"
             >
@@ -88,7 +88,7 @@ export default function Home() {
           {/* CTA */}
           <div className="mt-10">
             <Link
-              href="/signup"
+              href="/search"
               className="inline-block rounded-full bg-white px-10 py-4 text-base font-semibold text-navy shadow-lg transition hover:bg-gray-100"
               data-testid="hero-cta"
             >

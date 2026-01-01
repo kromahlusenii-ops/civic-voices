@@ -1,11 +1,22 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useSession } from "next-auth/react";
-import ResearchDashboard from "./page";
+import SearchPage from "./page";
 
 // Mock next-auth
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
+}));
+
+// Mock Next.js navigation
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({
+    push: vi.fn(),
+    refresh: vi.fn(),
+  })),
+  useSearchParams: vi.fn(() => ({
+    get: vi.fn(() => null),
+  })),
 }));
 
 // Mock Next.js Link
@@ -15,14 +26,14 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-describe("Research Dashboard", () => {
+describe("Search Page", () => {
   it("renders greeting, search input, and start research button", () => {
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: { user: { name: "John Doe", email: "john@example.com" } },
       status: "authenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     // Check greeting
     const greeting = screen.getByTestId("dashboard-greeting");
@@ -48,7 +59,7 @@ describe("Research Dashboard", () => {
       status: "unauthenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     // Check filter chips exist
     const sourceChip = screen.getByTestId("source-filter-chip");
@@ -69,7 +80,7 @@ describe("Research Dashboard", () => {
       status: "unauthenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     const sourceChip = screen.getByTestId("source-filter-chip");
 
@@ -92,7 +103,7 @@ describe("Research Dashboard", () => {
       status: "unauthenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     const sourceChip = screen.getByTestId("source-filter-chip");
 
@@ -118,7 +129,7 @@ describe("Research Dashboard", () => {
       status: "unauthenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     const sourceChip = screen.getByTestId("source-filter-chip");
 
@@ -138,7 +149,7 @@ describe("Research Dashboard", () => {
       status: "authenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     const greeting = screen.getByTestId("dashboard-greeting");
     expect(greeting).toHaveTextContent("Discover what people buzz about");
@@ -150,7 +161,7 @@ describe("Research Dashboard", () => {
       status: "unauthenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     const startBtn = screen.getByTestId("start-research-btn");
     const searchInput = screen.getByTestId("search-input");
@@ -182,7 +193,7 @@ describe("Research Dashboard", () => {
       status: "unauthenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     const timeChip = screen.getByTestId("time-filter-chip");
 
@@ -202,7 +213,7 @@ describe("Research Dashboard", () => {
       status: "unauthenticated",
     });
 
-    render(<ResearchDashboard />);
+    render(<SearchPage />);
 
     const locationChip = screen.getByTestId("location-filter-chip");
 
