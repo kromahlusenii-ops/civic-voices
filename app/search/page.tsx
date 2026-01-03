@@ -34,6 +34,8 @@ function SearchPageContent() {
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingSearch, setPendingSearch] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const timeDropdownRef = useRef<HTMLDivElement>(null);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
@@ -64,16 +66,54 @@ function SearchPageContent() {
     };
   }, []);
 
-  const executeSearch = () => {
-    // TODO: Implement actual search execution
-    console.log("Executing search:", {
-      query: searchQuery,
-      sources: selectedSources,
-      timeFilter,
-      locationFilter,
-    });
-    alert(`Search executed: ${searchQuery}`);
-    setPendingSearch(false);
+  const executeSearch = async () => {
+    setIsSearching(true);
+    setSearchError(null);
+
+    try {
+      const response = await fetch("/api/search", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: searchQuery,
+          sources: selectedSources,
+          timeFilter,
+          locationFilter,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Search failed");
+      }
+
+      const data = await response.json();
+
+      // Store results in sessionStorage for the results page
+      sessionStorage.setItem("searchResults", JSON.stringify(data));
+      sessionStorage.setItem(
+        "searchParams",
+        JSON.stringify({
+          query: searchQuery,
+          sources: selectedSources,
+          timeFilter,
+          locationFilter,
+        })
+      );
+
+      // Navigate to results page
+      window.location.href = `/research/${Date.now()}`;
+    } catch (error) {
+      console.error("Search error:", error);
+      setSearchError(
+        error instanceof Error ? error.message : "An error occurred"
+      );
+    } finally {
+      setIsSearching(false);
+      setPendingSearch(false);
+    }
   };
 
   const handleStartResearch = () => {
@@ -279,26 +319,55 @@ function SearchPageContent() {
               </div>
               <button
                 onClick={handleStartResearch}
-                disabled={selectedSources.length === 0 || !searchQuery.trim()}
+                disabled={selectedSources.length === 0 || !searchQuery.trim() || isSearching}
                 className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-black text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
                 data-testid="start-research-btn"
                 aria-label="Start research"
               >
-                <svg
-                  className="h-5 w-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M14 5l7 7m0 0l-7 7m7-7H3"
-                  />
-                </svg>
+                {isSearching ? (
+                  <svg
+                    className="h-5 w-5 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M14 5l7 7m0 0l-7 7m7-7H3"
+                    />
+                  </svg>
+                )}
               </button>
             </div>
+
+            {/* Error message */}
+            {searchError && (
+              <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+                {searchError}
+              </div>
+            )}
 
             {/* Filter chips */}
             <div className="flex flex-wrap gap-2">

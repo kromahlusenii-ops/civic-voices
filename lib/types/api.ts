@@ -1,0 +1,105 @@
+// Common types for API responses
+
+export interface SearchParams {
+  query: string;
+  sources: string[];
+  timeFilter: string;
+  locationFilter: string;
+}
+
+export interface Post {
+  id: string;
+  text: string;
+  author: string;
+  authorHandle: string;
+  authorAvatar?: string;
+  createdAt: string;
+  platform: "x" | "tiktok" | "reddit" | "instagram" | "youtube" | "linkedin";
+  engagement: {
+    likes: number;
+    comments: number;
+    shares: number;
+    views?: number;
+  };
+  url: string;
+  sentiment?: "positive" | "negative" | "neutral";
+}
+
+export interface SearchResponse {
+  posts: Post[];
+  summary: {
+    totalPosts: number;
+    platforms: Record<string, number>;
+    sentiment: {
+      positive: number;
+      negative: number;
+      neutral: number;
+    };
+    timeRange: {
+      start: string;
+      end: string;
+    };
+  };
+  query: string;
+}
+
+// X (Twitter) specific types
+export interface XTweet {
+  id: string;
+  text: string;
+  author_id: string;
+  created_at: string;
+  public_metrics: {
+    retweet_count: number;
+    reply_count: number;
+    like_count: number;
+    quote_count: number;
+    impression_count?: number;
+  };
+}
+
+export interface XUser {
+  id: string;
+  name: string;
+  username: string;
+  profile_image_url?: string;
+}
+
+export interface XSearchResponse {
+  data?: XTweet[];
+  includes?: {
+    users?: XUser[];
+  };
+  meta?: {
+    result_count: number;
+    next_token?: string;
+  };
+}
+
+// TikTok specific types
+export interface TikTokVideo {
+  id: string;
+  desc: string;
+  createTime: number;
+  author: {
+    id: string;
+    uniqueId: string;
+    nickname: string;
+    avatarLarger?: string;
+  };
+  stats: {
+    diggCount: number;
+    shareCount: number;
+    commentCount: number;
+    playCount: number;
+  };
+  video: {
+    downloadAddr: string;
+  };
+}
+
+export interface TikTokSearchResponse {
+  videos?: TikTokVideo[];
+  cursor?: number;
+  hasMore?: boolean;
+}
