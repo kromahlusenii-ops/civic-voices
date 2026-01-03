@@ -103,6 +103,29 @@ function SearchPageContent() {
         })
       );
 
+      // Save search to database (don't block navigation if it fails)
+      if (isAuthenticated) {
+        try {
+          await fetch("/api/search/save", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              queryText: searchQuery,
+              sources: selectedSources,
+              filters: {
+                timeFilter,
+                locationFilter,
+              },
+            }),
+          });
+        } catch (saveError) {
+          console.error("Failed to save search to database:", saveError);
+          // Continue with navigation even if save fails
+        }
+      }
+
       // Navigate to results page
       window.location.href = `/research/${Date.now()}`;
     } catch (error) {
