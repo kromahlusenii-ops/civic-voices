@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useAuth } from "@/app/contexts/AuthContext";
 import Image from "next/image";
 import type { SearchResponse, Post } from "@/lib/types/api";
 import SourceFilter from "@/components/SourceFilter";
@@ -16,15 +16,24 @@ interface SearchParams {
 
 export default function ResearchJobPage() {
   const router = useRouter();
-  const { status } = useSession();
+  const { isAuthenticated, loading } = useAuth();
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [filteredPosts, setFilteredPosts] = useState<Post[]>([]);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [searchParams, setSearchParams] = useState<SearchParams | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Protect route - redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push("/search?auth=true");
+    }
+  }, [isAuthenticated, loading, router]);
+
   // Load search results from sessionStorage
   useEffect(() => {
+    if (!isAuthenticated) return; // Don't load results if not authenticated
+
     const storedResults = sessionStorage.getItem("searchResults");
     const storedParams = sessionStorage.getItem("searchParams");
 
@@ -47,7 +56,7 @@ export default function ResearchJobPage() {
       console.error("Error parsing search results:", error);
       router.push("/search");
     }
-  }, [router]);
+  }, [router, isAuthenticated]);
 
   // Filter posts by selected sources
   useEffect(() => {
@@ -63,7 +72,7 @@ export default function ResearchJobPage() {
     }
   }, [selectedSources, results]);
 
-  if (status === "loading" || isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">

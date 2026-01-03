@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  updateProfile,
+} from "firebase/auth";
+import { auth, googleProvider } from "@/lib/firebase";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -21,48 +27,61 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
   if (!isOpen) return null;
 
+  const syncUserToDatabase = async (firebaseUser: { uid: string; email: string | null; displayName: string | null }) => {
+    try {
+      await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firebaseUid: firebaseUser.uid,
+          email: firebaseUser.email,
+          name: firebaseUser.displayName,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to sync user to database:", error);
+    }
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          name,
-        }),
-      });
+      // Create user in Firebase
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Something went wrong");
-        setLoading(false);
-        return;
+      // Update profile with name if provided
+      if (name) {
+        await updateProfile(userCredential.user, {
+          displayName: name,
+        });
       }
 
-      // Sign in after successful signup
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
+      // Sync user to PostgreSQL database
+      await syncUserToDatabase({
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        displayName: name || userCredential.user.email,
       });
 
-      if (result?.error) {
-        setError("Account created but login failed. Please try logging in.");
+      router.refresh();
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const firebaseError = err as { code?: string; message?: string };
+      if (firebaseError.code === "auth/email-already-in-use") {
+        setError("An account with this email already exists");
+      } else if (firebaseError.code === "auth/weak-password") {
+        setError("Password should be at least 6 characters");
+      } else if (firebaseError.code === "auth/invalid-email") {
+        setError("Invalid email address");
       } else {
-        router.refresh();
-        onSuccess?.();
-        onClose();
+        setError("Something went wrong. Please try again.");
       }
-    } catch {
-      setError("Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -74,21 +93,25 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setLoading(true);
 
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+      // Sync user to database (in case user was created elsewhere)
+      await syncUserToDatabase({
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        displayName: userCredential.user.displayName,
       });
 
-      if (result?.error) {
+      router.refresh();
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const firebaseError = err as { code?: string };
+      if (firebaseError.code === "auth/invalid-credential" || firebaseError.code === "auth/wrong-password" || firebaseError.code === "auth/user-not-found") {
         setError("Invalid email or password");
       } else {
-        router.refresh();
-        onSuccess?.();
-        onClose();
+        setError("Something went wrong. Please try again.");
       }
-    } catch {
-      setError("Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -99,11 +122,27 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setLoading(true);
 
     try {
-      await signIn("google", {
-        callbackUrl: window.location.href,
+      const result = await signInWithPopup(auth, googleProvider);
+
+      // Sync user to database
+      await syncUserToDatabase({
+        uid: result.user.uid,
+        email: result.user.email,
+        displayName: result.user.displayName,
       });
-    } catch {
-      setError("Google sign-in failed");
+
+      router.refresh();
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      const firebaseError = err as { code?: string };
+      if (firebaseError.code === "auth/popup-closed-by-user") {
+        setError("Sign-in cancelled");
+      } else if (firebaseError.code === "auth/popup-blocked") {
+        setError("Please allow popups for this site");
+      } else {
+        setError("Google sign-in failed. Please try again.");
+      }
       setLoading(false);
     }
   };
@@ -210,11 +249,11 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
               name="password"
               type="password"
               required
-              minLength={8}
+              minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-accent-blue focus:outline-none focus:ring-2 focus:ring-accent-blue/20"
-              placeholder={mode === "signup" ? "Min 8 characters" : "Your password"}
+              placeholder={mode === "signup" ? "Min 6 characters" : "Your password"}
             />
           </div>
 

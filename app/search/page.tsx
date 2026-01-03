@@ -1,9 +1,9 @@
 "use client";
 
-import { useSession } from "next-auth/react";
 import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "../contexts/AuthContext";
 import AuthModal from "../components/AuthModal";
 import SourceFilter from "../../components/SourceFilter";
 
@@ -23,7 +23,7 @@ const LOCATION_FILTERS = [
 ];
 
 function SearchPageContent() {
-  const { data: session, status } = useSession();
+  const { isAuthenticated, loading, user } = useAuth();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSources, setSelectedSources] = useState(["x", "tiktok"]);
@@ -40,14 +40,12 @@ function SearchPageContent() {
   const timeDropdownRef = useRef<HTMLDivElement>(null);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
 
-  const isAuthenticated = status === "authenticated";
-
   // Check if user came from "Log In" button
   useEffect(() => {
-    if (searchParams.get("auth") === "true" && !isAuthenticated && status !== "loading") {
+    if (searchParams.get("auth") === "true" && !isAuthenticated && !loading) {
       setShowAuthModal(true);
     }
-  }, [searchParams, isAuthenticated, status]);
+  }, [searchParams, isAuthenticated, loading]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -104,12 +102,16 @@ function SearchPageContent() {
       );
 
       // Save search to database (don't block navigation if it fails)
-      if (isAuthenticated) {
+      if (isAuthenticated && user) {
         try {
+          // Get Firebase ID token
+          const idToken = await user.getIdToken();
+
           await fetch("/api/search/save", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`,
             },
             body: JSON.stringify({
               queryText: searchQuery,
@@ -278,7 +280,7 @@ function SearchPageContent() {
               aria-label="User profile"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-700 transition hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
             >
-              {isAuthenticated ? (session.user?.name?.[0]?.toUpperCase() || "U") : "?"}
+              {isAuthenticated ? (user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U") : "?"}
             </button>
 
             <button
@@ -315,8 +317,8 @@ function SearchPageContent() {
           {/* Hero section */}
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-normal text-[#9CA3AF]" data-testid="dashboard-greeting">
-              {isAuthenticated && session.user?.name
-                ? `Hello, ${session.user.name.split(' ')[0]}`
+              {isAuthenticated && user?.displayName
+                ? `Hello, ${user.displayName.split(' ')[0]}`
                 : "Discover what people buzz about"}
             </h1>
           </div>

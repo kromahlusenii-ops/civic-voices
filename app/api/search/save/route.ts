@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { verifyFirebaseToken } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
 import { Source } from "@prisma/client";
 
@@ -16,20 +15,49 @@ interface SaveSearchRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    // Get authenticated user session
-    const session = await getServerSession(authOptions);
+    // Get Firebase ID token from Authorization header
+    const authHeader = request.headers.get("Authorization");
 
-    if (!session || !session.user?.email) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Unauthorized - No token provided" },
         { status: 401 }
       );
     }
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify Firebase ID token
+    const decodedToken = await verifyFirebaseToken(idToken);
+
+    if (!decodedToken) {
+      return NextResponse.json(
+        { error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const firebaseUid = decodedToken.uid;
+    const email = decodedToken.email;
+
+    if (!email) {
+      return NextResponse.json(
+        { error: "Email not found in token" },
+        { status: 400 }
+      );
+    }
+
+    // Get user from database by Firebase UID
+    let user = await prisma.user.findUnique({
+      where: { firebaseUid },
     });
+
+    // If user not found by Firebase UID, try by email (for backwards compatibility)
+    if (!user) {
+      user = await prisma.user.findUnique({
+        where: { email },
+      });
+    }
 
     if (!user) {
       return NextResponse.json(
