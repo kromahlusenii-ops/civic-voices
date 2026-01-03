@@ -21,6 +21,7 @@ model User {
   updatedAt     DateTime       @updatedAt
 
   researchJobs  ResearchJob[]
+  searches      Search[]
   accounts      Account[]
   sessions      Session[]
 
@@ -86,6 +87,7 @@ model ResearchJob {
   // Relations
   sourceResults SourceResult[]
   insights      Insight[]
+  searches      Search[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([status])
@@ -97,6 +99,26 @@ enum JobStatus {
   RUNNING
   COMPLETED
   FAILED
+}
+
+model Search {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  queryText   String       // The search query text
+  name        String?      // Optional custom name (defaults to queryText in application code)
+  sources     Source[]     // Selected sources (X, TikTok, etc.)
+  filtersJson Json         // Time filter, location filter, etc.
+
+  reportId    String?
+  report      ResearchJob? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("searches")
 }
 
 model SourceResult {
