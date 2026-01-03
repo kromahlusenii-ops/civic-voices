@@ -1,5 +1,9 @@
 export { default } from "next-auth/middleware";
 
 export const config = {
-  matcher: ["/dashboard/:path*"], // Only protect dashboard routes, /search is public
+  matcher: [
+    "/dashboard/:path*",
+    "/report/:path*",
+    "/research/:path*",
+  ], // Protected routes - /search is public
 };

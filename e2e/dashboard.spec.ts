@@ -58,4 +58,48 @@ test.describe("Search Page", () => {
     await expect(redditOption).toBeDisabled();
     await expect(redditOption).toContainText("Coming soon");
   });
+
+  test("unauthenticated user clicking search opens auth modal", async ({ page }) => {
+    await page.goto("/search");
+
+    // Fill in search query
+    const searchInput = page.getByTestId("search-input");
+    await searchInput.fill("Climate policy");
+
+    // Auth modal should not be visible yet
+    await expect(page.getByText("Create your account")).not.toBeVisible();
+
+    // Click start research button
+    const startBtn = page.getByTestId("start-research-btn");
+    await startBtn.click();
+
+    // Auth modal should appear
+    await expect(page.getByText("Create your account")).toBeVisible();
+  });
+
+  test("auth modal contains Google OAuth button", async ({ page }) => {
+    await page.goto("/search");
+
+    // Fill in search query and open modal
+    await page.getByTestId("search-input").fill("Test query");
+    await page.getByTestId("start-research-btn").click();
+
+    // Verify Google OAuth button is present
+    const googleButton = page.getByTestId("google-signin-btn");
+    await expect(googleButton).toBeVisible();
+    await expect(googleButton).toContainText("Continue with Google");
+  });
+
+  test("auth modal contains credentials form", async ({ page }) => {
+    await page.goto("/search");
+
+    // Open modal
+    await page.getByTestId("search-input").fill("Test query");
+    await page.getByTestId("start-research-btn").click();
+
+    // Verify credentials form elements
+    await expect(page.getByLabelText("Email")).toBeVisible();
+    await expect(page.getByLabelText("Password")).toBeVisible();
+    await expect(page.getByText("Or continue with email")).toBeVisible();
+  });
 });

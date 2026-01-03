@@ -230,4 +230,92 @@ describe("Search Page", () => {
     expect(screen.getByTestId("location-option-nc")).toBeInTheDocument();
     expect(screen.getByTestId("location-option-dc")).toBeInTheDocument();
   });
+
+  it("unauthenticated user clicking search opens auth modal", () => {
+    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
+
+    render(<SearchPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    const startBtn = screen.getByTestId("start-research-btn");
+
+    // Type a search query
+    fireEvent.change(searchInput, {
+      target: { value: "Climate policy" },
+    });
+
+    // Auth modal should not be visible initially
+    expect(screen.queryByText("Create your account")).not.toBeInTheDocument();
+
+    // Click start research
+    fireEvent.click(startBtn);
+
+    // Auth modal should now be visible
+    expect(screen.getByText("Create your account")).toBeInTheDocument();
+  });
+
+  it("authenticated user clicking search executes search directly", async () => {
+    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: { user: { name: "John Doe", email: "john@example.com" } },
+      status: "authenticated",
+    });
+
+    // Mock fetch for the search API
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ posts: [], summary: {} }),
+      } as Response)
+    );
+
+    render(<SearchPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    const startBtn = screen.getByTestId("start-research-btn");
+
+    // Type a search query
+    fireEvent.change(searchInput, {
+      target: { value: "Climate policy" },
+    });
+
+    // Click start research
+    fireEvent.click(startBtn);
+
+    // Auth modal should NOT appear for authenticated users
+    expect(screen.queryByText("Create your account")).not.toBeInTheDocument();
+
+    // Search API should be called
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/search",
+      expect.objectContaining({
+        method: "POST",
+      })
+    );
+  });
+
+  it("auth modal displays Google OAuth button", () => {
+    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: null,
+      status: "unauthenticated",
+    });
+
+    render(<SearchPage />);
+
+    const searchInput = screen.getByTestId("search-input");
+    const startBtn = screen.getByTestId("start-research-btn");
+
+    // Type a search query and open modal
+    fireEvent.change(searchInput, {
+      target: { value: "Test query" },
+    });
+    fireEvent.click(startBtn);
+
+    // Verify Google button is present
+    const googleButton = screen.getByTestId("google-signin-btn");
+    expect(googleButton).toBeInTheDocument();
+    expect(googleButton).toHaveTextContent("Continue with Google");
+  });
 });
