@@ -8,13 +8,13 @@ describe("Landing Page", () => {
 
     // Check for hero headline
     expect(
-      screen.getByText(/Research Social Media Conversations for/i)
+      screen.getByText(/Track What Americans Think About/i)
     ).toBeInTheDocument();
 
-    // Check for typewriter text (should show initial word "Pains")
+    // Check for typewriter text (should show initial word "Opinions")
     const typewriterText = screen.getByTestId("typewriter-text");
     expect(typewriterText).toBeInTheDocument();
-    expect(typewriterText).toHaveTextContent("Pains");
+    expect(typewriterText).toHaveTextContent("Opinions");
 
     // Check for primary CTA
     const heroCTA = screen.getByTestId("hero-cta");
@@ -44,17 +44,17 @@ describe("Landing Page", () => {
 
     // Check for heading
     expect(
-      screen.getByText(/Build narratives that resonate/i)
+      screen.getByText(/Cross-platform coverage shows the full picture/i)
     ).toBeInTheDocument();
 
     // Check for use case cards (should have at least 6)
     const useCaseCards = screen.getAllByTestId("use-case-card");
     expect(useCaseCards.length).toBeGreaterThanOrEqual(6);
 
-    // Verify some specific use cases (using getAllByText since text may appear in hero too)
-    expect(screen.getAllByText(/Analyze conversations/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Synthetic audiences/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Market insights/i).length).toBeGreaterThan(0);
+    // Verify some specific use cases (text appears in multiple places, so check within use cases section)
+    expect(screen.getByText(/See what they're saying/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Spot emerging narratives/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Understand the why/i)).toBeInTheDocument();
   });
 
   it("renders testimonials section with 3 cards", () => {
@@ -66,7 +66,7 @@ describe("Landing Page", () => {
 
     // Verify testimonial content
     expect(
-      screen.getByText(/helped us understand community sentiment/i)
+      screen.getByText(/pattern recognition across platforms changed how we report/i)
     ).toBeInTheDocument();
   });
 
@@ -75,7 +75,7 @@ describe("Landing Page", () => {
 
     // Check for mid-page CTA heading
     expect(
-      screen.getByText(/Start understanding your community today/i)
+      screen.getByText(/See what Americans are saying right now/i)
     ).toBeInTheDocument();
 
     // Check for CTA buttons

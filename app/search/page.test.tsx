@@ -35,17 +35,17 @@ describe("Search Page", () => {
 
     render(<SearchPage />);
 
-    // Check greeting
+    // Check greeting shows first name for authenticated users
     const greeting = screen.getByTestId("dashboard-greeting");
     expect(greeting).toBeInTheDocument();
-    expect(greeting).toHaveTextContent("Discover what people buzz about");
+    expect(greeting).toHaveTextContent("Hello, John");
 
     // Check search input
     const searchInput = screen.getByTestId("search-input");
     expect(searchInput).toBeInTheDocument();
     expect(searchInput).toHaveAttribute(
       "placeholder",
-      "Search a topic or paste a URL"
+      "Search an issue, candidate, or ballot measure"
     );
 
     // Check start research button
@@ -67,7 +67,7 @@ describe("Search Page", () => {
     const locationChip = screen.getByTestId("location-filter-chip");
 
     expect(sourceChip).toBeInTheDocument();
-    expect(sourceChip).toHaveTextContent("Reddit");
+    expect(sourceChip).toHaveTextContent("2 sources"); // X and TikTok by default
     expect(timeChip).toBeInTheDocument();
     expect(timeChip).toHaveTextContent("Last 3 months");
     expect(locationChip).toBeInTheDocument();
@@ -85,16 +85,16 @@ describe("Search Page", () => {
     const sourceChip = screen.getByTestId("source-filter-chip");
 
     // Dropdown should not be visible initially
-    expect(screen.queryByTestId("source-option-reddit")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("source-option-x")).not.toBeInTheDocument();
 
     // Click to open dropdown
     fireEvent.click(sourceChip);
 
     // Check all source options are now visible
-    expect(screen.getByTestId("source-option-reddit")).toBeInTheDocument();
-    expect(screen.getByTestId("source-option-tiktok")).toBeInTheDocument();
-    expect(screen.getByTestId("source-option-instagram")).toBeInTheDocument();
     expect(screen.getByTestId("source-option-x")).toBeInTheDocument();
+    expect(screen.getByTestId("source-option-tiktok")).toBeInTheDocument();
+    expect(screen.getByTestId("source-option-reddit")).toBeInTheDocument();
+    expect(screen.getByTestId("source-option-instagram")).toBeInTheDocument();
   });
 
   it("toggling sources in dropdown updates selection", () => {
@@ -110,17 +110,16 @@ describe("Search Page", () => {
     // Open dropdown
     fireEvent.click(sourceChip);
 
-    const redditOption = screen.getByTestId("source-option-reddit");
+    const xOption = screen.getByTestId("source-option-x");
 
-    // Reddit should be selected by default (has checkmark)
-    expect(redditOption.querySelector("svg")).toBeInTheDocument();
+    // X should be selected by default (has checkmark)
+    expect(xOption.querySelector("svg")).toBeInTheDocument();
 
-    // Click Reddit to deselect
-    fireEvent.click(redditOption);
+    // Click X to deselect
+    fireEvent.click(xOption);
 
-    // Chip label should update
-    fireEvent.click(sourceChip); // Reopen to check
-    expect(screen.getByTestId("source-filter-chip")).toHaveTextContent("Select source");
+    // Chip label should update to show only TikTok
+    expect(screen.getByTestId("source-filter-chip")).toHaveTextContent("TikTok");
   });
 
   it("disabled sources show 'Coming soon' label", () => {
@@ -136,14 +135,14 @@ describe("Search Page", () => {
     // Open dropdown
     fireEvent.click(sourceChip);
 
-    const tiktokOption = screen.getByTestId("source-option-tiktok");
+    const redditOption = screen.getByTestId("source-option-reddit");
 
-    // TikTok should show "Coming soon"
-    expect(tiktokOption).toHaveTextContent("Coming soon");
-    expect(tiktokOption).toBeDisabled();
+    // Reddit should show "Coming soon"
+    expect(redditOption).toHaveTextContent("Coming soon");
+    expect(redditOption).toBeDisabled();
   });
 
-  it("renders consistent greeting for all users", () => {
+  it("shows default greeting when user has no name", () => {
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: { user: { email: "user@example.com" } },
       status: "authenticated",
@@ -174,14 +173,16 @@ describe("Search Page", () => {
       target: { value: "Climate change policy" },
     });
 
-    // Should be enabled now (has query and Reddit is selected by default)
+    // Should be enabled now (has query and X + TikTok are selected by default)
     expect(startBtn).not.toBeDisabled();
 
-    // Open source dropdown and deselect Reddit
+    // Open source dropdown and deselect both X and TikTok
     const sourceChip = screen.getByTestId("source-filter-chip");
     fireEvent.click(sourceChip);
-    const redditOption = screen.getByTestId("source-option-reddit");
-    fireEvent.click(redditOption);
+    const xOption = screen.getByTestId("source-option-x");
+    const tiktokOption = screen.getByTestId("source-option-tiktok");
+    fireEvent.click(xOption);
+    fireEvent.click(tiktokOption);
 
     // Should be disabled again (no sources selected)
     expect(startBtn).toBeDisabled();

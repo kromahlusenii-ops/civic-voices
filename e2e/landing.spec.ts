@@ -13,7 +13,7 @@ test.describe("Landing Page", () => {
 
     // Verify hero section is visible
     await expect(
-      page.getByText(/Research Social Media Conversations for/i)
+      page.getByText(/Track What Americans Think About/i)
     ).toBeVisible();
   });
 
@@ -28,7 +28,7 @@ test.describe("Landing Page", () => {
 
     // Verify it shows one of the expected words
     const text = await typewriterText.textContent();
-    expect(["Pains", "Needs", "Emotions", "Insights"]).toContain(text);
+    expect(["Opinions", "Trends", "Shifts", "Narratives"]).toContain(text);
   });
 
   test("Try for free button is visible and clickable", async ({ page }) => {
@@ -74,17 +74,17 @@ test.describe("Landing Page", () => {
 
     // Verify heading
     await expect(
-      page.getByText(/Build narratives that resonate/i)
+      page.getByText(/Cross-platform coverage shows the full picture/i)
     ).toBeVisible();
 
     // Verify at least 6 use case cards exist
     const useCaseCards = page.getByTestId("use-case-card");
     await expect(useCaseCards).toHaveCount(8); // We have 8 cards
 
-    // Verify specific use cases (using getByRole for headings to avoid matching hero text)
-    await expect(page.getByRole('heading', { name: /Analyze conversations/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Synthetic audiences/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /Market insights/i })).toBeVisible();
+    // Verify specific use cases (using getByRole for headings to avoid matching feature text)
+    await expect(page.getByRole('heading', { name: /See what they're saying/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Spot emerging narratives/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Understand the why/i })).toBeVisible();
   });
 
   test("testimonials section renders 3 cards", async ({ page }) => {
@@ -96,7 +96,7 @@ test.describe("Landing Page", () => {
 
     // Verify testimonial content
     await expect(
-      page.getByText(/helped us understand community sentiment/i)
+      page.getByText(/pattern recognition across platforms changed how we report/i)
     ).toBeVisible();
   });
 
@@ -105,7 +105,7 @@ test.describe("Landing Page", () => {
 
     // Check for mid-page CTA heading
     await expect(
-      page.getByText(/Start understanding your community today/i)
+      page.getByText(/See what Americans are saying right now/i)
     ).toBeVisible();
 
     // Verify CTA buttons exist

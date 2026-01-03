@@ -7,10 +7,10 @@ import Link from "next/link";
 import AuthModal from "../components/AuthModal";
 
 const SOURCES = [
-  { id: "reddit", name: "Reddit", enabled: true, icon: "🔴" },
-  { id: "tiktok", name: "TikTok", enabled: false, icon: "🎵" },
+  { id: "x", name: "X", enabled: true, icon: "✖️" },
+  { id: "tiktok", name: "TikTok", enabled: true, icon: "🎵" },
+  { id: "reddit", name: "Reddit", enabled: false, icon: "🔴" },
   { id: "instagram", name: "Instagram", enabled: false, icon: "📷" },
-  { id: "x", name: "X", enabled: false, icon: "✖️" },
   { id: "youtube", name: "YouTube", enabled: false, icon: "▶️" },
   { id: "facebook", name: "Facebook", enabled: false, icon: "📘" },
   { id: "threads", name: "Threads", enabled: false, icon: "🧵" },
@@ -36,7 +36,7 @@ function SearchPageContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedSources, setSelectedSources] = useState(["reddit"]);
+  const [selectedSources, setSelectedSources] = useState(["x", "tiktok"]);
   const [timeFilter, setTimeFilter] = useState("3m");
   const [locationFilter, setLocationFilter] = useState("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -284,7 +284,9 @@ function SearchPageContent() {
           {/* Hero section */}
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-normal text-[#9CA3AF]" data-testid="dashboard-greeting">
-              Discover what people buzz about
+              {isAuthenticated && session.user?.name
+                ? `Hello, ${session.user.name.split(' ')[0]}`
+                : "Discover what people buzz about"}
             </h1>
           </div>
 
@@ -297,7 +299,7 @@ function SearchPageContent() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search a topic or paste a URL"
+                  placeholder="Search an issue, candidate, or ballot measure"
                   className="w-full rounded-lg border border-gray-300 px-5 py-3.5 text-base transition focus:border-accent-blue focus:outline-none focus:ring-2 focus:ring-accent-blue/20"
                   data-testid="search-input"
                   onKeyDown={(e) => {
@@ -340,9 +342,9 @@ function SearchPageContent() {
                   data-testid="source-filter-chip"
                 >
                   <span className="text-base">
-                    {selectedSources.includes("reddit") && "🔴"}
-                    {selectedSources.includes("tiktok") && "🎵"}
                     {selectedSources.includes("x") && "✖️"}
+                    {selectedSources.includes("tiktok") && "🎵"}
+                    {selectedSources.includes("reddit") && "🔴"}
                   </span>
                   <span>{getSourceLabel()}</span>
                   <svg
