@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import ResearchJobPage from "./page";
 
-// Mock next-auth
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
+// Mock useAuth hook
+const mockUseAuth = vi.fn();
+vi.mock("@/app/contexts/AuthContext", () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
 // Mock Next.js router
@@ -16,6 +15,22 @@ vi.mock("next/navigation", () => ({
     get: vi.fn(() => null),
     toString: vi.fn(() => ""),
   })),
+}));
+
+// Mock Firebase Auth
+vi.mock("firebase/auth", () => ({
+  getAuth: vi.fn(),
+  GoogleAuthProvider: vi.fn(),
+  createUserWithEmailAndPassword: vi.fn(),
+  signInWithEmailAndPassword: vi.fn(),
+  signInWithPopup: vi.fn(),
+  updateProfile: vi.fn(),
+}));
+
+// Mock Firebase config
+vi.mock("@/lib/firebase", () => ({
+  auth: {},
+  googleProvider: {},
 }));
 
 const mockSearchResults = {
@@ -78,21 +93,33 @@ const mockSearchParams = {
 };
 
 describe("Research Results Page", () => {
-  beforeEach(() => {
+  const mockPush = vi.fn();
+  const mockReplace = vi.fn();
+
+  beforeEach(async () => {
     // Clear sessionStorage before each test
     sessionStorage.clear();
 
-    // Mock useSession
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: { user: { name: "Test User", email: "test@example.com" } },
-      status: "authenticated",
+    // Mock useAuth - authenticated user
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      loading: false,
+      user: {
+        displayName: "Test User",
+        email: "test@example.com",
+      },
     });
 
     // Mock useRouter
+    const { useRouter } = await import("next/navigation");
     (useRouter as ReturnType<typeof vi.fn>).mockReturnValue({
-      push: vi.fn(),
-      replace: vi.fn(),
+      push: mockPush,
+      replace: mockReplace,
     });
+
+    // Reset mock call counts
+    mockPush.mockClear();
+    mockReplace.mockClear();
   });
 
   it("displays loading state initially", () => {
@@ -102,16 +129,19 @@ describe("Research Results Page", () => {
   });
 
   it("redirects to search if no results in sessionStorage", async () => {
-    const mockPush = vi.fn();
+    const mockRouterPush = vi.fn();
+
+    // Import useRouter to access the mock
+    const { useRouter } = await import("next/navigation");
     (useRouter as ReturnType<typeof vi.fn>).mockReturnValue({
-      push: mockPush,
+      push: mockRouterPush,
       replace: vi.fn(),
     });
 
     render(<ResearchJobPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/search");
+      expect(mockRouterPush).toHaveBeenCalledWith("/search");
     });
   });
 
@@ -221,6 +251,30 @@ describe("Research Results Page", () => {
     await waitFor(() => {
       expect(screen.getByText("Analysis")).toBeInTheDocument();
       expect(screen.getByText(/Posts \(2\)/)).toBeInTheDocument();
+    });
+  });
+
+  it("redirects unauthenticated users to search page", async () => {
+    const mockRouterPush = vi.fn();
+
+    // Mock unauthenticated state
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
+    });
+
+    // Import useRouter to access the mock
+    const { useRouter } = await import("next/navigation");
+    (useRouter as ReturnType<typeof vi.fn>).mockReturnValue({
+      push: mockRouterPush,
+      replace: vi.fn(),
+    });
+
+    render(<ResearchJobPage />);
+
+    await waitFor(() => {
+      expect(mockRouterPush).toHaveBeenCalledWith("/search?auth=true");
     });
   });
 });

@@ -1,11 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { useSession } from "next-auth/react";
 import SearchPage from "./page";
 
-// Mock next-auth
-vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(),
+// Mock useAuth hook
+const mockUseAuth = vi.fn();
+vi.mock("@/app/contexts/AuthContext", () => ({
+  useAuth: () => mockUseAuth(),
 }));
 
 // Mock Next.js navigation
@@ -28,11 +28,32 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Mock Firebase Auth
+vi.mock("firebase/auth", () => ({
+  getAuth: vi.fn(),
+  GoogleAuthProvider: vi.fn(),
+  createUserWithEmailAndPassword: vi.fn(),
+  signInWithEmailAndPassword: vi.fn(),
+  signInWithPopup: vi.fn(),
+  updateProfile: vi.fn(),
+}));
+
+// Mock Firebase config
+vi.mock("@/lib/firebase", () => ({
+  auth: {},
+  googleProvider: {},
+}));
+
 describe("Search Page", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders greeting, search input, and start research button", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: { user: { name: "John Doe", email: "john@example.com" } },
-      status: "authenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      loading: false,
+      user: { displayName: "John Doe", email: "john@example.com" },
     });
 
     render(<SearchPage />);
@@ -56,9 +77,10 @@ describe("Search Page", () => {
   });
 
   it("renders filter chips for source, time, and location", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -77,9 +99,10 @@ describe("Search Page", () => {
   });
 
   it("clicking source filter button opens dropdown with all sources", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -101,9 +124,10 @@ describe("Search Page", () => {
   });
 
   it("toggling sources in dropdown updates selection", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -126,9 +150,10 @@ describe("Search Page", () => {
   });
 
   it("disabled sources show 'Coming soon' label", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -146,9 +171,10 @@ describe("Search Page", () => {
   });
 
   it("shows default greeting when user has no name", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: { user: { email: "user@example.com" } },
-      status: "authenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      loading: false,
+      user: { email: "user@example.com", displayName: null },
     });
 
     render(<SearchPage />);
@@ -158,9 +184,10 @@ describe("Search Page", () => {
   });
 
   it("start research button is disabled when no query or no sources selected", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -192,9 +219,10 @@ describe("Search Page", () => {
   });
 
   it("clicking time filter chip opens dropdown", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -212,9 +240,10 @@ describe("Search Page", () => {
   });
 
   it("clicking location filter chip opens dropdown", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -232,9 +261,10 @@ describe("Search Page", () => {
   });
 
   it("unauthenticated user clicking search opens auth modal", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
@@ -258,9 +288,14 @@ describe("Search Page", () => {
   });
 
   it("authenticated user clicking search executes search directly", async () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: { user: { name: "John Doe", email: "john@example.com" } },
-      status: "authenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: true,
+      loading: false,
+      user: {
+        displayName: "John Doe",
+        email: "john@example.com",
+        getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+      },
     });
 
     // Mock fetch for the search API
@@ -297,9 +332,10 @@ describe("Search Page", () => {
   });
 
   it("auth modal displays Google OAuth button", () => {
-    (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: null,
-      status: "unauthenticated",
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      loading: false,
+      user: null,
     });
 
     render(<SearchPage />);
