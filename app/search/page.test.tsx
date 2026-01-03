@@ -13,9 +13,11 @@ vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
     push: vi.fn(),
     refresh: vi.fn(),
+    replace: vi.fn(),
   })),
   useSearchParams: vi.fn(() => ({
     get: vi.fn(() => null),
+    toString: vi.fn(() => ""),
   })),
 }));
 
@@ -62,19 +64,19 @@ describe("Search Page", () => {
     render(<SearchPage />);
 
     // Check filter chips exist
-    const sourceChip = screen.getByTestId("source-filter-chip");
+    const sourceButton = screen.getByTestId("source-filter-button");
     const timeChip = screen.getByTestId("time-filter-chip");
     const locationChip = screen.getByTestId("location-filter-chip");
 
-    expect(sourceChip).toBeInTheDocument();
-    expect(sourceChip).toHaveTextContent("2 sources"); // X and TikTok by default
+    expect(sourceButton).toBeInTheDocument();
+    expect(sourceButton).toHaveTextContent("X +1"); // X and TikTok by default
     expect(timeChip).toBeInTheDocument();
     expect(timeChip).toHaveTextContent("Last 3 months");
     expect(locationChip).toBeInTheDocument();
     expect(locationChip).toHaveTextContent("All regions");
   });
 
-  it("clicking source filter chip opens dropdown with all sources", () => {
+  it("clicking source filter button opens dropdown with all sources", () => {
     (useSession as ReturnType<typeof vi.fn>).mockReturnValue({
       data: null,
       status: "unauthenticated",
@@ -82,15 +84,16 @@ describe("Search Page", () => {
 
     render(<SearchPage />);
 
-    const sourceChip = screen.getByTestId("source-filter-chip");
+    const sourceButton = screen.getByTestId("source-filter-button");
 
     // Dropdown should not be visible initially
-    expect(screen.queryByTestId("source-option-x")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("source-filter-dropdown")).not.toBeInTheDocument();
 
     // Click to open dropdown
-    fireEvent.click(sourceChip);
+    fireEvent.click(sourceButton);
 
-    // Check all source options are now visible
+    // Check dropdown and source options are now visible
+    expect(screen.getByTestId("source-filter-dropdown")).toBeInTheDocument();
     expect(screen.getByTestId("source-option-x")).toBeInTheDocument();
     expect(screen.getByTestId("source-option-tiktok")).toBeInTheDocument();
     expect(screen.getByTestId("source-option-reddit")).toBeInTheDocument();
@@ -105,21 +108,21 @@ describe("Search Page", () => {
 
     render(<SearchPage />);
 
-    const sourceChip = screen.getByTestId("source-filter-chip");
+    const sourceButton = screen.getByTestId("source-filter-button");
 
     // Open dropdown
-    fireEvent.click(sourceChip);
+    fireEvent.click(sourceButton);
 
     const xOption = screen.getByTestId("source-option-x");
 
-    // X should be selected by default (has checkmark)
-    expect(xOption.querySelector("svg")).toBeInTheDocument();
+    // X should be selected by default (aria-checked)
+    expect(xOption).toHaveAttribute("aria-checked", "true");
 
     // Click X to deselect
     fireEvent.click(xOption);
 
-    // Chip label should update to show only TikTok
-    expect(screen.getByTestId("source-filter-chip")).toHaveTextContent("TikTok");
+    // Button label should update to show only TikTok
+    expect(screen.getByTestId("source-filter-button")).toHaveTextContent("TikTok");
   });
 
   it("disabled sources show 'Coming soon' label", () => {
@@ -130,10 +133,10 @@ describe("Search Page", () => {
 
     render(<SearchPage />);
 
-    const sourceChip = screen.getByTestId("source-filter-chip");
+    const sourceButton = screen.getByTestId("source-filter-button");
 
     // Open dropdown
-    fireEvent.click(sourceChip);
+    fireEvent.click(sourceButton);
 
     const redditOption = screen.getByTestId("source-option-reddit");
 
@@ -177,8 +180,8 @@ describe("Search Page", () => {
     expect(startBtn).not.toBeDisabled();
 
     // Open source dropdown and deselect both X and TikTok
-    const sourceChip = screen.getByTestId("source-filter-chip");
-    fireEvent.click(sourceChip);
+    const sourceButton = screen.getByTestId("source-filter-button");
+    fireEvent.click(sourceButton);
     const xOption = screen.getByTestId("source-option-x");
     const tiktokOption = screen.getByTestId("source-option-tiktok");
     fireEvent.click(xOption);

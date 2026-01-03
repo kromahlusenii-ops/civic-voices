@@ -30,7 +30,7 @@ test.describe("Search Page", () => {
     await page.goto("/search");
 
     // Verify filter chips are visible
-    await expect(page.getByTestId("source-filter-chip")).toBeVisible();
+    await expect(page.getByTestId("source-filter-button")).toBeVisible();
     await expect(page.getByTestId("time-filter-chip")).toBeVisible();
     await expect(page.getByTestId("location-filter-chip")).toBeVisible();
   });
@@ -39,8 +39,8 @@ test.describe("Search Page", () => {
     await page.goto("/search");
 
     // Open source dropdown
-    const sourceChip = page.getByTestId("source-filter-chip");
-    await sourceChip.click();
+    const sourceButton = page.getByTestId("source-filter-button");
+    await sourceButton.click();
 
     // Verify X is enabled (not disabled, no "Coming soon")
     const xOption = page.getByTestId("source-option-x");

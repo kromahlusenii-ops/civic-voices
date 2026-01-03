@@ -5,17 +5,7 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AuthModal from "../components/AuthModal";
-
-const SOURCES = [
-  { id: "x", name: "X", enabled: true, icon: "✖️" },
-  { id: "tiktok", name: "TikTok", enabled: true, icon: "🎵" },
-  { id: "reddit", name: "Reddit", enabled: false, icon: "🔴" },
-  { id: "instagram", name: "Instagram", enabled: false, icon: "📷" },
-  { id: "youtube", name: "YouTube", enabled: false, icon: "▶️" },
-  { id: "facebook", name: "Facebook", enabled: false, icon: "📘" },
-  { id: "threads", name: "Threads", enabled: false, icon: "🧵" },
-  { id: "bluesky", name: "Bluesky", enabled: false, icon: "🦋" },
-];
+import SourceFilter from "../../components/SourceFilter";
 
 const TIME_FILTERS = [
   { id: "7d", label: "Last 7 days" },
@@ -40,13 +30,11 @@ function SearchPageContent() {
   const [timeFilter, setTimeFilter] = useState("3m");
   const [locationFilter, setLocationFilter] = useState("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showSourceDropdown, setShowSourceDropdown] = useState(false);
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingSearch, setPendingSearch] = useState(false);
 
-  const sourceDropdownRef = useRef<HTMLDivElement>(null);
   const timeDropdownRef = useRef<HTMLDivElement>(null);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -62,9 +50,6 @@ function SearchPageContent() {
   // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (sourceDropdownRef.current && !sourceDropdownRef.current.contains(event.target as Node)) {
-        setShowSourceDropdown(false);
-      }
       if (timeDropdownRef.current && !timeDropdownRef.current.contains(event.target as Node)) {
         setShowTimeDropdown(false);
       }
@@ -78,14 +63,6 @@ function SearchPageContent() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
-  const toggleSource = (sourceId: string) => {
-    if (selectedSources.includes(sourceId)) {
-      setSelectedSources(selectedSources.filter((id) => id !== sourceId));
-    } else {
-      setSelectedSources([...selectedSources, sourceId]);
-    }
-  };
 
   const executeSearch = () => {
     // TODO: Implement actual search execution
@@ -119,15 +96,6 @@ function SearchPageContent() {
   };
 
   // Get display names for selected values
-  const getSourceLabel = () => {
-    if (selectedSources.length === 0) return "Select source";
-    if (selectedSources.length === 1) {
-      const source = SOURCES.find((s) => s.id === selectedSources[0]);
-      return source?.name || "Source";
-    }
-    return `${selectedSources.length} sources`;
-  };
-
   const getTimeLabel = () => {
     return TIME_FILTERS.find((f) => f.id === timeFilter)?.label || "Time";
   };
@@ -334,83 +302,12 @@ function SearchPageContent() {
 
             {/* Filter chips */}
             <div className="flex flex-wrap gap-2">
-              {/* Source filter dropdown */}
-              <div className="relative" ref={sourceDropdownRef}>
-                <button
-                  onClick={() => setShowSourceDropdown(!showSourceDropdown)}
-                  className="flex items-center gap-2 rounded-full border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-blue focus:ring-offset-2"
-                  data-testid="source-filter-chip"
-                >
-                  <span className="text-base">
-                    {selectedSources.includes("x") && "✖️"}
-                    {selectedSources.includes("tiktok") && "🎵"}
-                    {selectedSources.includes("reddit") && "🔴"}
-                  </span>
-                  <span>{getSourceLabel()}</span>
-                  <svg
-                    className={`h-4 w-4 transition-transform ${showSourceDropdown ? "rotate-180" : ""}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-
-                {/* Source dropdown menu */}
-                {showSourceDropdown && (
-                  <div className="absolute left-0 top-full z-10 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
-                    {SOURCES.map((source) => {
-                      const isSelected = selectedSources.includes(source.id);
-                      const isDisabled = !source.enabled;
-
-                      return (
-                        <button
-                          key={source.id}
-                          onClick={() => {
-                            if (!isDisabled) {
-                              toggleSource(source.id);
-                            }
-                          }}
-                          disabled={isDisabled}
-                          className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition ${
-                            isDisabled
-                              ? "cursor-not-allowed opacity-50"
-                              : "hover:bg-gray-50"
-                          }`}
-                          data-testid={`source-option-${source.id}`}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span>{source.icon}</span>
-                            <span>{source.name}</span>
-                            {isDisabled && (
-                              <span className="text-xs text-gray-400">(Coming soon)</span>
-                            )}
-                          </span>
-                          {isSelected && (
-                            <svg
-                              className="h-5 w-5 text-accent-blue"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              {/* Source filter */}
+              <SourceFilter
+                selectedSources={selectedSources}
+                onSourcesChange={setSelectedSources}
+                updateUrlParams={false}
+              />
 
               {/* Time filter dropdown */}
               <div className="relative" ref={timeDropdownRef}>

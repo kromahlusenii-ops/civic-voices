@@ -21,11 +21,16 @@ const config: Config = {
       },
       animation: {
         'blink': 'blink 1s step-end infinite',
+        'dropdown-open': 'dropdown-open 150ms ease-out',
       },
       keyframes: {
         blink: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0' },
+        },
+        'dropdown-open': {
+          '0%': { opacity: '0', transform: 'scale(0.98)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
         },
       },
     },
