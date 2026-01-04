@@ -277,14 +277,15 @@ describe("Search Page", () => {
       target: { value: "Climate policy" },
     });
 
-    // Auth modal should not be visible initially
-    expect(screen.queryByText("Create your account")).not.toBeInTheDocument();
+    // Auth modal should not be visible initially (check for tabs)
+    expect(screen.queryByText("Log in")).not.toBeInTheDocument();
 
     // Click start research
     fireEvent.click(startBtn);
 
-    // Auth modal should now be visible
-    expect(screen.getByText("Create your account")).toBeInTheDocument();
+    // Auth modal should now be visible (shows tabs)
+    expect(screen.getByText("Log in")).toBeInTheDocument();
+    expect(screen.getByText("Create account")).toBeInTheDocument();
   });
 
   it("authenticated user clicking search executes search directly", async () => {

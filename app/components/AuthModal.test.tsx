@@ -7,6 +7,7 @@ const mockCreateUserWithEmailAndPassword = vi.fn();
 const mockSignInWithEmailAndPassword = vi.fn();
 const mockSignInWithPopup = vi.fn();
 const mockUpdateProfile = vi.fn();
+const mockSendPasswordResetEmail = vi.fn();
 
 vi.mock("firebase/auth", () => ({
   getAuth: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("firebase/auth", () => ({
   signInWithEmailAndPassword: (...args: unknown[]) => mockSignInWithEmailAndPassword(...args),
   signInWithPopup: (...args: unknown[]) => mockSignInWithPopup(...args),
   updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
+  sendPasswordResetEmail: (...args: unknown[]) => mockSendPasswordResetEmail(...args),
 }));
 
 // Mock Firebase config
@@ -47,14 +49,37 @@ describe("AuthModal", () => {
     const mockOnClose = vi.fn();
     render(<AuthModal isOpen={false} onClose={mockOnClose} />);
 
-    expect(screen.queryByText("Create your account")).not.toBeInTheDocument();
+    expect(screen.queryByText("Civic Voices")).not.toBeInTheDocument();
   });
 
-  it("renders modal when isOpen is true", () => {
+  it("renders modal when isOpen is true with login tab by default", () => {
     const mockOnClose = vi.fn();
     render(<AuthModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(screen.getByText("Create your account")).toBeInTheDocument();
+    expect(screen.getByText("Civic Voices")).toBeInTheDocument();
+    expect(screen.getByText("Log in")).toBeInTheDocument();
+    expect(screen.getByText("Create account")).toBeInTheDocument();
+  });
+
+  it("renders close button", () => {
+    const mockOnClose = vi.fn();
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
+
+    const closeButton = screen.getByLabelText("Close modal");
+    expect(closeButton).toBeInTheDocument();
+
+    fireEvent.click(closeButton);
+    expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  it("renders promotional content on desktop", () => {
+    const mockOnClose = vi.fn();
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
+
+    expect(screen.getByText(/Discover What People/)).toBeInTheDocument();
+    expect(screen.getByText("AI-Driven Insights")).toBeInTheDocument();
+    expect(screen.getByText("Key Metrics Analysis")).toBeInTheDocument();
+    expect(screen.getByText("Shareable Reports")).toBeInTheDocument();
   });
 
   it("renders Google OAuth button", () => {
@@ -100,35 +125,182 @@ describe("AuthModal", () => {
     });
   });
 
-  it("shows divider between OAuth and credentials", () => {
+  it("switches between login and signup tabs", () => {
     const mockOnClose = vi.fn();
     render(<AuthModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(screen.getByText("Or continue with email")).toBeInTheDocument();
+    // Initially on login tab
+    expect(screen.getByText("Log in")).toHaveClass("border-gray-900");
+    expect(screen.queryByLabelText("Full name")).not.toBeInTheDocument();
+
+    // Click to switch to signup tab
+    fireEvent.click(screen.getByText("Create account"));
+
+    // Now on signup tab
+    expect(screen.getByText("Create account")).toHaveClass("border-gray-900");
+    expect(screen.getByLabelText("Full name")).toBeInTheDocument();
   });
 
-  it("renders credentials form below OAuth button", () => {
+  it("renders login form fields", () => {
     const mockOnClose = vi.fn();
     render(<AuthModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email address")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByText("Forgot password?")).toBeInTheDocument();
   });
 
-  it("switches between signup and login modes", () => {
+  it("renders signup form fields", () => {
     const mockOnClose = vi.fn();
     render(<AuthModal isOpen={true} onClose={mockOnClose} />);
 
-    // Initially in signup mode
-    expect(screen.getByText("Create your account")).toBeInTheDocument();
-    expect(screen.getByText("Already have an account? Log in")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Create account"));
 
-    // Click to switch to login
-    fireEvent.click(screen.getByText("Already have an account? Log in"));
+    expect(screen.getByLabelText("Full name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Email address")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByText(/Terms of Service/)).toBeInTheDocument();
+  });
 
-    // Now in login mode
-    expect(screen.getByText("Welcome back")).toBeInTheDocument();
-    expect(screen.getByText("Don't have an account? Sign up")).toBeInTheDocument();
+  it("toggles password visibility", () => {
+    const mockOnClose = vi.fn();
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
+
+    const passwordInput = screen.getByLabelText("Password") as HTMLInputElement;
+    expect(passwordInput.type).toBe("password");
+
+    const toggleButton = passwordInput.parentElement?.querySelector("button");
+    expect(toggleButton).toBeInTheDocument();
+
+    fireEvent.click(toggleButton!);
+    expect(passwordInput.type).toBe("text");
+
+    fireEvent.click(toggleButton!);
+    expect(passwordInput.type).toBe("password");
+  });
+
+  it("shows forgot password flow", async () => {
+    const mockOnClose = vi.fn();
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
+
+    fireEvent.click(screen.getByText("Forgot password?"));
+
+    expect(screen.getByText("Reset Password")).toBeInTheDocument();
+    expect(screen.getByText(/Enter your email/)).toBeInTheDocument();
+    expect(screen.getByText("Send Reset Link")).toBeInTheDocument();
+  });
+
+  it("sends password reset email", async () => {
+    mockSendPasswordResetEmail.mockResolvedValue(undefined);
+
+    const mockOnClose = vi.fn();
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
+
+    fireEvent.click(screen.getByText("Forgot password?"));
+
+    const emailInput = screen.getByLabelText("Email address");
+    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
+
+    const submitButton = screen.getByText("Send Reset Link");
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockSendPasswordResetEmail).toHaveBeenCalledWith({}, "test@example.com");
+      expect(screen.getByText(/Password reset email sent/)).toBeInTheDocument();
+    });
+  });
+
+  it("goes back to login from password reset", () => {
+    const mockOnClose = vi.fn();
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
+
+    fireEvent.click(screen.getByText("Forgot password?"));
+    expect(screen.getByText("Reset Password")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Back to login"));
+    expect(screen.queryByText("Reset Password")).not.toBeInTheDocument();
+    expect(screen.getByText("Log in")).toBeInTheDocument();
+  });
+
+  it("handles signup with email and password", async () => {
+    const mockUser = {
+      uid: "test-uid",
+      email: "test@example.com",
+      displayName: null,
+    };
+
+    mockCreateUserWithEmailAndPassword.mockResolvedValue({
+      user: mockUser,
+    });
+
+    const mockOnClose = vi.fn();
+    const mockOnSuccess = vi.fn();
+
+    render(<AuthModal isOpen={true} onClose={mockOnClose} onSuccess={mockOnSuccess} />);
+
+    fireEvent.click(screen.getByText("Create account"));
+
+    fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "John Doe" } });
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "test@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } });
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(mockCreateUserWithEmailAndPassword).toHaveBeenCalledWith({}, "test@example.com", "password123");
+      expect(mockUpdateProfile).toHaveBeenCalled();
+      expect(mockOnSuccess).toHaveBeenCalled();
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+  });
+
+  it("handles login with email and password", async () => {
+    const mockUser = {
+      uid: "test-uid",
+      email: "test@example.com",
+      displayName: "Test User",
+    };
+
+    mockSignInWithEmailAndPassword.mockResolvedValue({
+      user: mockUser,
+    });
+
+    const mockOnClose = vi.fn();
+    const mockOnSuccess = vi.fn();
+
+    render(<AuthModal isOpen={true} onClose={mockOnClose} onSuccess={mockOnSuccess} />);
+
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "test@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password123" } });
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith({}, "test@example.com", "password123");
+      expect(mockOnSuccess).toHaveBeenCalled();
+      expect(mockOnClose).toHaveBeenCalled();
+    });
+  });
+
+  it("displays error on failed login", async () => {
+    mockSignInWithEmailAndPassword.mockRejectedValue({
+      code: "auth/invalid-credential",
+    });
+
+    const mockOnClose = vi.fn();
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
+
+    fireEvent.change(screen.getByLabelText("Email address"), { target: { value: "test@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "wrong" } });
+
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    fireEvent.click(continueButton);
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid email or password")).toBeInTheDocument();
+    });
   });
 
   it("disables buttons when loading", async () => {
@@ -139,13 +311,10 @@ describe("AuthModal", () => {
 
     const googleButton = screen.getByTestId("google-signin-btn");
 
-    // Initially enabled
     expect(googleButton).not.toBeDisabled();
 
-    // Click to start loading
     fireEvent.click(googleButton);
 
-    // Wait for loading state
     await waitFor(() => {
       expect(googleButton).toBeDisabled();
     });
