@@ -156,13 +156,19 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
       onSuccess?.();
       onClose();
     } catch (err) {
-      const firebaseError = err as { code?: string };
+      const firebaseError = err as { code?: string; message?: string };
+      console.error("Google sign-in error:", firebaseError);
+
       if (firebaseError.code === "auth/popup-closed-by-user") {
         setError("Sign-in cancelled");
       } else if (firebaseError.code === "auth/popup-blocked") {
         setError("Please allow popups for this site");
+      } else if (firebaseError.code === "auth/unauthorized-domain") {
+        setError("This domain is not authorized. Please add localhost to authorized domains in Firebase Console.");
+      } else if (firebaseError.code === "auth/operation-not-allowed") {
+        setError("Google sign-in is not enabled. Please enable it in Firebase Console under Authentication > Sign-in method.");
       } else {
-        setError("Google sign-in failed. Please try again.");
+        setError(`Google sign-in failed: ${firebaseError.message || "Please try again."}`);
       }
       setLoading(false);
     }
@@ -290,7 +296,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Reset Password</h3>
               <p className="text-gray-600 text-sm">
-                Enter your email and we'll send you a link to reset your password.
+                Enter your email and we&apos;ll send you a link to reset your password.
               </p>
             </div>
           )}

@@ -128,8 +128,14 @@ function SearchPageContent() {
         }
       }
 
-      // Navigate to results page
-      window.location.href = `/research/${Date.now()}`;
+      // Navigate to report page with URL params
+      const reportId = Date.now().toString();
+      const params = new URLSearchParams();
+      params.set("message", searchQuery);
+      selectedSources.forEach(s => params.append("sources", s));
+      params.set("time", timeFilter);
+      params.set("location", locationFilter);
+      window.location.href = `/report/${reportId}?${params.toString()}`;
     } catch (error) {
       console.error("Search error:", error);
       setSearchError(

@@ -22,6 +22,7 @@ export interface Post {
     views?: number;
   };
   url: string;
+  thumbnail?: string;
   sentiment?: "positive" | "negative" | "neutral";
 }
 
