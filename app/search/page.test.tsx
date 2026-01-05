@@ -799,7 +799,7 @@ describe("Search Page", () => {
       expect(screen.getByText("Create account")).toBeInTheDocument();
     });
 
-    it("authenticated user clicking search history opens search history modal", async () => {
+    it("authenticated user clicking search history opens search history sidebar", async () => {
       mockUseAuth.mockReturnValue({
         isAuthenticated: true,
         loading: false,
@@ -820,9 +820,9 @@ describe("Search Page", () => {
       const searchHistoryBtn = screen.getByTestId("search-history-btn");
       fireEvent.click(searchHistoryBtn);
 
-      // Search history modal should open
+      // Search history sidebar should open
       await waitFor(() => {
-        expect(screen.getByTestId("search-history-modal")).toBeInTheDocument();
+        expect(screen.getByTestId("search-history-sidebar")).toBeInTheDocument();
       });
       expect(screen.getByText("Search History")).toBeInTheDocument();
     });

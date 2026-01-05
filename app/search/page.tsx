@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import AuthModal from "../components/AuthModal";
 import SearchHistoryModal from "../components/SearchHistoryModal";
+import SearchHistorySidebar from "../components/SearchHistorySidebar";
 import SourceFilter from "../../components/SourceFilter";
 import FilterDropdown from "../../components/FilterDropdown";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
@@ -111,6 +112,7 @@ function SearchPageContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSearchHistoryModal, setShowSearchHistoryModal] = useState(false);
+  const [showSearchHistorySidebar, setShowSearchHistorySidebar] = useState(false);
   const [pendingSearch, setPendingSearch] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -375,6 +377,12 @@ function SearchPageContent() {
         onClose={() => setShowSearchHistoryModal(false)}
       />
 
+      {/* Search History Sidebar */}
+      <SearchHistorySidebar
+        isOpen={showSearchHistorySidebar}
+        onClose={() => setShowSearchHistorySidebar(false)}
+      />
+
       {/* Mobile hamburger */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -417,13 +425,13 @@ function SearchPageContent() {
             <button
               onClick={() => {
                 if (isAuthenticated) {
-                  setShowSearchHistoryModal(true);
+                  setShowSearchHistorySidebar(!showSearchHistorySidebar);
                 } else {
                   setShowAuthModal(true);
                 }
               }}
               aria-label="Search History"
-              className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100"
+              className={`flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 ${showSearchHistorySidebar ? "bg-gray-100" : ""}`}
               data-testid="search-history-btn"
             >
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -443,7 +451,7 @@ function SearchPageContent() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 lg:ml-16">
+      <main className={`flex-1 transition-all duration-300 lg:ml-16 ${showSearchHistorySidebar ? "lg:ml-80" : ""}`}>
         {/* Initial Search State */}
         {!searchResults && !isSearching && (
           <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
