@@ -15,8 +15,14 @@ vi.mock("@/lib/prisma", () => ({
     user: {
       findUnique: vi.fn(),
     },
+    researchJob: {
+      create: vi.fn(),
+    },
     search: {
       create: vi.fn(),
+    },
+    sourceResult: {
+      createMany: vi.fn(),
     },
   },
 }));
@@ -245,6 +251,15 @@ describe("POST /api/search/save", () => {
       email: "test@example.com",
       firebaseUid: "firebase-uid-123",
     });
+    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "job-123",
+      userId: "user-123",
+      queryJson: { query: "test query", sources: ["x", "tiktok"], filters: { timeFilter: "24h", locationFilter: "all" } },
+      status: "COMPLETED",
+      totalResults: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
     (prisma.search.create as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: "search-123",
       userId: "user-123",
@@ -252,6 +267,7 @@ describe("POST /api/search/save", () => {
       name: "test query",
       sources: ["X", "TIKTOK"],
       filtersJson: { timeFilter: "24h", locationFilter: "all" },
+      reportId: "job-123",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -274,8 +290,13 @@ describe("POST /api/search/save", () => {
     expect(response.status).toBe(201);
     expect(data.success).toBe(true);
     expect(data.searchId).toBe("search-123");
+    expect(data.researchJobId).toBe("job-123");
     expect(data.message).toBe("Search saved successfully");
 
+    // Verify ResearchJob was created first
+    expect(prisma.researchJob.create).toHaveBeenCalled();
+
+    // Verify Search was created and linked to ResearchJob
     expect(prisma.search.create).toHaveBeenCalledWith({
       data: {
         userId: "user-123",
@@ -283,6 +304,7 @@ describe("POST /api/search/save", () => {
         name: "test query",
         sources: ["X", "TIKTOK"],
         filtersJson: { timeFilter: "24h", locationFilter: "all" },
+        reportId: "job-123",
       },
     });
   });
@@ -297,6 +319,15 @@ describe("POST /api/search/save", () => {
       email: "test@example.com",
       firebaseUid: "firebase-uid-123",
     });
+    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "job-123",
+      userId: "user-123",
+      queryJson: { query: "test query", sources: ["x"], filters: { timeFilter: "24h", locationFilter: "all" } },
+      status: "COMPLETED",
+      totalResults: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
     (prisma.search.create as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: "search-123",
       userId: "user-123",
@@ -304,6 +335,7 @@ describe("POST /api/search/save", () => {
       name: "My Custom Search",
       sources: ["X"],
       filtersJson: { timeFilter: "24h", locationFilter: "all" },
+      reportId: "job-123",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -332,6 +364,7 @@ describe("POST /api/search/save", () => {
         name: "My Custom Search",
         sources: ["X"],
         filtersJson: { timeFilter: "24h", locationFilter: "all" },
+        reportId: "job-123",
       },
     });
   });
@@ -351,6 +384,16 @@ describe("POST /api/search/save", () => {
         firebaseUid: null, // User created before Firebase migration
       });
 
+    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "job-123",
+      userId: "user-123",
+      queryJson: { query: "test query", sources: ["x"], filters: { timeFilter: "24h", locationFilter: "all" } },
+      status: "COMPLETED",
+      totalResults: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
     (prisma.search.create as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: "search-123",
       userId: "user-123",
@@ -358,6 +401,7 @@ describe("POST /api/search/save", () => {
       name: "test query",
       sources: ["X"],
       filtersJson: { timeFilter: "24h", locationFilter: "all" },
+      reportId: "job-123",
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -399,7 +443,8 @@ describe("POST /api/search/save", () => {
       email: "test@example.com",
       firebaseUid: "firebase-uid-123",
     });
-    (prisma.search.create as ReturnType<typeof vi.fn>).mockRejectedValue(
+    // ResearchJob.create fails
+    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error("Database connection failed")
     );
 

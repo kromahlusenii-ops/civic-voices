@@ -630,4 +630,154 @@ describe("Search Page", () => {
       expect(resultsLanguageFilter).toHaveTextContent("English");
     });
   });
+
+  describe("Auto-save Functionality", () => {
+    it("unauthenticated user search does not call save API", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      // Type a search query
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+
+      // Click start research - opens auth modal for unauth users
+      fireEvent.click(startBtn);
+
+      // Should show auth modal instead of executing search
+      expect(screen.getByText("Log in")).toBeInTheDocument();
+
+      // Verify fetch was never called (no search, no save)
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("authenticated user search calls save API with Search + ResearchJob data", async () => {
+      const mockGetIdToken = vi.fn().mockResolvedValue("mock-id-token");
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: mockGetIdToken,
+        },
+      });
+
+      const mockSearchResponse = createMockSearchResponse();
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(mockSearchResponse),
+      });
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      // Execute search
+      fireEvent.change(searchInput, { target: { value: "Climate policy" } });
+      fireEvent.click(startBtn);
+
+      // Wait for results
+      await waitFor(
+        () => {
+          expect(screen.getByText("Posts preview for query")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // Verify save API was called
+      const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
+      expect(fetchCalls.length).toBe(2); // search + save
+
+      // First call should be to search API
+      expect(fetchCalls[0][0]).toBe("/api/search");
+
+      // Second call should be to save API
+      expect(fetchCalls[1][0]).toBe("/api/search/save");
+      expect(fetchCalls[1][1]).toMatchObject({
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer mock-id-token",
+        },
+      });
+
+      // Verify save payload includes required fields
+      const savePayload = JSON.parse(fetchCalls[1][1].body);
+      expect(savePayload.queryText).toBe("Climate policy");
+      expect(savePayload.sources).toBeDefined();
+      expect(savePayload.filters).toBeDefined();
+      expect(savePayload.totalResults).toBe(mockSearchResponse.summary.totalPosts);
+      expect(savePayload.posts).toHaveLength(mockSearchResponse.posts.length);
+      expect(savePayload.posts[0]).toMatchObject({
+        id: mockPosts[0].id,
+        text: mockPosts[0].text,
+        platform: mockPosts[0].platform,
+        url: mockPosts[0].url,
+      });
+    });
+
+    it("save API failure does not affect search results display", async () => {
+      const mockGetIdToken = vi.fn().mockResolvedValue("mock-id-token");
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: mockGetIdToken,
+        },
+      });
+
+      const mockSearchResponse = createMockSearchResponse();
+
+      // Mock search to succeed, save to fail
+      (global.fetch as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve(mockSearchResponse),
+        })
+        .mockRejectedValueOnce(new Error("Save failed"));
+
+      // Spy on console.error to verify error is logged
+      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(startBtn);
+
+      // Wait for results - should still display despite save failure
+      await waitFor(
+        () => {
+          expect(screen.getByText("Posts preview for query")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // Verify error was logged but search results still show
+      await waitFor(() => {
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Failed to save search:",
+          expect.any(Error)
+        );
+      });
+
+      // Posts should still be visible
+      const postCards = screen.getAllByTestId("post-card");
+      expect(postCards.length).toBe(2);
+
+      consoleErrorSpy.mockRestore();
+    });
+  });
 });

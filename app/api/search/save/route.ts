@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFirebaseToken } from "@/lib/firebase-admin";
 import { prisma } from "@/lib/prisma";
-import { Source } from "@prisma/client";
+import { Source, JobStatus } from "@prisma/client";
 
 interface SaveSearchRequest {
   queryText: string;
@@ -9,8 +9,23 @@ interface SaveSearchRequest {
   sources: string[];
   filters: {
     timeFilter: string;
-    locationFilter: string;
+    language?: string;
   };
+  totalResults?: number;
+  posts?: Array<{
+    id: string;
+    text: string;
+    author: string;
+    platform: string;
+    url: string;
+    createdAt?: string;
+    engagement?: {
+      likes: number;
+      comments: number;
+      shares: number;
+      views?: number;
+    };
+  }>;
 }
 
 export async function POST(request: NextRequest) {
@@ -79,10 +94,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert sources to Prisma enum type
+    const validSourceNames = ["X", "TIKTOK", "REDDIT", "INSTAGRAM", "YOUTUBE", "LINKEDIN"];
     const validSources = sources.filter((source) =>
-      ["X", "TIKTOK", "REDDIT", "INSTAGRAM", "YOUTUBE", "LINKEDIN"].includes(
-        source.toUpperCase()
-      )
+      validSourceNames.includes(source.toUpperCase())
     );
 
     if (validSources.length === 0) {
@@ -98,21 +112,63 @@ export async function POST(request: NextRequest) {
       return upperSource === "X" ? Source.X : (upperSource as Source);
     });
 
-    // Create search record
+    // Create ResearchJob first
+    const researchJob = await prisma.researchJob.create({
+      data: {
+        userId: user.id,
+        queryJson: {
+          query: queryText,
+          sources: validSources,
+          filters,
+        },
+        status: JobStatus.COMPLETED,
+        totalResults: body.totalResults || body.posts?.length || 0,
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+
+    // Create Search record linked to ResearchJob
     const search = await prisma.search.create({
       data: {
         userId: user.id,
         queryText,
-        name: name || queryText, // Default to queryText if no custom name
+        name: name || queryText,
         sources: enumSources,
         filtersJson: filters,
+        reportId: researchJob.id,
       },
     });
+
+    // Create SourceResult records for posts if provided
+    if (body.posts && body.posts.length > 0) {
+      const sourceResultsData = body.posts.map((post) => {
+        const upperPlatform = post.platform.toUpperCase();
+        const source = upperPlatform === "X" ? Source.X : (upperPlatform as Source);
+        return {
+          jobId: researchJob.id,
+          source,
+          externalId: post.id,
+          url: post.url,
+          title: post.text.slice(0, 100),
+          text: post.text,
+          rawJson: post,
+          createdAtExternal: post.createdAt ? new Date(post.createdAt) : null,
+          score: post.engagement?.likes || 0,
+        };
+      });
+
+      await prisma.sourceResult.createMany({
+        data: sourceResultsData,
+        skipDuplicates: true,
+      });
+    }
 
     return NextResponse.json(
       {
         success: true,
         searchId: search.id,
+        researchJobId: researchJob.id,
         message: "Search saved successfully",
       },
       { status: 201 }

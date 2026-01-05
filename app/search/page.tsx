@@ -229,7 +229,7 @@ function SearchPageContent() {
 
       setSearchResults(results);
 
-      // Save search to database if authenticated
+      // Auto-save search to database if authenticated
       if (isAuthenticated && user) {
         try {
           const idToken = await user.getIdToken();
@@ -243,6 +243,16 @@ function SearchPageContent() {
               queryText: query,
               sources,
               filters: { timeFilter: currentTimeRange, language: currentLanguage },
+              totalResults: apiResponse.summary.totalPosts,
+              posts: apiResponse.posts.map((post) => ({
+                id: post.id,
+                text: post.text,
+                author: post.author,
+                platform: post.platform,
+                url: post.url,
+                createdAt: post.createdAt,
+                engagement: post.engagement,
+              })),
             }),
           });
         } catch (saveError) {
