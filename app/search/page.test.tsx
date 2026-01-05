@@ -780,4 +780,51 @@ describe("Search Page", () => {
       consoleErrorSpy.mockRestore();
     });
   });
+
+  describe("Search History Button", () => {
+    it("unauthenticated user clicking search history opens auth modal", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const searchHistoryBtn = screen.getByTestId("search-history-btn");
+      fireEvent.click(searchHistoryBtn);
+
+      // Auth modal should open
+      expect(screen.getByText("Log in")).toBeInTheDocument();
+      expect(screen.getByText("Create account")).toBeInTheDocument();
+    });
+
+    it("authenticated user clicking search history opens search history modal", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ searches: [], total: 0 }),
+      });
+
+      render(<SearchPage />);
+
+      const searchHistoryBtn = screen.getByTestId("search-history-btn");
+      fireEvent.click(searchHistoryBtn);
+
+      // Search history modal should open
+      await waitFor(() => {
+        expect(screen.getByTestId("search-history-modal")).toBeInTheDocument();
+      });
+      expect(screen.getByText("Search History")).toBeInTheDocument();
+    });
+  });
 });
