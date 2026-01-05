@@ -116,7 +116,7 @@ describe("SearchHistorySidebar", () => {
   });
 
   describe("Visibility", () => {
-    it("renders nothing when isOpen is false", () => {
+    it("renders condensed (width 0) when isOpen is false", () => {
       mockUseAuth.mockReturnValue({
         user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
         isAuthenticated: true,
@@ -124,10 +124,13 @@ describe("SearchHistorySidebar", () => {
 
       render(<SearchHistorySidebar isOpen={false} onClose={vi.fn()} />);
 
-      expect(screen.queryByTestId("search-history-sidebar")).not.toBeInTheDocument();
+      const sidebar = screen.getByTestId("search-history-sidebar");
+      expect(sidebar).toBeInTheDocument();
+      expect(sidebar).toHaveClass("w-0");
+      expect(sidebar).toHaveClass("opacity-0");
     });
 
-    it("renders sidebar when isOpen is true", async () => {
+    it("renders expanded when isOpen is true", async () => {
       mockUseAuth.mockReturnValue({
         user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
         isAuthenticated: true,
@@ -140,7 +143,10 @@ describe("SearchHistorySidebar", () => {
 
       render(<SearchHistorySidebar isOpen={true} onClose={vi.fn()} />);
 
-      expect(screen.getByTestId("search-history-sidebar")).toBeInTheDocument();
+      const sidebar = screen.getByTestId("search-history-sidebar");
+      expect(sidebar).toBeInTheDocument();
+      expect(sidebar).toHaveClass("w-64");
+      expect(sidebar).toHaveClass("opacity-100");
       expect(screen.getByText("Search History")).toBeInTheDocument();
     });
   });

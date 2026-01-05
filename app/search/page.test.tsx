@@ -799,7 +799,7 @@ describe("Search Page", () => {
       expect(screen.getByText("Create account")).toBeInTheDocument();
     });
 
-    it("authenticated user clicking search history opens search history sidebar", async () => {
+    it("authenticated user hovering search history expands search history sidebar", async () => {
       mockUseAuth.mockReturnValue({
         isAuthenticated: true,
         loading: false,
@@ -818,9 +818,9 @@ describe("Search Page", () => {
       render(<SearchPage />);
 
       const searchHistoryBtn = screen.getByTestId("search-history-btn");
-      fireEvent.click(searchHistoryBtn);
+      fireEvent.mouseEnter(searchHistoryBtn);
 
-      // Search history sidebar should open
+      // Search history sidebar should expand on hover
       await waitFor(() => {
         expect(screen.getByTestId("search-history-sidebar")).toBeInTheDocument();
       });

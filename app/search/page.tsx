@@ -381,6 +381,8 @@ function SearchPageContent() {
       <SearchHistorySidebar
         isOpen={showSearchHistorySidebar}
         onClose={() => setShowSearchHistorySidebar(false)}
+        onMouseEnter={() => isAuthenticated && setShowSearchHistorySidebar(true)}
+        onMouseLeave={() => setShowSearchHistorySidebar(false)}
       />
 
       {/* Mobile hamburger */}
@@ -424,10 +426,13 @@ function SearchPageContent() {
             {/* Search History */}
             <button
               onClick={() => {
-                if (isAuthenticated) {
-                  setShowSearchHistorySidebar(!showSearchHistorySidebar);
-                } else {
+                if (!isAuthenticated) {
                   setShowAuthModal(true);
+                }
+              }}
+              onMouseEnter={() => {
+                if (isAuthenticated) {
+                  setShowSearchHistorySidebar(true);
                 }
               }}
               aria-label="Search History"

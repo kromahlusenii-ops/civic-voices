@@ -57,9 +57,11 @@ export function groupSearchesByDate(searches: SavedSearch[]): GroupedSearches {
 interface SearchHistorySidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
-export default function SearchHistorySidebar({ isOpen, onClose }: SearchHistorySidebarProps) {
+export default function SearchHistorySidebar({ isOpen, onClose, onMouseEnter, onMouseLeave }: SearchHistorySidebarProps) {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const [searches, setSearches] = useState<SavedSearch[]>([]);
@@ -128,8 +130,6 @@ export default function SearchHistorySidebar({ isOpen, onClose }: SearchHistoryS
     // TODO: Implement rename functionality
     console.log("Rename search:", searchId);
   };
-
-  if (!isOpen) return null;
 
   const groupedSearches = groupSearchesByDate(searches);
 
@@ -205,12 +205,16 @@ export default function SearchHistorySidebar({ isOpen, onClose }: SearchHistoryS
 
   return (
     <aside
-      className="fixed inset-y-0 left-16 z-30 w-64 bg-white border-r border-gray-200 flex flex-col"
+      className={`fixed inset-y-0 left-16 z-30 bg-white border-r border-gray-200 flex flex-col transition-all duration-300 ease-in-out ${
+        isOpen ? "w-64 opacity-100" : "w-0 opacity-0 overflow-hidden"
+      }`}
       data-testid="search-history-sidebar"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-        <h2 className="text-sm font-semibold text-gray-900">Search History</h2>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 min-w-64">
+        <h2 className="text-sm font-semibold text-gray-900 whitespace-nowrap">Search History</h2>
         <button
           onClick={onClose}
           className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
@@ -224,7 +228,7 @@ export default function SearchHistorySidebar({ isOpen, onClose }: SearchHistoryS
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto py-2">
+      <div className="flex-1 overflow-y-auto py-2 min-w-64">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-900" />
@@ -244,8 +248,8 @@ export default function SearchHistorySidebar({ isOpen, onClose }: SearchHistoryS
             <svg className="h-10 w-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="text-sm text-gray-500">No search history</p>
-            <p className="text-xs text-gray-400 mt-1">Your searches will appear here</p>
+            <p className="text-sm text-gray-500 whitespace-nowrap">No search history</p>
+            <p className="text-xs text-gray-400 mt-1 whitespace-nowrap">Your searches will appear here</p>
           </div>
         ) : (
           <>
