@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import XApiService from "@/lib/services/xApi";
 import TikTokApiService from "@/lib/services/tiktokApi";
-import type { SearchParams, SearchResponse, Post } from "@/lib/types/api";
+import AIAnalysisService from "@/lib/services/aiAnalysis";
+import type { SearchParams, SearchResponse, Post, AIAnalysis } from "@/lib/types/api";
 
 export async function POST(request: NextRequest) {
   try {
     const body: SearchParams = await request.json();
-    const { query, sources, timeFilter } = body;
+    const { query, sources, timeFilter, language } = body;
 
     if (!query || !query.trim()) {
       return NextResponse.json(
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
         allPosts.push(...xPosts);
         platformCounts.x = xPosts.length;
       } catch (error) {
-        console.error("X API error:", error);
+        console.error("X API error:", error instanceof Error ? error.message : error);
         platformCounts.x = 0;
       }
     }
@@ -60,7 +61,10 @@ export async function POST(request: NextRequest) {
           count: 20,
         });
 
+        console.log("TikTok raw results:", JSON.stringify(tiktokResults, null, 2));
+
         let tiktokPosts = tiktokService.transformToPosts(tiktokResults);
+        console.log("TikTok transformed posts count:", tiktokPosts.length);
 
         // Filter by time range (TikTok API doesn't support time filtering directly)
         tiktokPosts = TikTokApiService.filterByTimeRange(
@@ -81,12 +85,34 @@ export async function POST(request: NextRequest) {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-    // Calculate sentiment (placeholder - would use real sentiment analysis)
-    const sentiment = {
-      positive: Math.floor(allPosts.length * 0.4),
-      neutral: Math.floor(allPosts.length * 0.4),
-      negative: Math.floor(allPosts.length * 0.2),
-    };
+    // Generate AI analysis using Claude
+    let aiAnalysis: AIAnalysis | undefined;
+    if (process.env.ANTHROPIC_API_KEY) {
+      try {
+        const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+        aiAnalysis = await aiService.generateAnalysis(query, allPosts, {
+          timeRange: timeFilter,
+          language: language || "all",
+          sources,
+        });
+      } catch (error) {
+        console.error("AI analysis error:", error);
+        // Continue without AI analysis if it fails
+      }
+    }
+
+    // Calculate sentiment from AI analysis or use defaults
+    const sentiment = aiAnalysis?.sentimentBreakdown
+      ? {
+          positive: aiAnalysis.sentimentBreakdown.overall === "positive" ? Math.ceil(allPosts.length * 0.6) : Math.floor(allPosts.length * 0.3),
+          neutral: aiAnalysis.sentimentBreakdown.overall === "neutral" ? Math.ceil(allPosts.length * 0.6) : Math.floor(allPosts.length * 0.3),
+          negative: aiAnalysis.sentimentBreakdown.overall === "negative" ? Math.ceil(allPosts.length * 0.6) : Math.floor(allPosts.length * 0.2),
+        }
+      : {
+          positive: Math.floor(allPosts.length * 0.4),
+          neutral: Math.floor(allPosts.length * 0.4),
+          negative: Math.floor(allPosts.length * 0.2),
+        };
 
     // Build response
     const response: SearchResponse = {
@@ -101,6 +127,7 @@ export async function POST(request: NextRequest) {
         },
       },
       query,
+      aiAnalysis,
     };
 
     return NextResponse.json(response);

@@ -4,7 +4,8 @@ export interface SearchParams {
   query: string;
   sources: string[];
   timeFilter: string;
-  locationFilter: string;
+  locationFilter?: string;
+  language?: string;
 }
 
 export interface Post {
@@ -26,6 +27,22 @@ export interface Post {
   sentiment?: "positive" | "negative" | "neutral";
 }
 
+export interface AIAnalysis {
+  interpretation: string;
+  keyThemes: string[];
+  sentimentBreakdown: {
+    overall: "positive" | "negative" | "neutral" | "mixed";
+    summary: string;
+  };
+  suggestedQueries: { label: string; query: string }[];
+  followUpQuestion: string;
+}
+
+export interface PlatformError {
+  platform: string;
+  error: string;
+}
+
 export interface SearchResponse {
   posts: Post[];
   summary: {
@@ -42,6 +59,8 @@ export interface SearchResponse {
     };
   };
   query: string;
+  aiAnalysis?: AIAnalysis;
+  errors?: PlatformError[];
 }
 
 // X (Twitter) specific types

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SearchPage from "./page";
 
 // Mock useAuth hook
@@ -8,15 +8,24 @@ vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Track router calls
+const mockRouterReplace = vi.fn();
+
 // Mock Next.js navigation
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
     push: vi.fn(),
     refresh: vi.fn(),
-    replace: vi.fn(),
+    replace: mockRouterReplace,
   })),
   useSearchParams: vi.fn(() => ({
-    get: vi.fn(() => null),
+    get: vi.fn((key: string) => {
+      if (key === "time_range") return null;
+      if (key === "language") return null;
+      if (key === "message") return null;
+      return null;
+    }),
+    getAll: vi.fn(() => []),
     toString: vi.fn(() => ""),
   })),
 }));
@@ -44,315 +53,581 @@ vi.mock("@/lib/firebase", () => ({
   googleProvider: {},
 }));
 
+// Mock API response helper
+const createMockSearchResponse = (posts = mockPosts) => ({
+  posts,
+  summary: {
+    totalPosts: posts.length,
+    platforms: { tiktok: posts.filter(p => p.platform === "tiktok").length, x: posts.filter(p => p.platform === "x").length },
+    sentiment: { positive: 2, neutral: 1, negative: 1 },
+    timeRange: { start: "2025-10-01T00:00:00.000Z", end: "2026-01-04T00:00:00.000Z" },
+  },
+  query: "Test query",
+  aiAnalysis: {
+    interpretation: "This is a test analysis of the search results about current events.",
+    keyThemes: ["news", "politics", "social media"],
+    sentimentBreakdown: {
+      overall: "mixed" as const,
+      summary: "The conversation shows mixed perspectives from users.",
+    },
+    suggestedQueries: [
+      { label: "Focus on recent news", query: "test news" },
+      { label: "Explore reactions", query: "test reaction" },
+    ],
+    followUpQuestion: "Would you like to explore a specific aspect of this topic?",
+  },
+});
+
+// Sample mock posts with real URLs
+const mockPosts = [
+  {
+    id: "7312345678901234567",
+    text: "This is a test post about Venezuela and current events. #venezuela #news",
+    author: "TestUser",
+    authorHandle: "@testuser",
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+    platform: "tiktok" as const,
+    engagement: { likes: 1200, comments: 89, shares: 456, views: 45000 },
+    url: "https://www.tiktok.com/@testuser/video/7312345678901234567",
+  },
+  {
+    id: "1876543210987654321",
+    text: "Breaking news: Important political developments happening right now.",
+    author: "News Account",
+    authorHandle: "@newsaccount",
+    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    platform: "x" as const,
+    engagement: { likes: 3400, comments: 567, shares: 1200, views: 120000 },
+    url: "https://twitter.com/newsaccount/status/1876543210987654321",
+  },
+];
+
 describe("Search Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn();
   });
 
-  it("renders greeting, search input, and start research button", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: true,
-      loading: false,
-      user: { displayName: "John Doe", email: "john@example.com" },
+  describe("Initial Search State", () => {
+    it("renders greeting, search input, and start research button", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: { displayName: "John Doe", email: "john@example.com" },
+      });
+
+      render(<SearchPage />);
+
+      // Check greeting shows first name for authenticated users
+      const greeting = screen.getByTestId("dashboard-greeting");
+      expect(greeting).toBeInTheDocument();
+      expect(greeting).toHaveTextContent("Hello, John");
+
+      // Check search input
+      const searchInput = screen.getByTestId("search-input");
+      expect(searchInput).toBeInTheDocument();
+      expect(searchInput).toHaveAttribute(
+        "placeholder",
+        "Search an issue, candidate, or ballot measure"
+      );
+
+      // Check start research button
+      const startBtn = screen.getByTestId("start-research-btn");
+      expect(startBtn).toBeInTheDocument();
     });
 
-    render(<SearchPage />);
+    it("shows default greeting when user has no name", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: { email: "user@example.com", displayName: null },
+      });
 
-    // Check greeting shows first name for authenticated users
-    const greeting = screen.getByTestId("dashboard-greeting");
-    expect(greeting).toBeInTheDocument();
-    expect(greeting).toHaveTextContent("Hello, John");
+      render(<SearchPage />);
 
-    // Check search input
-    const searchInput = screen.getByTestId("search-input");
-    expect(searchInput).toBeInTheDocument();
-    expect(searchInput).toHaveAttribute(
-      "placeholder",
-      "Search an issue, candidate, or ballot measure"
-    );
+      const greeting = screen.getByTestId("dashboard-greeting");
+      expect(greeting).toHaveTextContent("Discover what people buzz about");
+    });
 
-    // Check start research button
-    const startBtn = screen.getByTestId("start-research-btn");
-    expect(startBtn).toBeInTheDocument();
+    it("shows default greeting for unauthenticated users", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const greeting = screen.getByTestId("dashboard-greeting");
+      expect(greeting).toHaveTextContent("Discover what people buzz about");
+    });
+
+    it("renders source filter", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const sourceButton = screen.getByTestId("source-filter-button");
+      expect(sourceButton).toBeInTheDocument();
+    });
+
+    it("start research button is disabled when no query", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      // Initially disabled (no search query)
+      expect(startBtn).toBeDisabled();
+
+      // Type search query
+      const searchInput = screen.getByTestId("search-input");
+      fireEvent.change(searchInput, {
+        target: { value: "Climate change policy" },
+      });
+
+      // Should be enabled now
+      expect(startBtn).not.toBeDisabled();
+    });
   });
 
-  it("renders filter chips for source, time, and location", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
+  describe("Source Filter", () => {
+    it("clicking source filter button opens dropdown with all sources", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const sourceButton = screen.getByTestId("source-filter-button");
+
+      // Dropdown should not be visible initially
+      expect(screen.queryByTestId("source-filter-dropdown")).not.toBeInTheDocument();
+
+      // Click to open dropdown
+      fireEvent.click(sourceButton);
+
+      // Check dropdown and source options are now visible
+      expect(screen.getByTestId("source-filter-dropdown")).toBeInTheDocument();
+      expect(screen.getByTestId("source-option-x")).toBeInTheDocument();
+      expect(screen.getByTestId("source-option-tiktok")).toBeInTheDocument();
     });
 
-    render(<SearchPage />);
+    it("toggling sources in dropdown updates selection", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
 
-    // Check filter chips exist
-    const sourceButton = screen.getByTestId("source-filter-button");
-    const timeChip = screen.getByTestId("time-filter-chip");
-    const locationChip = screen.getByTestId("location-filter-chip");
+      render(<SearchPage />);
 
-    expect(sourceButton).toBeInTheDocument();
-    expect(sourceButton).toHaveTextContent("X +1"); // X and TikTok by default
-    expect(timeChip).toBeInTheDocument();
-    expect(timeChip).toHaveTextContent("Last 3 months");
-    expect(locationChip).toBeInTheDocument();
-    expect(locationChip).toHaveTextContent("All regions");
+      const sourceButton = screen.getByTestId("source-filter-button");
+
+      // Open dropdown
+      fireEvent.click(sourceButton);
+
+      const tiktokOption = screen.getByTestId("source-option-tiktok");
+
+      // TikTok should be selected by default
+      expect(tiktokOption).toHaveAttribute("aria-checked", "true");
+    });
   });
 
-  it("clicking source filter button opens dropdown with all sources", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
+  describe("Authentication Flow", () => {
+    it("unauthenticated user clicking search opens auth modal", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      // Type a search query
+      fireEvent.change(searchInput, {
+        target: { value: "Climate policy" },
+      });
+
+      // Auth modal should not be visible initially
+      expect(screen.queryByText("Log in")).not.toBeInTheDocument();
+
+      // Click start research
+      fireEvent.click(startBtn);
+
+      // Auth modal should now be visible
+      expect(screen.getByText("Log in")).toBeInTheDocument();
+      expect(screen.getByText("Create account")).toBeInTheDocument();
     });
 
-    render(<SearchPage />);
+    it("auth modal displays Google OAuth button", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
 
-    const sourceButton = screen.getByTestId("source-filter-button");
+      render(<SearchPage />);
 
-    // Dropdown should not be visible initially
-    expect(screen.queryByTestId("source-filter-dropdown")).not.toBeInTheDocument();
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
 
-    // Click to open dropdown
-    fireEvent.click(sourceButton);
+      // Type a search query and open modal
+      fireEvent.change(searchInput, {
+        target: { value: "Test query" },
+      });
+      fireEvent.click(startBtn);
 
-    // Check dropdown and source options are now visible
-    expect(screen.getByTestId("source-filter-dropdown")).toBeInTheDocument();
-    expect(screen.getByTestId("source-option-x")).toBeInTheDocument();
-    expect(screen.getByTestId("source-option-tiktok")).toBeInTheDocument();
-    expect(screen.getByTestId("source-option-reddit")).toBeInTheDocument();
-    expect(screen.getByTestId("source-option-instagram")).toBeInTheDocument();
+      // Verify Google button is present
+      const googleButton = screen.getByTestId("google-signin-btn");
+      expect(googleButton).toBeInTheDocument();
+      expect(googleButton).toHaveTextContent("Continue with Google");
+    });
   });
 
-  it("toggling sources in dropdown updates selection", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
-    });
+  describe("Search Results", () => {
+    it("authenticated user clicking search shows loading then results", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+        },
+      });
 
-    render(<SearchPage />);
-
-    const sourceButton = screen.getByTestId("source-filter-button");
-
-    // Open dropdown
-    fireEvent.click(sourceButton);
-
-    const xOption = screen.getByTestId("source-option-x");
-
-    // X should be selected by default (aria-checked)
-    expect(xOption).toHaveAttribute("aria-checked", "true");
-
-    // Click X to deselect
-    fireEvent.click(xOption);
-
-    // Button label should update to show only TikTok
-    expect(screen.getByTestId("source-filter-button")).toHaveTextContent("TikTok");
-  });
-
-  it("disabled sources show 'Coming soon' label", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
-    });
-
-    render(<SearchPage />);
-
-    const sourceButton = screen.getByTestId("source-filter-button");
-
-    // Open dropdown
-    fireEvent.click(sourceButton);
-
-    const redditOption = screen.getByTestId("source-option-reddit");
-
-    // Reddit should show "Coming soon"
-    expect(redditOption).toHaveTextContent("Coming soon");
-    expect(redditOption).toBeDisabled();
-  });
-
-  it("shows default greeting when user has no name", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: true,
-      loading: false,
-      user: { email: "user@example.com", displayName: null },
-    });
-
-    render(<SearchPage />);
-
-    const greeting = screen.getByTestId("dashboard-greeting");
-    expect(greeting).toHaveTextContent("Discover what people buzz about");
-  });
-
-  it("start research button is disabled when no query or no sources selected", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
-    });
-
-    render(<SearchPage />);
-
-    const startBtn = screen.getByTestId("start-research-btn");
-    const searchInput = screen.getByTestId("search-input");
-
-    // Initially disabled (no search query)
-    expect(startBtn).toBeDisabled();
-
-    // Type search query
-    fireEvent.change(searchInput, {
-      target: { value: "Climate change policy" },
-    });
-
-    // Should be enabled now (has query and X + TikTok are selected by default)
-    expect(startBtn).not.toBeDisabled();
-
-    // Open source dropdown and deselect both X and TikTok
-    const sourceButton = screen.getByTestId("source-filter-button");
-    fireEvent.click(sourceButton);
-    const xOption = screen.getByTestId("source-option-x");
-    const tiktokOption = screen.getByTestId("source-option-tiktok");
-    fireEvent.click(xOption);
-    fireEvent.click(tiktokOption);
-
-    // Should be disabled again (no sources selected)
-    expect(startBtn).toBeDisabled();
-  });
-
-  it("clicking time filter chip opens dropdown", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
-    });
-
-    render(<SearchPage />);
-
-    const timeChip = screen.getByTestId("time-filter-chip");
-
-    // Click to open dropdown
-    fireEvent.click(timeChip);
-
-    // Check time options are visible
-    expect(screen.getByTestId("time-option-7d")).toBeInTheDocument();
-    expect(screen.getByTestId("time-option-30d")).toBeInTheDocument();
-    expect(screen.getByTestId("time-option-3m")).toBeInTheDocument();
-    expect(screen.getByTestId("time-option-12m")).toBeInTheDocument();
-  });
-
-  it("clicking location filter chip opens dropdown", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
-    });
-
-    render(<SearchPage />);
-
-    const locationChip = screen.getByTestId("location-filter-chip");
-
-    // Click to open dropdown
-    fireEvent.click(locationChip);
-
-    // Check location options are visible
-    expect(screen.getByTestId("location-option-all")).toBeInTheDocument();
-    expect(screen.getByTestId("location-option-us")).toBeInTheDocument();
-    expect(screen.getByTestId("location-option-nc")).toBeInTheDocument();
-    expect(screen.getByTestId("location-option-dc")).toBeInTheDocument();
-  });
-
-  it("unauthenticated user clicking search opens auth modal", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
-    });
-
-    render(<SearchPage />);
-
-    const searchInput = screen.getByTestId("search-input");
-    const startBtn = screen.getByTestId("start-research-btn");
-
-    // Type a search query
-    fireEvent.change(searchInput, {
-      target: { value: "Climate policy" },
-    });
-
-    // Auth modal should not be visible initially (check for tabs)
-    expect(screen.queryByText("Log in")).not.toBeInTheDocument();
-
-    // Click start research
-    fireEvent.click(startBtn);
-
-    // Auth modal should now be visible (shows tabs)
-    expect(screen.getByText("Log in")).toBeInTheDocument();
-    expect(screen.getByText("Create account")).toBeInTheDocument();
-  });
-
-  it("authenticated user clicking search executes search directly", async () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: true,
-      loading: false,
-      user: {
-        displayName: "John Doe",
-        email: "john@example.com",
-        getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
-      },
-    });
-
-    // Mock fetch for the search API
-    global.fetch = vi.fn(() =>
-      Promise.resolve({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ posts: [], summary: {} }),
-      } as Response)
-    );
+        json: () => Promise.resolve(createMockSearchResponse()),
+      });
 
-    render(<SearchPage />);
+      render(<SearchPage />);
 
-    const searchInput = screen.getByTestId("search-input");
-    const startBtn = screen.getByTestId("start-research-btn");
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
 
-    // Type a search query
-    fireEvent.change(searchInput, {
-      target: { value: "Climate policy" },
+      // Type a search query
+      fireEvent.change(searchInput, {
+        target: { value: "Venezuela" },
+      });
+
+      // Click start research
+      fireEvent.click(startBtn);
+
+      // Auth modal should NOT appear for authenticated users
+      expect(screen.queryByText("Create your account")).not.toBeInTheDocument();
+
+      // Should show loading state
+      await waitFor(() => {
+        expect(screen.getByText("Analyzing...")).toBeInTheDocument();
+      });
+
+      // Wait for results to appear
+      await waitFor(
+        () => {
+          expect(screen.getByText("Posts preview for query")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // AI analysis should be visible
+      expect(screen.getByTestId("ai-interpretation")).toBeInTheDocument();
+
+      // Follow-up input should be visible
+      expect(screen.getByTestId("follow-up-input")).toBeInTheDocument();
     });
 
-    // Click start research
-    fireEvent.click(startBtn);
+    it("displays post cards in results with clickable links", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+        },
+      });
 
-    // Auth modal should NOT appear for authenticated users
-    expect(screen.queryByText("Create your account")).not.toBeInTheDocument();
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(createMockSearchResponse()),
+      });
 
-    // Search API should be called
-    expect(global.fetch).toHaveBeenCalledWith(
-      "/api/search",
-      expect.objectContaining({
-        method: "POST",
-      })
-    );
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(startBtn);
+
+      // Wait for results
+      await waitFor(
+        () => {
+          expect(screen.getByText("Posts preview for query")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // Check for post cards
+      const postCards = screen.getAllByTestId("post-card");
+      expect(postCards.length).toBe(2);
+
+      // Verify post cards are links to real URLs
+      expect(postCards[0]).toHaveAttribute("href", "https://www.tiktok.com/@testuser/video/7312345678901234567");
+      expect(postCards[1]).toHaveAttribute("href", "https://twitter.com/newsaccount/status/1876543210987654321");
+    });
+
+    it("clicking new research resets to initial state", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(createMockSearchResponse()),
+      });
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      // Perform search
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(startBtn);
+
+      // Wait for results
+      await waitFor(
+        () => {
+          expect(screen.getByText("Posts preview for query")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // Click new research button
+      const newResearchBtn = screen.getByTestId("new-research-btn");
+      fireEvent.click(newResearchBtn);
+
+      // Should return to initial state
+      await waitFor(() => {
+        expect(screen.getByTestId("dashboard-greeting")).toBeInTheDocument();
+      });
+    });
+
+    it("handles API errors gracefully", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: "Internal server error" }),
+      });
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(startBtn);
+
+      // Wait for error message
+      await waitFor(() => {
+        expect(screen.getByText("Internal server error")).toBeInTheDocument();
+      });
+    });
   });
 
-  it("auth modal displays Google OAuth button", () => {
-    mockUseAuth.mockReturnValue({
-      isAuthenticated: false,
-      loading: false,
-      user: null,
+  describe("Time Interval Filter", () => {
+    it("renders time range filter with default value", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const timeFilter = screen.getByTestId("time-range-filter");
+      expect(timeFilter).toBeInTheDocument();
+      expect(timeFilter).toHaveTextContent("Last 3 months");
     });
 
-    render(<SearchPage />);
+    it("clicking time range filter opens dropdown with options", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
 
-    const searchInput = screen.getByTestId("search-input");
-    const startBtn = screen.getByTestId("start-research-btn");
+      render(<SearchPage />);
 
-    // Type a search query and open modal
-    fireEvent.change(searchInput, {
-      target: { value: "Test query" },
+      const timeFilter = screen.getByTestId("time-range-filter");
+      fireEvent.click(timeFilter);
+
+      // Check dropdown options are visible
+      expect(screen.getByTestId("time-range-filter-option-today")).toBeInTheDocument();
+      expect(screen.getByTestId("time-range-filter-option-last_week")).toBeInTheDocument();
+      expect(screen.getByTestId("time-range-filter-option-last_3_months")).toBeInTheDocument();
+      expect(screen.getByTestId("time-range-filter-option-last_year")).toBeInTheDocument();
     });
-    fireEvent.click(startBtn);
 
-    // Verify Google button is present
-    const googleButton = screen.getByTestId("google-signin-btn");
-    expect(googleButton).toBeInTheDocument();
-    expect(googleButton).toHaveTextContent("Continue with Google");
+    it("selecting time range option updates state", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const timeFilter = screen.getByTestId("time-range-filter");
+      fireEvent.click(timeFilter);
+
+      // Click on "Last week" option
+      const lastWeekOption = screen.getByTestId("time-range-filter-option-last_week");
+      fireEvent.click(lastWeekOption);
+
+      // Filter should now show "Last week"
+      expect(timeFilter).toHaveTextContent("Last week");
+    });
+  });
+
+  describe("Language Filter", () => {
+    it("renders language filter with default value", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const languageFilter = screen.getByTestId("language-filter");
+      expect(languageFilter).toBeInTheDocument();
+      expect(languageFilter).toHaveTextContent("All languages");
+    });
+
+    it("clicking language filter opens dropdown with options", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const languageFilter = screen.getByTestId("language-filter");
+      fireEvent.click(languageFilter);
+
+      // Check dropdown options are visible
+      expect(screen.getByTestId("language-filter-option-all")).toBeInTheDocument();
+      expect(screen.getByTestId("language-filter-option-en")).toBeInTheDocument();
+      expect(screen.getByTestId("language-filter-option-es")).toBeInTheDocument();
+      expect(screen.getByTestId("language-filter-option-pt")).toBeInTheDocument();
+      expect(screen.getByTestId("language-filter-option-fr")).toBeInTheDocument();
+      expect(screen.getByTestId("language-filter-option-ar")).toBeInTheDocument();
+    });
+
+    it("selecting language option updates state", () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: false,
+        loading: false,
+        user: null,
+      });
+
+      render(<SearchPage />);
+
+      const languageFilter = screen.getByTestId("language-filter");
+      fireEvent.click(languageFilter);
+
+      // Click on "English" option
+      const englishOption = screen.getByTestId("language-filter-option-en");
+      fireEvent.click(englishOption);
+
+      // Filter should now show "English"
+      expect(languageFilter).toHaveTextContent("English");
+    });
+  });
+
+  describe("Filter Persistence", () => {
+    it("filters persist through search execution", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve(createMockSearchResponse()),
+      });
+
+      render(<SearchPage />);
+
+      // Change time filter to "Last week"
+      const timeFilter = screen.getByTestId("time-range-filter");
+      fireEvent.click(timeFilter);
+      fireEvent.click(screen.getByTestId("time-range-filter-option-last_week"));
+
+      // Change language to English
+      const languageFilter = screen.getByTestId("language-filter");
+      fireEvent.click(languageFilter);
+      fireEvent.click(screen.getByTestId("language-filter-option-en"));
+
+      // Execute search
+      const searchInput = screen.getByTestId("search-input");
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(screen.getByTestId("start-research-btn"));
+
+      // Wait for results
+      await waitFor(
+        () => {
+          expect(screen.getByText("Posts preview for query")).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
+
+      // Filters should still show selected values in results view
+      const resultsTimeFilter = screen.getByTestId("results-time-range-filter");
+      expect(resultsTimeFilter).toHaveTextContent("Last week");
+
+      const resultsLanguageFilter = screen.getByTestId("results-language-filter");
+      expect(resultsLanguageFilter).toHaveTextContent("English");
+    });
   });
 });

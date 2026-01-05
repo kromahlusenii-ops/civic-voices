@@ -1,10 +1,27 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams, useParams } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import AuthModal from "@/app/components/AuthModal";
+import FilterDropdown from "@/components/FilterDropdown";
 import type { Post } from "@/lib/types/api";
+
+const TIME_INTERVAL_OPTIONS = [
+  { id: "today", label: "Today" },
+  { id: "last_week", label: "Last week" },
+  { id: "last_3_months", label: "Last 3 months" },
+  { id: "last_year", label: "Last year" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { id: "all", label: "All languages" },
+  { id: "en", label: "English" },
+  { id: "es", label: "Spanish" },
+  { id: "pt", label: "Portuguese" },
+  { id: "fr", label: "French" },
+  { id: "ar", label: "Arabic" },
+];
 
 interface ReportData {
   query: string;
@@ -165,8 +182,61 @@ export default function ReportPage() {
   const queryFromUrl = searchParams.get("message") || searchParams.get("query") || "";
   const sourcesFromUrl = searchParams.getAll("sources");
 
-  // Load report data
-  const loadReportData = useCallback(() => {
+  // Initialize time and language from URL or defaults
+  const [timeRange, setTimeRange] = useState(() => {
+    const urlTimeRange = searchParams.get("time_range");
+    return urlTimeRange && TIME_INTERVAL_OPTIONS.some(o => o.id === urlTimeRange)
+      ? urlTimeRange
+      : "last_3_months";
+  });
+  const [language, setLanguage] = useState(() => {
+    const urlLanguage = searchParams.get("language");
+    return urlLanguage && LANGUAGE_OPTIONS.some(o => o.id === urlLanguage)
+      ? urlLanguage
+      : "all";
+  });
+
+  // Update URL params helper
+  const updateUrlParams = useCallback((newParams: Record<string, string | string[]>) => {
+    const url = new URL(window.location.href);
+
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        url.searchParams.delete(key);
+        value.forEach(v => url.searchParams.append(key, v));
+      } else {
+        url.searchParams.set(key, value);
+      }
+    });
+
+    router.replace(url.pathname + url.search, { scroll: false });
+  }, [router]);
+
+  // Handle time range change
+  const handleTimeRangeChange = useCallback((value: string) => {
+    setTimeRange(value);
+    updateUrlParams({ time_range: value });
+    // Reload data with new filter
+    if (reportData) {
+      loadReportData();
+    }
+  }, [reportData, updateUrlParams]);
+
+  // Handle language change
+  const handleLanguageChange = useCallback((value: string) => {
+    setLanguage(value);
+    updateUrlParams({ language: value });
+    // Reload data with new filter
+    if (reportData) {
+      loadReportData();
+    }
+  }, [reportData, updateUrlParams]);
+
+  // Track if initial load has happened
+  const hasLoadedRef = useRef(false);
+
+  // Load report data function (not wrapped in useCallback to avoid dep issues)
+  const loadReportData = () => {
     setIsLoading(true);
 
     // Get sources from URL or use defaults
@@ -180,21 +250,28 @@ export default function ReportPage() {
       setSelectedSources(sources);
       setIsLoading(false);
     }, 1000);
-  }, [queryFromUrl, sourcesFromUrl, selectedSources]);
+  };
 
-  // Handle auth check
+  // Handle auth check and initial data load
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (authLoading) return; // Wait for auth to finish
+
+    if (!isAuthenticated) {
       setShowAuthModal(true);
-    } else if (!authLoading && isAuthenticated) {
+      setIsLoading(false); // Stop loading if showing auth modal
+    } else if (!hasLoadedRef.current) {
+      // Only load once when authenticated
+      hasLoadedRef.current = true;
       setShowAuthModal(false);
       loadReportData();
     }
-  }, [authLoading, isAuthenticated, loadReportData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, isAuthenticated]);
 
   // Handle successful auth
   const handleAuthSuccess = () => {
     setShowAuthModal(false);
+    hasLoadedRef.current = true;
     loadReportData();
   };
 
@@ -428,7 +505,7 @@ export default function ReportPage() {
               {/* Filters Row */}
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 {/* Sources */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
                   {selectedSources.map((source) => (
                     <span key={source} className="flex items-center text-gray-600">
                       {SOURCE_ICONS[source]}
@@ -437,21 +514,33 @@ export default function ReportPage() {
                   <span className="text-gray-600 ml-1">{getSourceButtonLabel()}</span>
                 </div>
 
-                {/* Time Filter */}
-                <button className="flex items-center gap-1 text-gray-600 hover:text-gray-900">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Last 3 months
-                </button>
+                {/* Time Interval Filter */}
+                <FilterDropdown
+                  icon={
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  }
+                  label="Time range"
+                  options={TIME_INTERVAL_OPTIONS}
+                  value={timeRange}
+                  onChange={handleTimeRangeChange}
+                  testId="report-time-range-filter"
+                />
 
                 {/* Language Filter */}
-                <button className="flex items-center gap-1 text-gray-600 hover:text-gray-900">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                  </svg>
-                  English
-                </button>
+                <FilterDropdown
+                  icon={
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                  }
+                  label="Language"
+                  options={LANGUAGE_OPTIONS}
+                  value={language}
+                  onChange={handleLanguageChange}
+                  testId="report-language-filter"
+                />
 
                 {/* Start Research Button */}
                 <button className="ml-auto rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
