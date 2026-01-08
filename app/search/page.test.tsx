@@ -69,8 +69,8 @@ const createMockSearchResponse = (posts = mockPosts) => ({
       summary: "The conversation shows mixed perspectives from users.",
     },
     suggestedQueries: [
-      { label: "Focus on recent news", query: "test news" },
-      { label: "Explore reactions", query: "test reaction" },
+      { label: "Focus on recent news", description: "Find the latest news and updates", query: "test AND (news OR update)" },
+      { label: "Explore reactions", description: "See how people are responding", query: "test AND (reaction OR response)" },
     ],
     followUpQuestion: "Would you like to explore a specific aspect of this topic?",
   },
@@ -333,9 +333,9 @@ describe("Search Page", () => {
       // Auth modal should NOT appear for authenticated users
       expect(screen.queryByText("Create your account")).not.toBeInTheDocument();
 
-      // Should show loading state
+      // Should show loading state with "Thinking..." indicator
       await waitFor(() => {
-        expect(screen.getByText("Analyzing...")).toBeInTheDocument();
+        expect(screen.getByTestId("thinking-indicator")).toBeInTheDocument();
       });
 
       // Wait for results to appear
@@ -465,6 +465,165 @@ describe("Search Page", () => {
       // Wait for error message
       await waitFor(() => {
         expect(screen.getByText("Internal server error")).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Loading State", () => {
+    it("shows split-screen loading layout with Thinking indicator", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          id: "user-1",
+        },
+      });
+
+      // Make fetch hang to keep loading state visible
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        () => new Promise(() => {}) // Never resolves
+      );
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      fireEvent.change(searchInput, { target: { value: "Climate change" } });
+      fireEvent.click(startBtn);
+
+      // Should show "Thinking..." indicator
+      await waitFor(() => {
+        expect(screen.getByTestId("thinking-indicator")).toBeInTheDocument();
+        expect(screen.getByText("Thinking...")).toBeInTheDocument();
+      });
+    });
+
+    it("shows the search query in loading state header", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          id: "user-1",
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      fireEvent.change(searchInput, { target: { value: "Election 2024" } });
+      fireEvent.click(startBtn);
+
+      // Should show the query text in loading state
+      await waitFor(() => {
+        expect(screen.getByText("Election 2024")).toBeInTheDocument();
+      });
+    });
+
+    it("shows skeleton cards in the right panel during loading", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          id: "user-1",
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(startBtn);
+
+      // Should show skeleton card list
+      await waitFor(() => {
+        expect(screen.getByTestId("skeleton-card-list")).toBeInTheDocument();
+      });
+
+      // Should have 6 skeleton cards
+      const skeletonCards = screen.getAllByTestId("skeleton-card");
+      expect(skeletonCards).toHaveLength(6);
+    });
+
+    it("replaces initial view with loading state when searching", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          id: "user-1",
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      // Initial state should show search input and greeting
+      expect(screen.getByTestId("dashboard-greeting")).toBeInTheDocument();
+
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(startBtn);
+
+      // Loading state should replace initial view
+      await waitFor(() => {
+        expect(screen.queryByTestId("dashboard-greeting")).not.toBeInTheDocument();
+        expect(screen.getByTestId("thinking-indicator")).toBeInTheDocument();
+      });
+    });
+
+    it("has accessibility attributes on loading container", async () => {
+      mockUseAuth.mockReturnValue({
+        isAuthenticated: true,
+        loading: false,
+        user: {
+          displayName: "John Doe",
+          email: "john@example.com",
+          id: "user-1",
+        },
+      });
+
+      (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+        () => new Promise(() => {})
+      );
+
+      render(<SearchPage />);
+
+      const searchInput = screen.getByTestId("search-input");
+      const startBtn = screen.getByTestId("start-research-btn");
+
+      fireEvent.change(searchInput, { target: { value: "Test query" } });
+      fireEvent.click(startBtn);
+
+      // Should have proper accessibility attributes
+      await waitFor(() => {
+        const loadingContainer = screen.getByRole("status");
+        expect(loadingContainer).toHaveAttribute("aria-live", "polite");
+        expect(loadingContainer).toHaveAttribute("aria-busy", "true");
       });
     });
   });

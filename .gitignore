@@ -41,3 +41,5 @@ prisma/dev.db-journal
 
 # OpenMemory - IDE/Assistant specific rules
 .cursor/rules/openmemory.mdc
+CLAUDE.md
+CLAUDE.md

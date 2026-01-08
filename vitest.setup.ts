@@ -1,5 +1,14 @@
 import "@testing-library/jest-dom/vitest";
 
+// Mock ResizeObserver for tests using D3.js charts
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+global.ResizeObserver = ResizeObserverMock;
+
 // Set test environment variables (all required by lib/config.ts)
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/test";
 process.env.NEXTAUTH_URL = "http://localhost:3000";

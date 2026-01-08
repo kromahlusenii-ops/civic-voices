@@ -83,28 +83,89 @@ npm start
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: NextAuth.js
-- **Data Source**: Reddit API (OAuth)
+- **Database**: PostgreSQL with Prisma ORM (Supabase hosted)
+- **Authentication**: Supabase Auth (migrated from Firebase)
+- **AI Analysis**: Claude API (Anthropic) for sentiment & insights
+- **Charts**: D3.js for interactive visualizations
+- **Testing**: Vitest + React Testing Library
+- **Data Sources**:
+  - X/Twitter API
+  - TikTok API
+  - Reddit API (OAuth)
 
 ## Project Structure
 
 ```
 civic-voices/
-├── app/                    # Next.js App Router pages
-│   ├── page.tsx           # Landing page
-│   ├── login/             # Login page
-│   ├── signup/            # Signup page
-│   └── research/          # Research pages
-│       ├── new/           # Create new research
-│       └── [jobId]/       # View research results
-├── lib/                   # Shared utilities
-│   ├── config.ts          # Environment configuration
-│   └── prisma.ts          # Prisma client instance
-├── prisma/                # Database schema and migrations
-│   ├── schema.prisma      # Database schema
-│   └── migrations/        # Database migrations
-└── .env.local             # Local environment variables (not committed)
+├── app/                          # Next.js App Router
+│   ├── page.tsx                  # Landing page
+│   ├── login/                    # Login page
+│   ├── signup/                   # Signup page
+│   ├── search/                   # Search page (main interface)
+│   │   └── page.tsx              # Cross-platform search UI
+│   ├── report/                   # Report dashboard
+│   │   └── [id]/                 # Dynamic report view
+│   │       ├── page.tsx          # Report dashboard UI
+│   │       └── page.test.tsx     # Report page tests
+│   ├── research/                 # Legacy research pages
+│   │   └── [jobId]/              # View research results
+│   ├── auth/                     # Auth callback handlers
+│   │   └── callback/             # Supabase auth callback
+│   ├── contexts/                 # React context providers
+│   │   └── AuthContext.tsx       # Authentication context
+│   ├── components/               # Shared UI components
+│   │   ├── AuthModal.tsx         # Authentication modal
+│   │   ├── SearchHistoryModal.tsx    # Search history modal
+│   │   ├── SearchHistorySidebar.tsx  # Sidebar with history
+│   │   ├── QuerySuggestions.tsx  # AI query suggestions
+│   │   ├── SkeletonCard.tsx      # Loading skeleton
+│   │   └── report/               # Report dashboard components
+│   │       ├── index.ts          # Component exports
+│   │       ├── MetricsRow.tsx    # 5-metric cards with info icons
+│   │       ├── ActivityChart.tsx # Dual-axis D3 line chart
+│   │       ├── EmotionsBreakdown.tsx  # 6-emotion horizontal bars
+│   │       ├── ContentBreakdown.tsx   # Category breakdown with tabs
+│   │       ├── TopicsTable.tsx   # Sortable topics table
+│   │       ├── SentimentBreakdown.tsx # Legacy sentiment view
+│   │       ├── PlatformBreakdown.tsx  # Platform distribution
+│   │       ├── KeyThemes.tsx     # Theme tags
+│   │       └── TopPosts.tsx      # Top engaging posts
+│   └── api/                      # API routes
+│       ├── auth/                 # Auth endpoints
+│       │   ├── [...nextauth]/    # NextAuth handler
+│       │   └── signup/           # User registration
+│       ├── search/               # Search endpoints
+│       │   ├── route.ts          # Execute search
+│       │   ├── save/             # Save search
+│       │   └── history/          # Get search history
+│       └── report/               # Report endpoints
+│           ├── start/            # Start report generation
+│           └── [id]/             # Get report data
+├── lib/                          # Shared utilities
+│   ├── config.ts                 # Environment configuration
+│   ├── prisma.ts                 # Prisma client instance
+│   ├── firebase.ts               # Firebase client config
+│   ├── firebase-admin.ts         # Firebase admin SDK
+│   ├── supabase.ts               # Supabase client
+│   ├── supabase-server.ts        # Supabase server client
+│   ├── types/                    # TypeScript types
+│   │   └── api.ts                # API type definitions
+│   ├── utils/                    # Utility functions
+│   │   ├── booleanQuery.ts       # Boolean query parser
+│   │   └── mentions.ts           # Mention detection
+│   └── services/                 # Backend services
+│       ├── xApi.ts               # X/Twitter API client
+│       ├── tiktokApi.ts          # TikTok API client
+│       ├── reportService.ts      # Report orchestration
+│       ├── aiAnalysis.ts         # Claude AI analysis
+│       ├── sentimentClassification.ts  # Sentiment classification
+│       └── searchStorage.ts      # Search persistence
+├── prisma/                       # Database
+│   ├── schema.prisma             # Database schema
+│   └── migrations/               # Database migrations
+├── vitest.config.ts              # Test configuration
+├── vitest.setup.ts               # Test setup
+└── .env.local                    # Environment variables (not committed)
 ```
 
 ## Database Schema

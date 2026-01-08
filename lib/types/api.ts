@@ -27,6 +27,12 @@ export interface Post {
   sentiment?: "positive" | "negative" | "neutral";
 }
 
+export interface SuggestedQuery {
+  label: string;
+  description: string;
+  query: string;
+}
+
 export interface AIAnalysis {
   interpretation: string;
   keyThemes: string[];
@@ -34,7 +40,7 @@ export interface AIAnalysis {
     overall: "positive" | "negative" | "neutral" | "mixed";
     summary: string;
   };
-  suggestedQueries: { label: string; query: string }[];
+  suggestedQueries: SuggestedQuery[];
   followUpQuestion: string;
 }
 
@@ -61,6 +67,7 @@ export interface SearchResponse {
   query: string;
   aiAnalysis?: AIAnalysis;
   errors?: PlatformError[];
+  warnings?: string[];  // Non-fatal warnings (e.g., time range clamped)
 }
 
 // X (Twitter) specific types

@@ -1,4 +1,9 @@
 import type { TikTokSearchResponse, Post } from "../types/api";
+import {
+  extractBaseQuery,
+  hasBooleanOperators,
+  filterPostsByBooleanQuery,
+} from "../utils/booleanQuery";
 
 export class TikTokApiService {
   private apiKey: string;
@@ -150,6 +155,27 @@ export class TikTokApiService {
       const postDate = new Date(post.createdAt);
       return postDate >= cutoffDate;
     });
+  }
+
+  /**
+   * Extract base search term for API (TikTok doesn't support Boolean operators)
+   */
+  static getBaseQuery(query: string): string {
+    return extractBaseQuery(query);
+  }
+
+  /**
+   * Check if query has Boolean operators that need client-side filtering
+   */
+  static hasBooleanQuery(query: string): boolean {
+    return hasBooleanOperators(query);
+  }
+
+  /**
+   * Filter posts by Boolean query (client-side filtering for AND/OR logic)
+   */
+  static filterByBooleanQuery(posts: Post[], query: string): Post[] {
+    return filterPostsByBooleanQuery(posts, query);
   }
 }
 

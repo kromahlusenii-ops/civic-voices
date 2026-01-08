@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import XApiService from "@/lib/services/xApi";
+import { XProvider } from "@/lib/providers/XProvider";
 import TikTokApiService from "@/lib/services/tiktokApi";
 import AIAnalysisService from "@/lib/services/aiAnalysis";
+import { config } from "@/lib/config";
 import type { SearchParams, SearchResponse, Post, AIAnalysis } from "@/lib/types/api";
 
 export async function POST(request: NextRequest) {
@@ -25,27 +26,41 @@ export async function POST(request: NextRequest) {
 
     const allPosts: Post[] = [];
     const platformCounts: Record<string, number> = {};
+    const warnings: string[] = [];
 
     // Fetch from X if selected
     if (sources.includes("x")) {
       try {
-        const xService = new XApiService(
-          process.env.X_BEARER_TOKEN || ""
-        );
+        if (!config.x.bearerToken) {
+          console.warn("X API: Bearer token not configured");
+          platformCounts.x = 0;
+        } else {
+          const xProvider = new XProvider({
+            bearerToken: config.x.bearerToken,
+          });
 
-        const timeRange = XApiService.getTimeRange(timeFilter);
-        const xResults = await xService.searchTweets(query, {
-          maxResults: 20,
-          startTime: timeRange.startTime,
-          endTime: timeRange.endTime,
-        });
+          const timeRange = XProvider.getTimeRange(timeFilter);
+          const xResult = await xProvider.searchWithWarning(query, {
+            maxResults: 20,
+            startTime: timeRange.startTime,
+            endTime: timeRange.endTime,
+            language: language, // Pass language filter to X API
+          });
 
-        const xPosts = xService.transformToPosts(xResults);
-        allPosts.push(...xPosts);
-        platformCounts.x = xPosts.length;
+          allPosts.push(...xResult.posts);
+          platformCounts.x = xResult.posts.length;
+
+          // Collect warnings (e.g., time range clamped)
+          if (xResult.warning) {
+            warnings.push(xResult.warning);
+          }
+        }
       } catch (error) {
-        console.error("X API error:", error instanceof Error ? error.message : error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("X API error:", errorMessage);
         platformCounts.x = 0;
+        // Add warning so user knows X failed
+        warnings.push(`X/Twitter search failed: ${errorMessage}`);
       }
     }
 
@@ -53,11 +68,13 @@ export async function POST(request: NextRequest) {
     if (sources.includes("tiktok")) {
       try {
         const tiktokService = new TikTokApiService(
-          process.env.TIKTOK_API_KEY || "",
-          process.env.TIKTOK_API_URL
+          config.tiktok.apiKey || "",
+          config.tiktok.apiUrl
         );
 
-        const tiktokResults = await tiktokService.searchVideos(query, {
+        // TikTok doesn't support Boolean operators - extract base query for API
+        const tiktokQuery = TikTokApiService.getBaseQuery(query);
+        const tiktokResults = await tiktokService.searchVideos(tiktokQuery, {
           count: 20,
         });
 
@@ -71,6 +88,12 @@ export async function POST(request: NextRequest) {
           tiktokPosts,
           timeFilter
         );
+
+        // Apply Boolean query filtering if query has AND/OR operators
+        if (TikTokApiService.hasBooleanQuery(query)) {
+          tiktokPosts = TikTokApiService.filterByBooleanQuery(tiktokPosts, query);
+          console.log("TikTok posts after Boolean filter:", tiktokPosts.length);
+        }
 
         allPosts.push(...tiktokPosts);
         platformCounts.tiktok = tiktokPosts.length;
@@ -87,9 +110,9 @@ export async function POST(request: NextRequest) {
 
     // Generate AI analysis using Claude
     let aiAnalysis: AIAnalysis | undefined;
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (config.llm.anthropic.apiKey) {
       try {
-        const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+        const aiService = new AIAnalysisService(config.llm.anthropic.apiKey);
         aiAnalysis = await aiService.generateAnalysis(query, allPosts, {
           timeRange: timeFilter,
           language: language || "all",
@@ -115,6 +138,7 @@ export async function POST(request: NextRequest) {
         };
 
     // Build response
+    const timeRange = XProvider.getTimeRange(timeFilter);
     const response: SearchResponse = {
       posts: allPosts,
       summary: {
@@ -122,12 +146,13 @@ export async function POST(request: NextRequest) {
         platforms: platformCounts,
         sentiment,
         timeRange: {
-          start: XApiService.getTimeRange(timeFilter).startTime,
-          end: XApiService.getTimeRange(timeFilter).endTime,
+          start: timeRange.startTime,
+          end: timeRange.endTime,
         },
       },
       query,
       aiAnalysis,
+      warnings: warnings.length > 0 ? warnings : undefined,
     };
 
     return NextResponse.json(response);

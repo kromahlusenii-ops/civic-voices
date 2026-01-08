@@ -15,6 +15,14 @@ export interface XSearchOptions {
   startTime?: string;
   endTime?: string;
   nextToken?: string;
+  language?: string;          // BCP47 language code (e.g., 'en')
+  excludeRetweets?: boolean;  // Default: true
+}
+
+export interface XSearchResult {
+  response: XSearchResponse;
+  posts: Post[];
+  warning?: string;  // Warning message (e.g., time filter clamped)
 }
 
 export class XRateLimitError extends Error {
@@ -41,6 +49,9 @@ export class XApiError extends Error {
   }
 }
 
+// Maximum time range for Basic tier (7 days in milliseconds)
+const MAX_TIME_RANGE_MS = 7 * 24 * 60 * 60 * 1000;
+
 export class XProvider {
   private bearerToken: string;
   private maxRetries: number;
@@ -56,22 +67,88 @@ export class XProvider {
   }
 
   /**
+   * Build X API query with language filter and retweet exclusion
+   */
+  static buildQuery(
+    baseQuery: string,
+    options: { language?: string; excludeRetweets?: boolean } = {}
+  ): string {
+    const parts: string[] = [baseQuery];
+
+    // Add language filter if specified
+    if (options.language) {
+      parts.push(`lang:${options.language}`);
+    }
+
+    // Exclude retweets by default for cleaner results
+    if (options.excludeRetweets !== false) {
+      parts.push("-is:retweet");
+    }
+
+    return parts.join(" ");
+  }
+
+  /**
+   * Validate and clamp time range to 7 days (Basic tier limit)
+   * Returns clamped times and optional warning message
+   */
+  static validateTimeRange(
+    startTime?: string,
+    endTime?: string
+  ): { startTime?: string; endTime?: string; warning?: string } {
+    if (!startTime) {
+      return { startTime, endTime };
+    }
+
+    const now = new Date();
+    const end = endTime ? new Date(endTime) : now;
+    const start = new Date(startTime);
+    const timeRangeMs = end.getTime() - start.getTime();
+
+    // If within 7 days, no clamping needed
+    if (timeRangeMs <= MAX_TIME_RANGE_MS) {
+      return { startTime, endTime };
+    }
+
+    // Clamp to 7 days from end time
+    const clampedStart = new Date(end.getTime() - MAX_TIME_RANGE_MS);
+
+    return {
+      startTime: clampedStart.toISOString(),
+      endTime: endTime || now.toISOString(),
+      warning: `X API (Basic tier) only supports the last 7 days. Time range has been adjusted.`,
+    };
+  }
+
+  /**
    * Search for tweets matching a keyword query
    */
   async search(query: string, options: XSearchOptions = {}): Promise<XSearchResponse> {
+    // Build query with language filter and retweet exclusion
+    const builtQuery = XProvider.buildQuery(query, {
+      language: options.language,
+      excludeRetweets: options.excludeRetweets,
+    });
+
+    // Validate and clamp time range to 7 days
+    const validatedTime = XProvider.validateTimeRange(
+      options.startTime,
+      options.endTime
+    );
+
     const params = new URLSearchParams({
-      query,
+      query: builtQuery,
       "tweet.fields": "created_at,public_metrics,author_id",
       "user.fields": "name,username,profile_image_url",
       expansions: "author_id",
-      max_results: String(options.maxResults || 10),
+      max_results: String(Math.min(options.maxResults || 10, 100)), // Basic tier max is 100
     });
 
-    if (options.startTime) {
-      params.append("start_time", options.startTime);
+    if (validatedTime.startTime) {
+      params.append("start_time", validatedTime.startTime);
     }
-    if (options.endTime) {
-      params.append("end_time", options.endTime);
+    if (validatedTime.endTime) {
+      params.append("end_time", validatedTime.endTime);
     }
     if (options.nextToken) {
       params.append("next_token", options.nextToken);
@@ -79,6 +156,34 @@ export class XProvider {
 
     const url = `${X_API_BASE}/tweets/search/recent?${params.toString()}`;
     return this.fetchWithRetry(url);
+  }
+
+  /**
+   * Search with full result including warning messages
+   */
+  async searchWithWarning(
+    query: string,
+    options: XSearchOptions = {}
+  ): Promise<XSearchResult> {
+    // Validate time range and capture warning
+    const validatedTime = XProvider.validateTimeRange(
+      options.startTime,
+      options.endTime
+    );
+
+    const response = await this.search(query, {
+      ...options,
+      startTime: validatedTime.startTime,
+      endTime: validatedTime.endTime,
+    });
+
+    const posts = this.normalizePosts(response);
+
+    return {
+      response,
+      posts,
+      warning: validatedTime.warning,
+    };
   }
 
   /**

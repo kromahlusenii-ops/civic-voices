@@ -1,0 +1,408 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import * as d3 from "d3";
+
+interface DataPoint {
+  date: string;
+  count: number;
+  engagement: number;
+  views?: number;
+}
+
+type ChartMode = "volume" | "sentiment";
+
+interface ActivityChartProps {
+  data: DataPoint[];
+  height?: number;
+  mode?: ChartMode;
+  onModeChange?: (mode: ChartMode) => void;
+}
+
+export default function ActivityChart({
+  data,
+  height = 280,
+  mode = "volume",
+  onModeChange,
+}: ActivityChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height });
+  const [activeMode, setActiveMode] = useState<ChartMode>(mode);
+  const [tooltip, setTooltip] = useState<{
+    show: boolean;
+    x: number;
+    y: number;
+    date: string;
+    count: number;
+    engagement: number;
+    views: number;
+  } | null>(null);
+
+  const handleModeChange = (newMode: ChartMode) => {
+    setActiveMode(newMode);
+    onModeChange?.(newMode);
+  };
+
+  // Handle responsive width
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width } = entry.contentRect;
+        setDimensions({ width, height });
+      }
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [height]);
+
+  // Draw chart
+  useEffect(() => {
+    if (!svgRef.current || data.length === 0 || dimensions.width === 0) return;
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll("*").remove();
+
+    const margin = { top: 20, right: 60, bottom: 50, left: 60 };
+    const innerWidth = dimensions.width - margin.left - margin.right;
+    const innerHeight = dimensions.height - margin.top - margin.bottom;
+
+    // Parse dates
+    const parseDate = d3.timeParse("%Y-%m-%d");
+    const chartData = data.map((d) => ({
+      ...d,
+      parsedDate: parseDate(d.date) || new Date(d.date),
+      views: d.views ?? d.engagement * 15, // Estimate views if not provided
+    }));
+
+    // Create scales
+    const xScale = d3
+      .scaleTime()
+      .domain(d3.extent(chartData, (d) => d.parsedDate) as [Date, Date])
+      .range([0, innerWidth]);
+
+    // Left Y axis - Views
+    const yScaleViews = d3
+      .scaleLinear()
+      .domain([0, (d3.max(chartData, (d) => d.views) || 0) * 1.1])
+      .nice()
+      .range([innerHeight, 0]);
+
+    // Right Y axis - Mentions (count)
+    const yScaleMentions = d3
+      .scaleLinear()
+      .domain([0, (d3.max(chartData, (d) => d.count) || 0) * 1.1])
+      .nice()
+      .range([innerHeight, 0]);
+
+    // Create line generators
+    const lineViews = d3
+      .line<(typeof chartData)[0]>()
+      .x((d) => xScale(d.parsedDate))
+      .y((d) => yScaleViews(d.views))
+      .curve(d3.curveMonotoneX);
+
+    const lineMentions = d3
+      .line<(typeof chartData)[0]>()
+      .x((d) => xScale(d.parsedDate))
+      .y((d) => yScaleMentions(d.count))
+      .curve(d3.curveMonotoneX);
+
+    // Add group for margins
+    const g = svg
+      .append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // Add gradient definitions
+    const defs = svg.append("defs");
+
+    // Blue gradient for views
+    const gradientViews = defs
+      .append("linearGradient")
+      .attr("id", "area-gradient-views")
+      .attr("x1", "0%")
+      .attr("y1", "0%")
+      .attr("x2", "0%")
+      .attr("y2", "100%");
+
+    gradientViews
+      .append("stop")
+      .attr("offset", "0%")
+      .attr("stop-color", "#3b82f6")
+      .attr("stop-opacity", 0.2);
+
+    gradientViews
+      .append("stop")
+      .attr("offset", "100%")
+      .attr("stop-color", "#3b82f6")
+      .attr("stop-opacity", 0);
+
+    // Area for views
+    const areaViews = d3
+      .area<(typeof chartData)[0]>()
+      .x((d) => xScale(d.parsedDate))
+      .y0(innerHeight)
+      .y1((d) => yScaleViews(d.views))
+      .curve(d3.curveMonotoneX);
+
+    g.append("path")
+      .datum(chartData)
+      .attr("fill", "url(#area-gradient-views)")
+      .attr("d", areaViews);
+
+    // Add grid lines
+    g.append("g")
+      .attr("class", "grid")
+      .selectAll("line")
+      .data(yScaleViews.ticks(5))
+      .join("line")
+      .attr("x1", 0)
+      .attr("x2", innerWidth)
+      .attr("y1", (d) => yScaleViews(d))
+      .attr("y2", (d) => yScaleViews(d))
+      .attr("stroke", "#f3f4f6")
+      .attr("stroke-dasharray", "3,3");
+
+    // Add X axis
+    const xAxis = d3
+      .axisBottom(xScale)
+      .ticks(Math.min(chartData.length, 7))
+      .tickFormat(d3.timeFormat("%b %d") as (d: Date | d3.NumberValue) => string);
+
+    g.append("g")
+      .attr("class", "x-axis")
+      .attr("transform", `translate(0,${innerHeight})`)
+      .call(xAxis)
+      .selectAll("text")
+      .attr("fill", "#6b7280")
+      .attr("font-size", "11px");
+
+    // Left Y axis (Views) - Blue
+    g.append("g")
+      .attr("class", "y-axis-left")
+      .call(
+        d3.axisLeft(yScaleViews)
+          .ticks(5)
+          .tickFormat((d) => formatNumber(d as number))
+      )
+      .selectAll("text")
+      .attr("fill", "#3b82f6")
+      .attr("font-size", "11px");
+
+    // Right Y axis (Mentions) - Orange
+    g.append("g")
+      .attr("class", "y-axis-right")
+      .attr("transform", `translate(${innerWidth}, 0)`)
+      .call(
+        d3.axisRight(yScaleMentions)
+          .ticks(5)
+          .tickFormat((d) => formatNumber(d as number))
+      )
+      .selectAll("text")
+      .attr("fill", "#f97316")
+      .attr("font-size", "11px");
+
+    // Style axis lines
+    g.selectAll(".domain").attr("stroke", "#e5e7eb");
+    g.selectAll(".tick line").attr("stroke", "#e5e7eb");
+
+    // Add Views line (blue)
+    g.append("path")
+      .datum(chartData)
+      .attr("fill", "none")
+      .attr("stroke", "#3b82f6")
+      .attr("stroke-width", 2.5)
+      .attr("d", lineViews);
+
+    // Add Mentions line (orange)
+    g.append("path")
+      .datum(chartData)
+      .attr("fill", "none")
+      .attr("stroke", "#f97316")
+      .attr("stroke-width", 2.5)
+      .attr("d", lineMentions);
+
+    // Add dots for Views data points
+    g.selectAll(".dot-views")
+      .data(chartData)
+      .join("circle")
+      .attr("class", "dot-views")
+      .attr("cx", (d) => xScale(d.parsedDate))
+      .attr("cy", (d) => yScaleViews(d.views))
+      .attr("r", 4)
+      .attr("fill", "#3b82f6")
+      .attr("stroke", "white")
+      .attr("stroke-width", 2)
+      .style("cursor", "pointer")
+      .on("mouseenter", function (event, d) {
+        d3.select(this).transition().duration(100).attr("r", 6);
+        const [x, y] = d3.pointer(event, containerRef.current);
+        setTooltip({
+          show: true,
+          x,
+          y: y - 10,
+          date: d.date,
+          count: d.count,
+          engagement: d.engagement,
+          views: d.views,
+        });
+      })
+      .on("mouseleave", function () {
+        d3.select(this).transition().duration(100).attr("r", 4);
+        setTooltip(null);
+      });
+
+    // Add dots for Mentions data points
+    g.selectAll(".dot-mentions")
+      .data(chartData)
+      .join("circle")
+      .attr("class", "dot-mentions")
+      .attr("cx", (d) => xScale(d.parsedDate))
+      .attr("cy", (d) => yScaleMentions(d.count))
+      .attr("r", 4)
+      .attr("fill", "#f97316")
+      .attr("stroke", "white")
+      .attr("stroke-width", 2)
+      .style("cursor", "pointer")
+      .on("mouseenter", function (event, d) {
+        d3.select(this).transition().duration(100).attr("r", 6);
+        const [x, y] = d3.pointer(event, containerRef.current);
+        setTooltip({
+          show: true,
+          x,
+          y: y - 10,
+          date: d.date,
+          count: d.count,
+          engagement: d.engagement,
+          views: d.views,
+        });
+      })
+      .on("mouseleave", function () {
+        d3.select(this).transition().duration(100).attr("r", 4);
+        setTooltip(null);
+      });
+
+    // Find peak point and add star marker
+    const peakPoint = chartData.reduce((max, d) =>
+      d.views > max.views ? d : max
+    );
+    const peakX = xScale(peakPoint.parsedDate);
+    const peakY = yScaleViews(peakPoint.views);
+
+    // Add star marker at peak
+    g.append("text")
+      .attr("x", peakX)
+      .attr("y", peakY - 12)
+      .attr("text-anchor", "middle")
+      .attr("font-size", "14px")
+      .text("\u2B50");
+
+  }, [data, dimensions, activeMode]);
+
+  if (data.length === 0) {
+    return (
+      <div
+        className="flex items-center justify-center bg-gray-50 rounded-lg"
+        style={{ height }}
+      >
+        <p className="text-gray-500 text-sm">No activity data available</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+      {/* Header with tabs */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-gray-800">Activity over time</h3>
+        <div className="flex bg-gray-100 rounded-lg p-0.5">
+          <button
+            onClick={() => handleModeChange("volume")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              activeMode === "volume"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Volume
+          </button>
+          <button
+            onClick={() => handleModeChange("sentiment")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              activeMode === "sentiment"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            Sentiment
+          </button>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div ref={containerRef} className="relative w-full">
+        <svg
+          ref={svgRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          className="overflow-visible"
+        />
+        {tooltip?.show && (
+          <div
+            className="absolute pointer-events-none bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10"
+            style={{
+              left: tooltip.x,
+              top: tooltip.y,
+              transform: "translate(-50%, -100%)",
+            }}
+          >
+            <div className="font-medium mb-1">{formatDate(tooltip.date)}</div>
+            <div className="flex items-center gap-2 text-blue-300">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+              {formatNumber(tooltip.views)} views
+            </div>
+            <div className="flex items-center gap-2 text-orange-300">
+              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+              {tooltip.count} mentions
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Legend */}
+      <div className="flex items-center justify-center gap-6 mt-4 pt-3 border-t border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-blue-500"></span>
+          <span className="text-xs text-gray-600">Views</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-orange-500"></span>
+          <span className="text-xs text-gray-600">Mentions</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatNumber(num: number): string {
+  if (num >= 1_000_000) {
+    return `${(num / 1_000_000).toFixed(1)}M`;
+  }
+  if (num >= 1_000) {
+    return `${(num / 1_000).toFixed(1)}K`;
+  }
+  return num.toString();
+}

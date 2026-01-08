@@ -98,7 +98,7 @@ describe("XProvider", () => {
       expect(calledUrl).toContain("expansions=author_id");
     });
 
-    it("includes time range parameters when provided", async () => {
+    it("includes time range parameters when within 7 days", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -106,13 +106,34 @@ describe("XProvider", () => {
       });
 
       const provider = new XProvider(validConfig);
+      // Use a 5-day range (within 7-day limit)
+      await provider.search("test", {
+        startTime: "2024-01-10T00:00:00Z",
+        endTime: "2024-01-15T00:00:00Z",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0][0];
+      expect(calledUrl).toContain("start_time=2024-01-10T00%3A00%3A00Z");
+      expect(calledUrl).toContain("end_time=2024-01-15T00%3A00%3A00Z");
+    });
+
+    it("clamps time range to 7 days for Basic tier", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const provider = new XProvider(validConfig);
+      // Try a 14-day range (exceeds 7-day limit)
       await provider.search("test", {
         startTime: "2024-01-01T00:00:00Z",
         endTime: "2024-01-15T00:00:00Z",
       });
 
       const calledUrl = mockFetch.mock.calls[0][0];
-      expect(calledUrl).toContain("start_time=2024-01-01T00%3A00%3A00Z");
+      // Should be clamped to 7 days before end time
+      expect(calledUrl).toContain("start_time=2024-01-08T00%3A00%3A00");
       expect(calledUrl).toContain("end_time=2024-01-15T00%3A00%3A00Z");
     });
 
@@ -556,6 +577,130 @@ describe("XProvider", () => {
       expect(posts).toHaveLength(1);
       expect(posts[0].platform).toBe("x");
       expect(posts[0].author).toBe("User");
+    });
+  });
+
+  describe("buildQuery", () => {
+    it("returns base query with retweet exclusion by default", () => {
+      const result = XProvider.buildQuery("climate change");
+      expect(result).toBe("climate change -is:retweet");
+    });
+
+    it("adds language filter when specified", () => {
+      const result = XProvider.buildQuery("climate change", { language: "en" });
+      expect(result).toBe("climate change lang:en -is:retweet");
+    });
+
+    it("excludes retweets by default", () => {
+      const result = XProvider.buildQuery("test");
+      expect(result).toContain("-is:retweet");
+    });
+
+    it("includes retweets when excludeRetweets is false", () => {
+      const result = XProvider.buildQuery("test", { excludeRetweets: false });
+      expect(result).toBe("test");
+      expect(result).not.toContain("-is:retweet");
+    });
+
+    it("combines language filter and retweet exclusion", () => {
+      const result = XProvider.buildQuery("politics", { language: "es" });
+      expect(result).toBe("politics lang:es -is:retweet");
+    });
+  });
+
+  describe("validateTimeRange", () => {
+    it("returns unchanged times when within 7 days", () => {
+      const result = XProvider.validateTimeRange(
+        "2024-01-10T00:00:00Z",
+        "2024-01-15T00:00:00Z"
+      );
+      expect(result.startTime).toBe("2024-01-10T00:00:00Z");
+      expect(result.endTime).toBe("2024-01-15T00:00:00Z");
+      expect(result.warning).toBeUndefined();
+    });
+
+    it("clamps start time to 7 days when range exceeds limit", () => {
+      const result = XProvider.validateTimeRange(
+        "2024-01-01T00:00:00Z",
+        "2024-01-15T00:00:00Z"
+      );
+      expect(result.startTime).toBe("2024-01-08T00:00:00.000Z");
+      expect(result.endTime).toBe("2024-01-15T00:00:00Z");
+    });
+
+    it("returns warning message when time range is clamped", () => {
+      const result = XProvider.validateTimeRange(
+        "2024-01-01T00:00:00Z",
+        "2024-01-15T00:00:00Z"
+      );
+      expect(result.warning).toBe(
+        "X API (Basic tier) only supports the last 7 days. Time range has been adjusted."
+      );
+    });
+
+    it("returns unchanged when no start time provided", () => {
+      const result = XProvider.validateTimeRange(undefined, "2024-01-15T00:00:00Z");
+      expect(result.startTime).toBeUndefined();
+      expect(result.warning).toBeUndefined();
+    });
+  });
+
+  describe("searchWithWarning", () => {
+    const mockResponse: XSearchResponse = {
+      data: [
+        {
+          id: "123",
+          text: "Test tweet",
+          author_id: "user1",
+          created_at: "2024-01-15T10:00:00.000Z",
+          public_metrics: {
+            retweet_count: 10,
+            reply_count: 5,
+            like_count: 50,
+            quote_count: 2,
+          },
+        },
+      ],
+      includes: {
+        users: [{ id: "user1", name: "User", username: "testuser" }],
+      },
+    };
+
+    it("returns posts and response without warning for valid time range", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const provider = new XProvider(validConfig);
+      const result = await provider.searchWithWarning("test", {
+        startTime: "2024-01-10T00:00:00Z",
+        endTime: "2024-01-15T00:00:00Z",
+      });
+
+      expect(result.posts).toHaveLength(1);
+      expect(result.response).toEqual(mockResponse);
+      expect(result.warning).toBeUndefined();
+    });
+
+    it("returns warning when time range exceeds 7 days", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const provider = new XProvider(validConfig);
+      const result = await provider.searchWithWarning("test", {
+        startTime: "2024-01-01T00:00:00Z",
+        endTime: "2024-01-15T00:00:00Z",
+      });
+
+      expect(result.posts).toHaveLength(1);
+      expect(result.warning).toBe(
+        "X API (Basic tier) only supports the last 7 days. Time range has been adjusted."
+      );
     });
   });
 

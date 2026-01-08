@@ -96,6 +96,11 @@ ${engagementStats}
 
 Important: When writing your interpretation, mention the filter context naturally (e.g., "Based on ${filterContext ? filterContext + " posts" : "the selected sources"}...").
 
+For suggestedQueries, generate 4-5 refined Boolean search queries that help users explore specific facets of their topic. Use these patterns:
+- Use AND to add required context: "${query} AND policy"
+- Use OR with parentheses for alternatives: "${query} AND (support OR opposition)"
+- Focus on: emotional angles, behavioral actions, controversies, specific entities, or narrowed scope
+
 Provide a JSON response with the following structure:
 {
   "interpretation": "A 2-3 sentence analysis of what people are saying about this topic, including the main perspectives and emotional tone",
@@ -105,11 +110,15 @@ Provide a JSON response with the following structure:
     "summary": "Brief explanation of the overall sentiment"
   },
   "suggestedQueries": [
-    {"label": "description of what this query explores", "query": "suggested search query"},
-    {"label": "another angle to explore", "query": "another search query"}
+    {"label": "Emotional reactions", "description": "Explore how people feel about this topic", "query": "${query} AND (hope OR fear OR concern)"},
+    {"label": "Policy & regulation", "description": "Find discussions about laws and policies", "query": "${query} AND (policy OR law OR regulation)"},
+    {"label": "Controversies", "description": "Discover debates and opposing views", "query": "${query} AND (controversy OR debate OR criticism)"},
+    {"label": "Personal impact", "description": "See how this affects individuals", "query": "${query} AND (impact OR affect OR experience)"}
   ],
   "followUpQuestion": "A question to ask the user to help them explore this topic further"
 }
+
+Generate contextually relevant suggestedQueries based on the actual topic "${query}" - the examples above are just format guides.
 
 Respond ONLY with valid JSON, no additional text.`;
 
@@ -190,8 +199,26 @@ Respond ONLY with valid JSON, no additional text.`;
           : "Unable to determine sentiment without posts.",
       },
       suggestedQueries: [
-        { label: "Narrow to recent news", query: `${query} news` },
-        { label: "Focus on reactions", query: `${query} reaction` },
+        {
+          label: "Recent news",
+          description: "Find the latest news and updates",
+          query: `${query} AND (news OR update OR breaking)`,
+        },
+        {
+          label: "Public reactions",
+          description: "See how people are responding",
+          query: `${query} AND (reaction OR response OR opinion)`,
+        },
+        {
+          label: "Controversies",
+          description: "Explore debates and disagreements",
+          query: `${query} AND (controversy OR debate OR criticism)`,
+        },
+        {
+          label: "Impact & effects",
+          description: "Understand real-world consequences",
+          query: `${query} AND (impact OR effect OR consequence)`,
+        },
       ],
       followUpQuestion: `Would you like to explore a specific aspect of ${query}, such as recent events or public reactions?`,
     };

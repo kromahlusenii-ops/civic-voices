@@ -40,15 +40,19 @@ interface Config {
     };
   };
 
+  // X (Twitter) API
+  x: {
+    bearerToken?: string;
+  };
+
+  // TikTok API
+  tiktok: {
+    apiKey?: string;
+    apiUrl?: string;
+  };
+
   // Future providers (placeholders)
   providers: {
-    twitter?: {
-      apiKey?: string;
-      apiSecret?: string;
-    };
-    tiktok?: {
-      apiKey?: string;
-    };
     linkedin?: {
       apiKey?: string;
     };
@@ -111,14 +115,16 @@ function loadConfig(): Config {
       },
     },
 
+    x: {
+      bearerToken: getOptionalEnv('X_BEARER_TOKEN'),
+    },
+
+    tiktok: {
+      apiKey: getOptionalEnv('TIKTOK_API_KEY'),
+      apiUrl: getOptionalEnv('TIKTOK_API_URL'),
+    },
+
     providers: {
-      twitter: {
-        apiKey: getOptionalEnv('TWITTER_API_KEY'),
-        apiSecret: getOptionalEnv('TWITTER_API_SECRET'),
-      },
-      tiktok: {
-        apiKey: getOptionalEnv('TIKTOK_API_KEY'),
-      },
       linkedin: {
         apiKey: getOptionalEnv('LINKEDIN_API_KEY'),
       },

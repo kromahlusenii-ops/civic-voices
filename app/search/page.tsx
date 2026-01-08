@@ -7,10 +7,19 @@ import { useAuth } from "../contexts/AuthContext";
 import AuthModal from "../components/AuthModal";
 import SearchHistoryModal from "../components/SearchHistoryModal";
 import SearchHistorySidebar from "../components/SearchHistorySidebar";
+import { SkeletonCardList } from "../components/SkeletonCard";
+import QuerySuggestions from "../components/QuerySuggestions";
 import SourceFilter from "../../components/SourceFilter";
 import FilterDropdown from "../../components/FilterDropdown";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
 import { supabase } from "@/lib/supabase";
+import {
+  formatMentions,
+  calculateTotalMentions,
+  getMentionsBadge,
+  MENTIONS_BADGE_STYLES,
+  MENTIONS_BADGE_LABELS,
+} from "@/lib/utils/mentions";
 
 const TIME_INTERVAL_OPTIONS = [
   { id: "today", label: "Today" },
@@ -54,20 +63,6 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
   ),
 };
 
-const QUALITY_BADGE_STYLES: Record<string, string> = {
-  sweet_spot: "bg-green-100 text-green-700",
-  too_narrow: "bg-yellow-100 text-yellow-700",
-  too_broad: "bg-red-100 text-red-700",
-  trending: "bg-blue-100 text-blue-700",
-};
-
-const QUALITY_BADGE_LABELS: Record<string, string> = {
-  sweet_spot: "Sweet spot",
-  too_narrow: "Too narrow",
-  too_broad: "Too broad",
-  trending: "Trending",
-};
-
 interface SearchResults {
   query: string;
   posts: Post[];
@@ -76,15 +71,8 @@ interface SearchResults {
   dateRange: { start: string; end: string };
   aiAnalysis: AIAnalysis | null;
   keyThemes: string[];
-}
-
-// Determine quality badge based on post count
-function getQualityBadge(postCount: number): string | null {
-  if (postCount === 0) return "too_narrow";
-  if (postCount < 5) return "too_narrow";
-  if (postCount > 50) return "too_broad";
-  if (postCount >= 10 && postCount <= 30) return "sweet_spot";
-  return null;
+  searchId?: string; // ID of saved search for report generation
+  warnings?: string[]; // Non-fatal warnings (e.g., time range clamped)
 }
 
 function SearchPageContent() {
@@ -119,6 +107,8 @@ function SearchPageContent() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [followUpQuery, setFollowUpQuery] = useState("");
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -218,18 +208,22 @@ function SearchPageContent() {
 
       const apiResponse: SearchResponse = await response.json();
 
+      // Calculate total mentions from aggregated engagement (likes + comments + shares + views)
+      const totalMentions = calculateTotalMentions(apiResponse.posts);
+
       // Transform API response to SearchResults format
       const results: SearchResults = {
         query,
         posts: apiResponse.posts,
-        totalMentions: apiResponse.summary.totalPosts,
-        qualityBadge: getQualityBadge(apiResponse.summary.totalPosts),
+        totalMentions,
+        qualityBadge: getMentionsBadge(totalMentions),
         dateRange: {
           start: apiResponse.summary.timeRange.start.split("T")[0],
           end: apiResponse.summary.timeRange.end.split("T")[0],
         },
         aiAnalysis: apiResponse.aiAnalysis || null,
         keyThemes: apiResponse.aiAnalysis?.keyThemes || [],
+        warnings: apiResponse.warnings,
       };
 
       setSearchResults(results);
@@ -241,7 +235,7 @@ function SearchPageContent() {
           if (!session?.access_token) {
             throw new Error("No active session");
           }
-          await fetch("/api/search/save", {
+          const saveResponse = await fetch("/api/search/save", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -263,6 +257,12 @@ function SearchPageContent() {
               })),
             }),
           });
+
+          if (saveResponse.ok) {
+            const saveData = await saveResponse.json();
+            // Update results with the saved searchId
+            setSearchResults((prev) => prev ? { ...prev, searchId: saveData.searchId } : null);
+          }
         } catch (saveError) {
           console.error("Failed to save search:", saveError);
         }
@@ -319,6 +319,56 @@ function SearchPageContent() {
     setSearchResults(null);
     setSearchQuery("");
     setFollowUpQuery("");
+    setReportError(null);
+  };
+
+  // Start report generation from saved search
+  const handleStartReportGeneration = async () => {
+    if (!searchResults?.searchId) {
+      setReportError("Please wait for search to be saved before generating report");
+      return;
+    }
+
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    setIsGeneratingReport(true);
+    setReportError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("No active session");
+      }
+
+      const response = await fetch("/api/report/start", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          searchId: searchResults.searchId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to generate report");
+      }
+
+      const data = await response.json();
+
+      // Redirect to the report page
+      router.push(`/report/${data.reportId}`);
+    } catch (error) {
+      console.error("Report generation error:", error);
+      setReportError(error instanceof Error ? error.message : "Failed to generate report");
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   const formatRelativeTime = (dateString: string) => {
@@ -385,8 +435,6 @@ function SearchPageContent() {
       <SearchHistorySidebar
         isOpen={showSearchHistorySidebar}
         onClose={() => setShowSearchHistorySidebar(false)}
-        onMouseEnter={() => isAuthenticated && setShowSearchHistorySidebar(true)}
-        onMouseLeave={() => setShowSearchHistorySidebar(false)}
       />
 
       {/* Mobile hamburger */}
@@ -432,11 +480,8 @@ function SearchPageContent() {
               onClick={() => {
                 if (!isAuthenticated) {
                   setShowAuthModal(true);
-                }
-              }}
-              onMouseEnter={() => {
-                if (isAuthenticated) {
-                  setShowSearchHistorySidebar(true);
+                } else {
+                  setShowSearchHistorySidebar(!showSearchHistorySidebar);
                 }
               }}
               aria-label="Search History"
@@ -488,13 +533,18 @@ function SearchPageContent() {
                   />
                   <button
                     onClick={handleStartResearch}
-                    disabled={!searchQuery.trim()}
-                    className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50"
+                    disabled={!searchQuery.trim() || isSearching}
+                    className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     data-testid="start-research-btn"
+                    aria-label={isSearching ? "Searching..." : "Start research"}
                   >
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                    </svg>
+                    {isSearching ? (
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-400 border-t-white" />
+                    ) : (
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                      </svg>
+                    )}
                   </button>
                 </div>
 
@@ -542,12 +592,54 @@ function SearchPageContent() {
           </div>
         )}
 
-        {/* Loading State */}
+        {/* Loading State - Split Screen */}
         {isSearching && (
-          <div className="flex min-h-screen items-center justify-center">
-            <div className="text-center">
-              <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900 mx-auto" />
-              <p className="text-gray-600">Analyzing...</p>
+          <div className="flex h-screen" role="status" aria-live="polite" aria-busy="true">
+            {/* Left Panel - Thinking State */}
+            <div className="flex w-1/2 flex-col border-r border-gray-200">
+              {/* Header with query */}
+              <div className="border-b border-gray-200 p-6">
+                <div className="inline-block rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-800">
+                  {searchQuery}
+                </div>
+              </div>
+
+              {/* Thinking Content */}
+              <div className="flex-1 flex items-start p-6">
+                <div className="flex gap-3">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-gray-600 text-lg" data-testid="thinking-indicator">
+                      Thinking...
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Panel - Skeleton Cards */}
+            <div className="flex w-1/2 flex-col bg-gray-50">
+              {/* Header skeleton */}
+              <div className="border-b border-gray-200 bg-white p-6">
+                <div className="h-6 w-48 animate-pulse rounded bg-gray-200 mb-4" />
+                <div className="flex gap-2">
+                  <div className="h-8 w-24 animate-pulse rounded-full bg-gray-200" />
+                  <div className="h-8 w-28 animate-pulse rounded-full bg-gray-200" />
+                </div>
+              </div>
+
+              {/* Stats skeleton */}
+              <div className="border-b border-gray-200 bg-white px-6 py-3">
+                <div className="h-6 w-32 animate-pulse rounded bg-gray-200 mb-1" />
+                <div className="h-4 w-48 animate-pulse rounded bg-gray-200" />
+              </div>
+
+              {/* Skeleton cards */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <SkeletonCardList count={6} />
+              </div>
             </div>
           </div>
         )}
@@ -613,23 +705,14 @@ function SearchPageContent() {
                             {renderFormattedText(searchResults.aiAnalysis.followUpQuestion)}
                           </p>
 
-                          {/* Suggested Queries */}
+                          {/* Query Refinement Suggestions */}
                           {searchResults.aiAnalysis.suggestedQueries && searchResults.aiAnalysis.suggestedQueries.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium text-gray-700">Try these searches:</p>
-                              {searchResults.aiAnalysis.suggestedQueries.map((suggestion, i) => (
-                                <button
-                                  key={i}
-                                  onClick={() => {
-                                    setFollowUpQuery(suggestion.query);
-                                  }}
-                                  className="block w-full text-left rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
-                                >
-                                  <span className="text-sm text-gray-600">{suggestion.label}</span>
-                                  <span className="block text-sm font-mono text-blue-600">{suggestion.query}</span>
-                                </button>
-                              ))}
-                            </div>
+                            <QuerySuggestions
+                              suggestions={searchResults.aiAnalysis.suggestedQueries}
+                              onQuerySelect={(query) => {
+                                setFollowUpQuery(query);
+                              }}
+                            />
                           )}
                         </>
                       ) : (
@@ -726,31 +809,64 @@ function SearchPageContent() {
                     testId="results-language-filter"
                   />
 
-                  <button className="ml-auto rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
-                    Start research
+                  <button
+                    onClick={handleStartReportGeneration}
+                    disabled={isGeneratingReport || !searchResults.searchId}
+                    className="ml-auto rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    data-testid="generate-report-btn"
+                  >
+                    {isGeneratingReport ? (
+                      <>
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        Generating...
+                      </>
+                    ) : (
+                      "Generate Report"
+                    )}
                   </button>
                 </div>
+
+                {/* Report error message */}
+                {reportError && (
+                  <div className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">
+                    {reportError}
+                  </div>
+                )}
               </div>
 
               {/* Stats row */}
               <div className="border-b border-gray-200 bg-white px-6 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-lg font-semibold text-gray-900">
-                    {searchResults.totalMentions.toLocaleString()} posts found
+                  <span className="text-lg font-semibold text-gray-900" data-testid="total-mentions">
+                    {formatMentions(searchResults.totalMentions)} total mentions
                   </span>
                   {searchResults.qualityBadge && (
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        QUALITY_BADGE_STYLES[searchResults.qualityBadge]
+                        MENTIONS_BADGE_STYLES[searchResults.qualityBadge]
                       }`}
+                      data-testid="mentions-badge"
                     >
-                      {QUALITY_BADGE_LABELS[searchResults.qualityBadge]}
+                      {MENTIONS_BADGE_LABELS[searchResults.qualityBadge]}
                     </span>
                   )}
                 </div>
                 <p className="text-sm text-gray-500">
                   {formatDateRange(searchResults.dateRange.start, searchResults.dateRange.end)}
                 </p>
+                {/* API Warnings */}
+                {searchResults.warnings && searchResults.warnings.length > 0 && (
+                  <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                    {searchResults.warnings.map((warning, index) => (
+                      <p key={index} className="text-sm text-amber-800 flex items-center gap-2">
+                        <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                        </svg>
+                        {warning}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Posts Feed - Scrollable */}
