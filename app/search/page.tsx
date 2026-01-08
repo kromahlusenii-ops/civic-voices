@@ -10,6 +10,7 @@ import SearchHistorySidebar from "../components/SearchHistorySidebar";
 import SourceFilter from "../../components/SourceFilter";
 import FilterDropdown from "../../components/FilterDropdown";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
+import { supabase } from "@/lib/supabase";
 
 const TIME_INTERVAL_OPTIONS = [
   { id: "today", label: "Today" },
@@ -236,12 +237,15 @@ function SearchPageContent() {
       // Auto-save search to database if authenticated
       if (isAuthenticated && user) {
         try {
-          const idToken = await user.getIdToken();
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            throw new Error("No active session");
+          }
           await fetch("/api/search/save", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${idToken}`,
+              Authorization: `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
               queryText: query,
@@ -450,7 +454,7 @@ function SearchPageContent() {
             aria-label="User profile"
             className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-700"
           >
-            {isAuthenticated ? (user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U") : "?"}
+            {isAuthenticated ? (user?.user_metadata?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U") : "?"}
           </button>
         </div>
       </aside>
@@ -462,8 +466,8 @@ function SearchPageContent() {
           <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-2xl">
               <h1 className="mb-8 text-center text-3xl font-light text-gray-400" data-testid="dashboard-greeting">
-                {isAuthenticated && user?.displayName
-                  ? `Hello, ${user.displayName.split(" ")[0]}`
+                {isAuthenticated && user?.user_metadata?.name
+                  ? `Hello, ${(user.user_metadata.name as string).split(" ")[0]}`
                   : "Discover what people buzz about"}
               </h1>
 

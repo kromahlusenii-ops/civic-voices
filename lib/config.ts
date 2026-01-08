@@ -16,6 +16,13 @@ interface Config {
     nextAuthSecret: string;
   };
 
+  // Supabase
+  supabase: {
+    url: string;
+    anonKey: string;
+    serviceRoleKey: string;
+  };
+
   // Reddit API
   reddit: {
     clientId: string;
@@ -81,6 +88,12 @@ function loadConfig(): Config {
     auth: {
       nextAuthUrl: getRequiredEnv('NEXTAUTH_URL'),
       nextAuthSecret: getRequiredEnv('NEXTAUTH_SECRET'),
+    },
+
+    supabase: {
+      url: getRequiredEnv('NEXT_PUBLIC_SUPABASE_URL'),
+      anonKey: getRequiredEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+      serviceRoleKey: getRequiredEnv('SUPABASE_SERVICE_ROLE_KEY'),
     },
 
     reddit: {

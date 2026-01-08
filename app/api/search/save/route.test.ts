@@ -1,30 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "./route";
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
 
-// Mock Firebase Admin
-const mockVerifyFirebaseToken = vi.fn();
-vi.mock("@/lib/firebase-admin", () => ({
-  verifyFirebaseToken: (...args: unknown[]) => mockVerifyFirebaseToken(...args),
+// Mock Supabase Server
+const mockVerifySupabaseToken = vi.fn();
+vi.mock("@/lib/supabase-server", () => ({
+  verifySupabaseToken: (...args: unknown[]) => mockVerifySupabaseToken(...args),
 }));
 
-// Mock prisma
-vi.mock("@/lib/prisma", () => ({
-  prisma: {
-    user: {
-      findUnique: vi.fn(),
-    },
-    researchJob: {
-      create: vi.fn(),
-    },
-    search: {
-      create: vi.fn(),
-    },
-    sourceResult: {
-      createMany: vi.fn(),
-    },
-  },
+// Mock search storage service
+const mockSaveSearch = vi.fn();
+vi.mock("@/lib/services/searchStorage", () => ({
+  saveSearch: (...args: unknown[]) => mockSaveSearch(...args),
 }));
 
 describe("POST /api/search/save", () => {
@@ -38,7 +25,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -58,7 +45,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -69,8 +56,8 @@ describe("POST /api/search/save", () => {
     expect(data.error).toBe("Unauthorized - No token provided");
   });
 
-  it("returns 401 if Firebase token is invalid", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue(null);
+  it("returns 401 if Supabase token is invalid", async () => {
+    mockVerifySupabaseToken.mockResolvedValue(null);
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
       method: "POST",
@@ -80,7 +67,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -91,10 +78,10 @@ describe("POST /api/search/save", () => {
     expect(data.error).toBe("Unauthorized - Invalid token");
   });
 
-  it("returns 400 if email is not in token", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      // No email field
+  it("returns 400 if id is not in user", async () => {
+    mockVerifySupabaseToken.mockResolvedValue({
+      email: "test@example.com",
+      // No id field
     });
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
@@ -105,7 +92,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -113,54 +100,13 @@ describe("POST /api/search/save", () => {
     const data = await response.json();
 
     expect(response.status).toBe(400);
-    expect(data.error).toBe("Email not found in token");
-  });
-
-  it("returns 404 if user is not found in database", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      email: "test@example.com",
-    });
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(
-      null
-    );
-
-    const request = new NextRequest("http://localhost:3000/api/search/save", {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer valid-token",
-      },
-      body: JSON.stringify({
-        queryText: "test query",
-        sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
-      }),
-    });
-
-    const response = await POST(request);
-    const data = await response.json();
-
-    expect(response.status).toBe(404);
-    expect(data.error).toBe("User not found");
-
-    // Should try to find user by firebaseUid first, then by email
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { firebaseUid: "firebase-uid-123" },
-    });
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { email: "test@example.com" },
-    });
+    expect(data.error).toBe("User ID not found in token");
   });
 
   it("returns 400 if queryText is missing", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      email: "test@example.com",
-    });
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+    mockVerifySupabaseToken.mockResolvedValue({
       id: "user-123",
       email: "test@example.com",
-      firebaseUid: "firebase-uid-123",
     });
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
@@ -170,7 +116,7 @@ describe("POST /api/search/save", () => {
       },
       body: JSON.stringify({
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -182,14 +128,9 @@ describe("POST /api/search/save", () => {
   });
 
   it("returns 400 if sources array is empty", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      email: "test@example.com",
-    });
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+    mockVerifySupabaseToken.mockResolvedValue({
       id: "user-123",
       email: "test@example.com",
-      firebaseUid: "firebase-uid-123",
     });
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
@@ -200,7 +141,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: [],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -212,14 +153,9 @@ describe("POST /api/search/save", () => {
   });
 
   it("returns 400 if no valid sources are provided", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      email: "test@example.com",
-    });
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+    mockVerifySupabaseToken.mockResolvedValue({
       id: "user-123",
       email: "test@example.com",
-      firebaseUid: "firebase-uid-123",
     });
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
@@ -230,7 +166,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["invalid-source"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -241,35 +177,13 @@ describe("POST /api/search/save", () => {
     expect(data.error).toBe("No valid sources provided");
   });
 
-  it("successfully creates search record with valid data", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      email: "test@example.com",
-    });
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+  it("successfully saves search to PostgreSQL with valid data", async () => {
+    mockVerifySupabaseToken.mockResolvedValue({
       id: "user-123",
       email: "test@example.com",
-      firebaseUid: "firebase-uid-123",
     });
-    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "job-123",
-      userId: "user-123",
-      queryJson: { query: "test query", sources: ["x", "tiktok"], filters: { timeFilter: "24h", locationFilter: "all" } },
-      status: "COMPLETED",
-      totalResults: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    (prisma.search.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "search-123",
-      userId: "user-123",
-      queryText: "test query",
-      name: "test query",
-      sources: ["X", "TIKTOK"],
-      filtersJson: { timeFilter: "24h", locationFilter: "all" },
-      reportId: "job-123",
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    mockSaveSearch.mockResolvedValue({
+      searchId: "search-123",
     });
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
@@ -280,7 +194,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["x", "tiktok"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
@@ -290,54 +204,27 @@ describe("POST /api/search/save", () => {
     expect(response.status).toBe(201);
     expect(data.success).toBe(true);
     expect(data.searchId).toBe("search-123");
-    expect(data.researchJobId).toBe("job-123");
     expect(data.message).toBe("Search saved successfully");
 
-    // Verify ResearchJob was created first
-    expect(prisma.researchJob.create).toHaveBeenCalled();
-
-    // Verify Search was created and linked to ResearchJob
-    expect(prisma.search.create).toHaveBeenCalledWith({
-      data: {
-        userId: "user-123",
-        queryText: "test query",
-        name: "test query",
-        sources: ["X", "TIKTOK"],
-        filtersJson: { timeFilter: "24h", locationFilter: "all" },
-        reportId: "job-123",
-      },
+    // Verify saveSearch was called with correct parameters
+    // Note: route passes sources as-is; the service handles uppercasing internally
+    expect(mockSaveSearch).toHaveBeenCalledWith("user-123", {
+      queryText: "test query",
+      name: undefined,
+      sources: ["x", "tiktok"],
+      filters: { timeFilter: "24h", language: "en" },
+      totalResults: undefined,
+      posts: undefined,
     });
   });
 
   it("uses custom name when provided", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      email: "test@example.com",
-    });
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+    mockVerifySupabaseToken.mockResolvedValue({
       id: "user-123",
       email: "test@example.com",
-      firebaseUid: "firebase-uid-123",
     });
-    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "job-123",
-      userId: "user-123",
-      queryJson: { query: "test query", sources: ["x"], filters: { timeFilter: "24h", locationFilter: "all" } },
-      status: "COMPLETED",
-      totalResults: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    (prisma.search.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "search-123",
-      userId: "user-123",
-      queryText: "test query",
-      name: "My Custom Search",
-      sources: ["X"],
-      filtersJson: { timeFilter: "24h", locationFilter: "all" },
-      reportId: "job-123",
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    mockSaveSearch.mockResolvedValue({
+      searchId: "search-123",
     });
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
@@ -349,62 +236,42 @@ describe("POST /api/search/save", () => {
         queryText: "test query",
         name: "My Custom Search",
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 
     const response = await POST(request);
-    await response.json();
 
     expect(response.status).toBe(201);
-    expect(prisma.search.create).toHaveBeenCalledWith({
-      data: {
-        userId: "user-123",
-        queryText: "test query",
-        name: "My Custom Search",
-        sources: ["X"],
-        filtersJson: { timeFilter: "24h", locationFilter: "all" },
-        reportId: "job-123",
-      },
+    expect(mockSaveSearch).toHaveBeenCalledWith("user-123", {
+      queryText: "test query",
+      name: "My Custom Search",
+      sources: ["x"],
+      filters: { timeFilter: "24h", language: "en" },
+      totalResults: undefined,
+      posts: undefined,
     });
   });
 
-  it("finds user by email when firebaseUid lookup fails (backwards compatibility)", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
+  it("saves posts when provided", async () => {
+    mockVerifySupabaseToken.mockResolvedValue({
+      id: "user-123",
       email: "test@example.com",
     });
-
-    // First call (by firebaseUid) returns null, second call (by email) returns user
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        id: "user-123",
-        email: "test@example.com",
-        firebaseUid: null, // User created before Firebase migration
-      });
-
-    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "job-123",
-      userId: "user-123",
-      queryJson: { query: "test query", sources: ["x"], filters: { timeFilter: "24h", locationFilter: "all" } },
-      status: "COMPLETED",
-      totalResults: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    mockSaveSearch.mockResolvedValue({
+      searchId: "search-123",
     });
 
-    (prisma.search.create as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: "search-123",
-      userId: "user-123",
-      queryText: "test query",
-      name: "test query",
-      sources: ["X"],
-      filtersJson: { timeFilter: "24h", locationFilter: "all" },
-      reportId: "job-123",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+    const posts = [
+      {
+        id: "post-1",
+        text: "Test post content",
+        author: "testuser",
+        platform: "x",
+        url: "https://x.com/test/1",
+        engagement: { likes: 10, comments: 5, shares: 2 },
+      },
+    ];
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
       method: "POST",
@@ -414,7 +281,9 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
+        totalResults: 1,
+        posts,
       }),
     });
 
@@ -423,30 +292,22 @@ describe("POST /api/search/save", () => {
 
     expect(response.status).toBe(201);
     expect(data.success).toBe(true);
-
-    // Should have tried both lookups
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { firebaseUid: "firebase-uid-123" },
-    });
-    expect(prisma.user.findUnique).toHaveBeenCalledWith({
-      where: { email: "test@example.com" },
+    expect(mockSaveSearch).toHaveBeenCalledWith("user-123", {
+      queryText: "test query",
+      name: undefined,
+      sources: ["x"],
+      filters: { timeFilter: "24h", language: "en" },
+      totalResults: 1,
+      posts,
     });
   });
 
-  it("returns 500 if database operation fails", async () => {
-    mockVerifyFirebaseToken.mockResolvedValue({
-      uid: "firebase-uid-123",
-      email: "test@example.com",
-    });
-    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+  it("returns 500 if database storage operation fails", async () => {
+    mockVerifySupabaseToken.mockResolvedValue({
       id: "user-123",
       email: "test@example.com",
-      firebaseUid: "firebase-uid-123",
     });
-    // ResearchJob.create fails
-    (prisma.researchJob.create as ReturnType<typeof vi.fn>).mockRejectedValue(
-      new Error("Database connection failed")
-    );
+    mockSaveSearch.mockRejectedValue(new Error("Database connection failed"));
 
     const request = new NextRequest("http://localhost:3000/api/search/save", {
       method: "POST",
@@ -456,7 +317,7 @@ describe("POST /api/search/save", () => {
       body: JSON.stringify({
         queryText: "test query",
         sources: ["x"],
-        filters: { timeFilter: "24h", locationFilter: "all" },
+        filters: { timeFilter: "24h", language: "en" },
       }),
     });
 

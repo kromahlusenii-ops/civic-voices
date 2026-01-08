@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyFirebaseToken } from "@/lib/firebase-admin";
-import { prisma } from "@/lib/prisma";
-import { Source, JobStatus } from "@prisma/client";
+import { verifySupabaseToken } from "@/lib/supabase-server";
+import { saveSearch, SearchPost } from "@/lib/services/searchStorage";
 
 interface SaveSearchRequest {
   queryText: string;
@@ -12,25 +11,12 @@ interface SaveSearchRequest {
     language?: string;
   };
   totalResults?: number;
-  posts?: Array<{
-    id: string;
-    text: string;
-    author: string;
-    platform: string;
-    url: string;
-    createdAt?: string;
-    engagement?: {
-      likes: number;
-      comments: number;
-      shares: number;
-      views?: number;
-    };
-  }>;
+  posts?: SearchPost[];
 }
 
 export async function POST(request: NextRequest) {
   try {
-    // Get Firebase ID token from Authorization header
+    // Get Supabase access token from Authorization header
     const authHeader = request.headers.get("Authorization");
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -40,50 +26,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const idToken = authHeader.split("Bearer ")[1];
+    const accessToken = authHeader.split("Bearer ")[1];
 
-    // Verify Firebase ID token
-    const decodedToken = await verifyFirebaseToken(idToken);
+    // Verify Supabase access token
+    const user = await verifySupabaseToken(accessToken);
 
-    if (!decodedToken) {
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized - Invalid token" },
         { status: 401 }
       );
     }
 
-    const firebaseUid = decodedToken.uid;
-    const email = decodedToken.email;
+    const userId = user.id;
 
-    if (!email) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "Email not found in token" },
+        { error: "User ID not found in token" },
         { status: 400 }
-      );
-    }
-
-    // Get user from database by Firebase UID
-    let user = await prisma.user.findUnique({
-      where: { firebaseUid },
-    });
-
-    // If user not found by Firebase UID, try by email (for backwards compatibility)
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { email },
-      });
-    }
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
       );
     }
 
     // Parse request body
     const body: SaveSearchRequest = await request.json();
-    const { queryText, name, sources, filters } = body;
+    const { queryText, name, sources, filters, totalResults, posts } = body;
 
     // Validate required fields
     if (!queryText || !sources || sources.length === 0) {
@@ -93,7 +59,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert sources to Prisma enum type
+    // Validate sources
     const validSourceNames = ["X", "TIKTOK", "REDDIT", "INSTAGRAM", "YOUTUBE", "LINKEDIN"];
     const validSources = sources.filter((source) =>
       validSourceNames.includes(source.toUpperCase())
@@ -106,69 +72,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Map source names to Prisma enum values
-    const enumSources: Source[] = validSources.map((source) => {
-      const upperSource = source.toUpperCase();
-      return upperSource === "X" ? Source.X : (upperSource as Source);
+    // Save to PostgreSQL
+    const { searchId } = await saveSearch(userId, {
+      queryText,
+      name,
+      sources: validSources,
+      filters,
+      totalResults,
+      posts,
     });
-
-    // Create ResearchJob first
-    const researchJob = await prisma.researchJob.create({
-      data: {
-        userId: user.id,
-        queryJson: {
-          query: queryText,
-          sources: validSources,
-          filters,
-        },
-        status: JobStatus.COMPLETED,
-        totalResults: body.totalResults || body.posts?.length || 0,
-        startedAt: new Date(),
-        completedAt: new Date(),
-      },
-    });
-
-    // Create Search record linked to ResearchJob
-    const search = await prisma.search.create({
-      data: {
-        userId: user.id,
-        queryText,
-        name: name || queryText,
-        sources: enumSources,
-        filtersJson: filters,
-        reportId: researchJob.id,
-      },
-    });
-
-    // Create SourceResult records for posts if provided
-    if (body.posts && body.posts.length > 0) {
-      const sourceResultsData = body.posts.map((post) => {
-        const upperPlatform = post.platform.toUpperCase();
-        const source = upperPlatform === "X" ? Source.X : (upperPlatform as Source);
-        return {
-          jobId: researchJob.id,
-          source,
-          externalId: post.id,
-          url: post.url,
-          title: post.text.slice(0, 100),
-          text: post.text,
-          rawJson: post,
-          createdAtExternal: post.createdAt ? new Date(post.createdAt) : null,
-          score: post.engagement?.likes || 0,
-        };
-      });
-
-      await prisma.sourceResult.createMany({
-        data: sourceResultsData,
-        skipDuplicates: true,
-      });
-    }
 
     return NextResponse.json(
       {
         success: true,
-        searchId: search.id,
-        researchJobId: researchJob.id,
+        searchId,
         message: "Search saved successfully",
       },
       { status: 201 }

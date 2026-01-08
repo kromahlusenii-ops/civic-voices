@@ -37,20 +37,18 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-// Mock Firebase Auth
-vi.mock("firebase/auth", () => ({
-  getAuth: vi.fn(),
-  GoogleAuthProvider: vi.fn(),
-  createUserWithEmailAndPassword: vi.fn(),
-  signInWithEmailAndPassword: vi.fn(),
-  signInWithPopup: vi.fn(),
-  updateProfile: vi.fn(),
-}));
-
-// Mock Firebase config
-vi.mock("@/lib/firebase", () => ({
-  auth: {},
-  googleProvider: {},
+// Mock Supabase
+const mockGetSession = vi.fn();
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: {
+      getSession: () => mockGetSession(),
+      signUp: vi.fn(),
+      signInWithPassword: vi.fn(),
+      signInWithOAuth: vi.fn(),
+      resetPasswordForEmail: vi.fn(),
+    },
+  },
 }));
 
 // Mock API response helper
@@ -106,6 +104,9 @@ describe("Search Page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+    mockGetSession.mockResolvedValue({
+      data: { session: { access_token: "mock-access-token" } },
+    });
   });
 
   describe("Initial Search State", () => {
@@ -113,7 +114,7 @@ describe("Search Page", () => {
       mockUseAuth.mockReturnValue({
         isAuthenticated: true,
         loading: false,
-        user: { displayName: "John Doe", email: "john@example.com" },
+        user: { id: "user-1", email: "john@example.com", user_metadata: { name: "John Doe" } },
       });
 
       render(<SearchPage />);
@@ -307,7 +308,7 @@ describe("Search Page", () => {
         user: {
           displayName: "John Doe",
           email: "john@example.com",
-          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+          id: "user-1",
         },
       });
 
@@ -359,7 +360,7 @@ describe("Search Page", () => {
         user: {
           displayName: "John Doe",
           email: "john@example.com",
-          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+          id: "user-1",
         },
       });
 
@@ -400,7 +401,7 @@ describe("Search Page", () => {
         user: {
           displayName: "John Doe",
           email: "john@example.com",
-          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+          id: "user-1",
         },
       });
 
@@ -443,7 +444,7 @@ describe("Search Page", () => {
         user: {
           displayName: "John Doe",
           email: "john@example.com",
-          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+          id: "user-1",
         },
       });
 
@@ -588,7 +589,7 @@ describe("Search Page", () => {
         user: {
           displayName: "John Doe",
           email: "john@example.com",
-          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+          id: "user-1",
         },
       });
 
@@ -658,14 +659,13 @@ describe("Search Page", () => {
     });
 
     it("authenticated user search calls save API with Search + ResearchJob data", async () => {
-      const mockGetIdToken = vi.fn().mockResolvedValue("mock-id-token");
       mockUseAuth.mockReturnValue({
         isAuthenticated: true,
         loading: false,
         user: {
-          displayName: "John Doe",
+          id: "user-1",
           email: "john@example.com",
-          getIdToken: mockGetIdToken,
+          user_metadata: { name: "John Doe" },
         },
       });
 
@@ -705,7 +705,7 @@ describe("Search Page", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer mock-id-token",
+          Authorization: "Bearer mock-access-token",
         },
       });
 
@@ -725,14 +725,13 @@ describe("Search Page", () => {
     });
 
     it("save API failure does not affect search results display", async () => {
-      const mockGetIdToken = vi.fn().mockResolvedValue("mock-id-token");
       mockUseAuth.mockReturnValue({
         isAuthenticated: true,
         loading: false,
         user: {
-          displayName: "John Doe",
+          id: "user-1",
           email: "john@example.com",
-          getIdToken: mockGetIdToken,
+          user_metadata: { name: "John Doe" },
         },
       });
 
@@ -806,7 +805,7 @@ describe("Search Page", () => {
         user: {
           displayName: "John Doe",
           email: "john@example.com",
-          getIdToken: vi.fn().mockResolvedValue("mock-id-token"),
+          id: "user-1",
         },
       });
 

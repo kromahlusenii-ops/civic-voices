@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyFirebaseToken } from "@/lib/firebase-admin";
-import { prisma } from "@/lib/prisma";
+import { verifySupabaseToken } from "@/lib/supabase-server";
+import { getSearchHistory } from "@/lib/services/searchStorage";
 
 export async function GET(request: NextRequest) {
   try {
-    // Get Firebase ID token from Authorization header
+    // Get Supabase access token from Authorization header
     const authHeader = request.headers.get("Authorization");
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -14,91 +14,56 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const idToken = authHeader.split("Bearer ")[1];
+    const accessToken = authHeader.split("Bearer ")[1];
 
-    // Verify Firebase ID token
-    const decodedToken = await verifyFirebaseToken(idToken);
+    // Verify Supabase access token
+    const user = await verifySupabaseToken(accessToken);
 
-    if (!decodedToken) {
+    if (!user) {
       return NextResponse.json(
         { error: "Unauthorized - Invalid token" },
         { status: 401 }
       );
     }
 
-    const firebaseUid = decodedToken.uid;
-    const email = decodedToken.email;
+    const userId = user.id;
 
-    if (!email) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "Email not found in token" },
+        { error: "User ID not found in token" },
         { status: 400 }
-      );
-    }
-
-    // Get user from database by Firebase UID
-    let user = await prisma.user.findUnique({
-      where: { firebaseUid },
-    });
-
-    // If user not found by Firebase UID, try by email (for backwards compatibility)
-    if (!user) {
-      user = await prisma.user.findUnique({
-        where: { email },
-      });
-    }
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
       );
     }
 
     // Parse query params for filtering
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get("q") || "";
+    const query = searchParams.get("q") || undefined;
     const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const noCache = searchParams.get("nocache") === "true";
 
-    // Fetch user's saved searches
-    const searches = await prisma.search.findMany({
-      where: {
-        userId: user.id,
-        ...(query && {
-          OR: [
-            { queryText: { contains: query, mode: "insensitive" } },
-            { name: { contains: query, mode: "insensitive" } },
-          ],
-        }),
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-      include: {
-        report: {
-          select: {
-            id: true,
-            totalResults: true,
-            status: true,
-          },
-        },
-      },
+    // Fetch user's saved searches from PostgreSQL with caching
+    const { searches, total, fromCache } = await getSearchHistory(userId, {
+      query,
+      limit,
+      useCache: !noCache,
     });
 
-    // Transform searches for response
+    // Transform searches for response (add reportId as search id for compatibility)
     const formattedSearches = searches.map((search) => ({
       id: search.id,
-      name: search.name || search.queryText,
+      name: search.name,
       queryText: search.queryText,
       sources: search.sources,
-      filters: search.filtersJson,
-      createdAt: search.createdAt.toISOString(),
-      reportId: search.reportId,
-      totalResults: search.report?.totalResults || 0,
+      filters: search.filters,
+      createdAt: search.createdAt,
+      reportId: search.id, // Use search id as report id for navigation
+      totalResults: search.totalResults,
     }));
 
     return NextResponse.json({
       searches: formattedSearches,
-      total: formattedSearches.length,
+      total,
+      fromCache,
     });
   } catch (error) {
     console.error("Error fetching search history:", error);

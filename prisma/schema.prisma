@@ -12,7 +12,8 @@ datasource db {
 
 model User {
   id            String         @id @default(cuid())
-  firebaseUid   String?        @unique // Firebase UID for Firebase Auth integration
+  firebaseUid   String?        @unique // Firebase UID for Firebase Auth integration (deprecated - use supabaseUid)
+  supabaseUid   String?        @unique // Supabase UID for Supabase Auth integration
   email         String         @unique
   password      String?        // Hashed password for credentials auth (null for OAuth-only users)
   name          String?
@@ -27,6 +28,7 @@ model User {
   sessions      Session[]
 
   @@index([firebaseUid])
+  @@index([supabaseUid])
   @@map("users")
 }
 
@@ -112,15 +114,46 @@ model Search {
   name        String?      // Optional custom name (defaults to queryText in application code)
   sources     Source[]     // Selected sources (X, TikTok, etc.)
   filtersJson Json         // Time filter, location filter, etc.
+  totalResults Int         @default(0) // Total number of posts found
 
   reportId    String?
   report      ResearchJob? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  // Relations
+  posts       SearchPost[]
 
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("searches")
+}
+
+model SearchPost {
+  id          String   @id @default(cuid())
+  searchId    String
+  search      Search   @relation(fields: [searchId], references: [id], onDelete: Cascade)
+
+  // Post data (matching Post interface from lib/types/api.ts)
+  postId      String   // External platform post ID
+  text        String
+  author      String
+  authorHandle String
+  authorAvatar String?
+  platform    String   // "x" | "tiktok" | "reddit" | "instagram" | "youtube" | "linkedin"
+  url         String
+  thumbnail   String?
+  
+  // Engagement metrics
+  engagement  Json     // { likes, comments, shares, views? }
+  
+  // Metadata
+  createdAt   DateTime // When post was created on external platform
+  savedAt     DateTime @default(now()) // When we saved it
+
+  @@index([searchId])
+  @@index([searchId, createdAt])
+  @@map("search_posts")
 }
 
 model SourceResult {
@@ -153,6 +186,7 @@ enum Source {
   TIKTOK
   YOUTUBE
   LINKEDIN
+  INSTAGRAM
 }
 
 model Insight {

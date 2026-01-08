@@ -4,13 +4,13 @@ export class TikTokApiService {
   private apiKey: string;
   private apiUrl: string;
 
-  constructor(apiKey: string, apiUrl: string = "https://www.tikapi.io") {
+  constructor(apiKey: string, apiUrl: string = "https://api.tikapi.io") {
     this.apiKey = apiKey;
     this.apiUrl = apiUrl;
   }
 
   /**
-   * Search for TikTok videos matching a query
+   * Search for TikTok videos by finding hashtags and getting their posts
    * @param query Search query/keyword
    * @param options Search options (count, cursor)
    */
@@ -21,9 +21,9 @@ export class TikTokApiService {
       cursor?: number;
     } = {}
   ): Promise<TikTokSearchResponse> {
+    // Use the public/search/general endpoint for keyword search
     const params = new URLSearchParams({
-      keyword: query,
-      count: String(options.count || 10),
+      query: query,
     });
 
     if (options.cursor) {
@@ -31,7 +31,7 @@ export class TikTokApiService {
     }
 
     const response = await fetch(
-      `${this.apiUrl}/public/search?${params.toString()}`,
+      `${this.apiUrl}/public/search/general?${params.toString()}`,
       {
         headers: {
           "X-API-KEY": this.apiKey,
@@ -45,7 +45,36 @@ export class TikTokApiService {
       throw new Error(`TikTok API error: ${response.status} - ${error}`);
     }
 
-    return response.json();
+    const data = await response.json();
+
+    console.log("TikAPI raw response keys:", Object.keys(data));
+    console.log("TikAPI data sample:", JSON.stringify(data, null, 2).slice(0, 2000));
+
+    // The search/general endpoint returns mixed results
+    // Check various possible structures
+    let videos: unknown[] = [];
+
+    if (data.data && Array.isArray(data.data)) {
+      // Items might be directly in data array or nested in item property
+      videos = data.data.map((item: Record<string, unknown>) => item.item || item).filter(Boolean);
+      console.log("Found videos in data.data:", videos.length);
+    } else if (data.itemList) {
+      videos = data.itemList;
+      console.log("Found videos in itemList:", videos.length);
+    } else if (data.items) {
+      videos = data.items;
+      console.log("Found videos in items:", videos.length);
+    }
+
+    if (videos.length > 0) {
+      console.log("First video sample:", JSON.stringify(videos[0], null, 2).slice(0, 1000));
+    }
+
+    return {
+      videos: videos as TikTokSearchResponse["videos"],
+      cursor: data.cursor,
+      hasMore: data.hasMore || data.has_more,
+    };
   }
 
   /**
@@ -56,24 +85,38 @@ export class TikTokApiService {
       return [];
     }
 
-    return data.videos.map((video) => {
-      return {
-        id: video.id,
-        text: video.desc || "",
-        author: video.author.nickname,
-        authorHandle: `@${video.author.uniqueId}`,
-        authorAvatar: video.author.avatarLarger,
-        createdAt: new Date(video.createTime * 1000).toISOString(),
-        platform: "tiktok" as const,
-        engagement: {
-          likes: video.stats.diggCount,
-          comments: video.stats.commentCount,
-          shares: video.stats.shareCount,
-          views: video.stats.playCount,
-        },
-        url: `https://www.tiktok.com/@${video.author.uniqueId}/video/${video.id}`,
-      };
-    });
+    return data.videos
+      .filter((video) => video && video.id)
+      .map((video) => {
+        // Cast to unknown first to handle different response formats from TikAPI
+        const v = video as unknown as Record<string, unknown>;
+        const author = (v.author || {}) as Record<string, unknown>;
+        const stats = (v.stats || v.statistics || {}) as Record<string, unknown>;
+        const videoId = String(v.id || v.item_id || "");
+        const authorId = String(author.uniqueId || author.unique_id || v.author_id || "unknown");
+        const authorName = String(author.nickname || author.nick_name || authorId);
+
+        return {
+          id: videoId,
+          text: String(v.desc || v.description || ""),
+          author: authorName,
+          authorHandle: `@${authorId}`,
+          authorAvatar: String(author.avatarLarger || author.avatar_larger || author.avatar || ""),
+          createdAt: v.createTime
+            ? new Date(Number(v.createTime) * 1000).toISOString()
+            : v.create_time
+            ? new Date(Number(v.create_time) * 1000).toISOString()
+            : new Date().toISOString(),
+          platform: "tiktok" as const,
+          engagement: {
+            likes: Number(stats.diggCount || stats.digg_count || stats.likes || 0),
+            comments: Number(stats.commentCount || stats.comment_count || stats.comments || 0),
+            shares: Number(stats.shareCount || stats.share_count || stats.shares || 0),
+            views: Number(stats.playCount || stats.play_count || stats.views || 0),
+          },
+          url: `https://www.tiktok.com/@${authorId}/video/${videoId}`,
+        };
+      });
   }
 
   /**

@@ -2,14 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  updateProfile,
-  sendPasswordResetEmail,
-} from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -30,58 +23,40 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
   if (!isOpen) return null;
 
-  const syncUserToDatabase = async (firebaseUser: { uid: string; email: string | null; displayName: string | null }) => {
-    try {
-      await fetch("/api/auth/sync", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firebaseUid: firebaseUser.uid,
-          email: firebaseUser.email,
-          name: firebaseUser.displayName,
-        }),
-      });
-    } catch (error) {
-      console.error("Failed to sync user to database:", error);
-    }
-  };
-
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-
-      if (name) {
-        await updateProfile(userCredential.user, {
-          displayName: name,
-        });
-      }
-
-      await syncUserToDatabase({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        displayName: name || userCredential.user.email,
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name || email.split("@")[0],
+          },
+        },
       });
+
+      if (signUpError) {
+        if (signUpError.message.includes("already registered")) {
+          setError("An account with this email already exists");
+        } else if (signUpError.message.includes("password")) {
+          setError("Password should be at least 6 characters");
+        } else if (signUpError.message.includes("email")) {
+          setError("Invalid email address");
+        } else {
+          setError(signUpError.message || "Something went wrong. Please try again.");
+        }
+        return;
+      }
 
       router.refresh();
       onSuccess?.();
       onClose();
-    } catch (err) {
-      const firebaseError = err as { code?: string; message?: string };
-      if (firebaseError.code === "auth/email-already-in-use") {
-        setError("An account with this email already exists");
-      } else if (firebaseError.code === "auth/weak-password") {
-        setError("Password should be at least 6 characters");
-      } else if (firebaseError.code === "auth/invalid-email") {
-        setError("Invalid email address");
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -93,24 +68,25 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-
-      await syncUserToDatabase({
-        uid: userCredential.user.uid,
-        email: userCredential.user.email,
-        displayName: userCredential.user.displayName,
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
+
+      if (signInError) {
+        if (signInError.message.includes("Invalid login credentials")) {
+          setError("Invalid email or password");
+        } else {
+          setError(signInError.message || "Something went wrong. Please try again.");
+        }
+        return;
+      }
 
       router.refresh();
       onSuccess?.();
       onClose();
-    } catch (err) {
-      const firebaseError = err as { code?: string };
-      if (firebaseError.code === "auth/invalid-credential" || firebaseError.code === "auth/wrong-password" || firebaseError.code === "auth/user-not-found") {
-        setError("Invalid email or password");
-      } else {
-        setError("Something went wrong. Please try again.");
-      }
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -123,17 +99,24 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setLoading(true);
 
     try {
-      await sendPasswordResetEmail(auth, email);
-      setSuccess("Password reset email sent! Check your inbox.");
-    } catch (err) {
-      const firebaseError = err as { code?: string };
-      if (firebaseError.code === "auth/user-not-found") {
-        setError("No account found with this email");
-      } else if (firebaseError.code === "auth/invalid-email") {
-        setError("Invalid email address");
-      } else {
-        setError("Failed to send reset email. Please try again.");
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      if (resetError) {
+        if (resetError.message.includes("not found")) {
+          setError("No account found with this email");
+        } else if (resetError.message.includes("email")) {
+          setError("Invalid email address");
+        } else {
+          setError("Failed to send reset email. Please try again.");
+        }
+        return;
       }
+
+      setSuccess("Password reset email sent! Check your inbox.");
+    } catch {
+      setError("Failed to send reset email. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -144,32 +127,21 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setLoading(true);
 
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-
-      await syncUserToDatabase({
-        uid: result.user.uid,
-        email: result.user.email,
-        displayName: result.user.displayName,
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
       });
 
-      router.refresh();
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      const firebaseError = err as { code?: string; message?: string };
-      console.error("Google sign-in error:", firebaseError);
-
-      if (firebaseError.code === "auth/popup-closed-by-user") {
-        setError("Sign-in cancelled");
-      } else if (firebaseError.code === "auth/popup-blocked") {
-        setError("Please allow popups for this site");
-      } else if (firebaseError.code === "auth/unauthorized-domain") {
-        setError("This domain is not authorized. Please add localhost to authorized domains in Firebase Console.");
-      } else if (firebaseError.code === "auth/operation-not-allowed") {
-        setError("Google sign-in is not enabled. Please enable it in Firebase Console under Authentication > Sign-in method.");
-      } else {
-        setError(`Google sign-in failed: ${firebaseError.message || "Please try again."}`);
+      if (oauthError) {
+        console.error("Google sign-in error:", oauthError);
+        setError(`Google sign-in failed: ${oauthError.message || "Please try again."}`);
+        setLoading(false);
       }
+      // Note: For OAuth, user will be redirected, so we don't call onSuccess here
+    } catch {
+      setError("Google sign-in failed. Please try again.");
       setLoading(false);
     }
   };

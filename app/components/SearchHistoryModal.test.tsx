@@ -8,6 +8,16 @@ vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Mock Supabase
+const mockGetSession = vi.fn();
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: {
+      getSession: () => mockGetSession(),
+    },
+  },
+}));
+
 // Mock Next.js navigation
 const mockRouterPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -54,13 +64,14 @@ describe("SearchHistoryModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+    mockGetSession.mockResolvedValue({
+      data: { session: { access_token: "mock-access-token" } },
+    });
   });
 
   describe("Modal Open/Close", () => {
     it("renders nothing when isOpen is false", () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       render(<SearchHistoryModal isOpen={false} onClose={vi.fn()} />);
 
@@ -68,9 +79,7 @@ describe("SearchHistoryModal", () => {
     });
 
     it("renders modal when isOpen is true", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -85,9 +94,7 @@ describe("SearchHistoryModal", () => {
 
     it("calls onClose when close button is clicked", async () => {
       const mockOnClose = vi.fn();
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -105,9 +112,7 @@ describe("SearchHistoryModal", () => {
 
   describe("Loading and Display", () => {
     it("shows loading state initially", () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       // Don't resolve the fetch immediately
       (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
@@ -121,9 +126,7 @@ describe("SearchHistoryModal", () => {
     });
 
     it("displays search history items after loading", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -143,9 +146,7 @@ describe("SearchHistoryModal", () => {
     });
 
     it("shows empty state when no searches exist", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -160,9 +161,7 @@ describe("SearchHistoryModal", () => {
     });
 
     it("shows error state when fetch fails", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: false,
@@ -179,9 +178,7 @@ describe("SearchHistoryModal", () => {
 
   describe("Filtering", () => {
     it("renders filter input", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -195,9 +192,7 @@ describe("SearchHistoryModal", () => {
     });
 
     it("filters searches by query text", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -228,9 +223,7 @@ describe("SearchHistoryModal", () => {
     });
 
     it("shows no matches message when filter has no results", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -253,9 +246,7 @@ describe("SearchHistoryModal", () => {
     });
 
     it("clears filter and shows all results", async () => {
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -289,9 +280,7 @@ describe("SearchHistoryModal", () => {
   describe("Navigation", () => {
     it("navigates to report page when search with reportId is clicked", async () => {
       const mockOnClose = vi.fn();
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
@@ -316,9 +305,7 @@ describe("SearchHistoryModal", () => {
 
     it("navigates to search page when search without reportId is clicked", async () => {
       const mockOnClose = vi.fn();
-      mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
-      });
+      mockUseAuth.mockReturnValue({ user: { id: "user-1" } });
 
       (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,

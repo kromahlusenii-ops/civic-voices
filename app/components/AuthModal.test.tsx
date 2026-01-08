@@ -2,27 +2,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import AuthModal from "./AuthModal";
 
-// Mock Firebase Auth
-const mockCreateUserWithEmailAndPassword = vi.fn();
-const mockSignInWithEmailAndPassword = vi.fn();
-const mockSignInWithPopup = vi.fn();
-const mockUpdateProfile = vi.fn();
-const mockSendPasswordResetEmail = vi.fn();
+// Mock Supabase Auth
+const mockSignUp = vi.fn();
+const mockSignInWithPassword = vi.fn();
+const mockSignInWithOAuth = vi.fn();
+const mockResetPasswordForEmail = vi.fn();
 
-vi.mock("firebase/auth", () => ({
-  getAuth: vi.fn(),
-  GoogleAuthProvider: vi.fn(),
-  createUserWithEmailAndPassword: (...args: unknown[]) => mockCreateUserWithEmailAndPassword(...args),
-  signInWithEmailAndPassword: (...args: unknown[]) => mockSignInWithEmailAndPassword(...args),
-  signInWithPopup: (...args: unknown[]) => mockSignInWithPopup(...args),
-  updateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
-  sendPasswordResetEmail: (...args: unknown[]) => mockSendPasswordResetEmail(...args),
-}));
-
-// Mock Firebase config
-vi.mock("@/lib/firebase", () => ({
-  auth: {},
-  googleProvider: {},
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: {
+      signUp: (...args: unknown[]) => mockSignUp(...args),
+      signInWithPassword: (...args: unknown[]) => mockSignInWithPassword(...args),
+      signInWithOAuth: (...args: unknown[]) => mockSignInWithOAuth(...args),
+      resetPasswordForEmail: (...args: unknown[]) => mockResetPasswordForEmail(...args),
+    },
+  },
 }));
 
 // Mock Next.js router
@@ -33,16 +27,9 @@ vi.mock("next/navigation", () => ({
   })),
 }));
 
-// Mock fetch for /api/auth/sync
-global.fetch = vi.fn();
-
 describe("AuthModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ({ success: true }),
-    } as Response);
   });
 
   it("does not render when isOpen is false", () => {
@@ -91,37 +78,22 @@ describe("AuthModal", () => {
     expect(googleButton).toHaveTextContent("Continue with Google");
   });
 
-  it("calls Firebase signInWithPopup when Google button clicked", async () => {
-    const mockUser = {
-      uid: "test-uid",
-      email: "test@example.com",
-      displayName: "Test User",
-    };
-
-    mockSignInWithPopup.mockResolvedValue({
-      user: mockUser,
-    });
+  it("calls Supabase signInWithOAuth when Google button clicked", async () => {
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
 
     const mockOnClose = vi.fn();
-    const mockOnSuccess = vi.fn();
-
-    render(<AuthModal isOpen={true} onClose={mockOnClose} onSuccess={mockOnSuccess} />);
+    render(<AuthModal isOpen={true} onClose={mockOnClose} />);
 
     const googleButton = screen.getByTestId("google-signin-btn");
     fireEvent.click(googleButton);
 
     await waitFor(() => {
-      expect(mockSignInWithPopup).toHaveBeenCalled();
-      expect(global.fetch).toHaveBeenCalledWith("/api/auth/sync", expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          firebaseUid: mockUser.uid,
-          email: mockUser.email,
-          name: mockUser.displayName,
-        }),
-      }));
-      expect(mockOnSuccess).toHaveBeenCalled();
-      expect(mockOnClose).toHaveBeenCalled();
+      expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+        provider: "google",
+        options: {
+          redirectTo: expect.stringContaining("/auth/callback"),
+        },
+      });
     });
   });
 
@@ -191,7 +163,7 @@ describe("AuthModal", () => {
   });
 
   it("sends password reset email", async () => {
-    mockSendPasswordResetEmail.mockResolvedValue(undefined);
+    mockResetPasswordForEmail.mockResolvedValue({ error: null });
 
     const mockOnClose = vi.fn();
     render(<AuthModal isOpen={true} onClose={mockOnClose} />);
@@ -205,7 +177,9 @@ describe("AuthModal", () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(mockSendPasswordResetEmail).toHaveBeenCalledWith({}, "test@example.com");
+      expect(mockResetPasswordForEmail).toHaveBeenCalledWith("test@example.com", {
+        redirectTo: expect.stringContaining("/auth/reset-password"),
+      });
       expect(screen.getByText(/Password reset email sent/)).toBeInTheDocument();
     });
   });
@@ -223,14 +197,9 @@ describe("AuthModal", () => {
   });
 
   it("handles signup with email and password", async () => {
-    const mockUser = {
-      uid: "test-uid",
-      email: "test@example.com",
-      displayName: null,
-    };
-
-    mockCreateUserWithEmailAndPassword.mockResolvedValue({
-      user: mockUser,
+    mockSignUp.mockResolvedValue({
+      data: { user: { id: "test-id", email: "test@example.com" } },
+      error: null,
     });
 
     const mockOnClose = vi.fn();
@@ -248,22 +217,24 @@ describe("AuthModal", () => {
     fireEvent.click(continueButton);
 
     await waitFor(() => {
-      expect(mockCreateUserWithEmailAndPassword).toHaveBeenCalledWith({}, "test@example.com", "password123");
-      expect(mockUpdateProfile).toHaveBeenCalled();
+      expect(mockSignUp).toHaveBeenCalledWith({
+        email: "test@example.com",
+        password: "password123",
+        options: {
+          data: {
+            name: "John Doe",
+          },
+        },
+      });
       expect(mockOnSuccess).toHaveBeenCalled();
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
 
   it("handles login with email and password", async () => {
-    const mockUser = {
-      uid: "test-uid",
-      email: "test@example.com",
-      displayName: "Test User",
-    };
-
-    mockSignInWithEmailAndPassword.mockResolvedValue({
-      user: mockUser,
+    mockSignInWithPassword.mockResolvedValue({
+      data: { user: { id: "test-id", email: "test@example.com" } },
+      error: null,
     });
 
     const mockOnClose = vi.fn();
@@ -278,15 +249,19 @@ describe("AuthModal", () => {
     fireEvent.click(continueButton);
 
     await waitFor(() => {
-      expect(mockSignInWithEmailAndPassword).toHaveBeenCalledWith({}, "test@example.com", "password123");
+      expect(mockSignInWithPassword).toHaveBeenCalledWith({
+        email: "test@example.com",
+        password: "password123",
+      });
       expect(mockOnSuccess).toHaveBeenCalled();
       expect(mockOnClose).toHaveBeenCalled();
     });
   });
 
   it("displays error on failed login", async () => {
-    mockSignInWithEmailAndPassword.mockRejectedValue({
-      code: "auth/invalid-credential",
+    mockSignInWithPassword.mockResolvedValue({
+      data: null,
+      error: { message: "Invalid login credentials" },
     });
 
     const mockOnClose = vi.fn();
@@ -304,7 +279,7 @@ describe("AuthModal", () => {
   });
 
   it("disables buttons when loading", async () => {
-    mockSignInWithPopup.mockImplementation(() => new Promise(() => {})); // Never resolves
+    mockSignInWithOAuth.mockImplementation(() => new Promise(() => {})); // Never resolves
 
     const mockOnClose = vi.fn();
     render(<AuthModal isOpen={true} onClose={mockOnClose} />);

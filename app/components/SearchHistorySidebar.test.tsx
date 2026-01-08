@@ -8,6 +8,16 @@ vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Mock Supabase
+const mockGetSession = vi.fn();
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: {
+      getSession: () => mockGetSession(),
+    },
+  },
+}));
+
 // Mock Next.js navigation
 const mockRouterPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -113,12 +123,15 @@ describe("SearchHistorySidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+    mockGetSession.mockResolvedValue({
+      data: { session: { access_token: "mock-access-token" } },
+    });
   });
 
   describe("Visibility", () => {
     it("renders condensed (width 0) when isOpen is false", () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -132,7 +145,7 @@ describe("SearchHistorySidebar", () => {
 
     it("renders expanded when isOpen is true", async () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -154,7 +167,7 @@ describe("SearchHistorySidebar", () => {
   describe("Loading and Display", () => {
     it("shows loading state initially", () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -169,7 +182,7 @@ describe("SearchHistorySidebar", () => {
 
     it("shows empty state when no searches exist", async () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -187,7 +200,7 @@ describe("SearchHistorySidebar", () => {
 
     it("shows error state when fetch fails", async () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -207,7 +220,7 @@ describe("SearchHistorySidebar", () => {
   describe("Date Groups", () => {
     it("renders searches in correct date groups", async () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -242,7 +255,7 @@ describe("SearchHistorySidebar", () => {
 
     it("only renders non-empty groups", async () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -270,7 +283,7 @@ describe("SearchHistorySidebar", () => {
     it("calls onClose when close button is clicked", async () => {
       const mockOnClose = vi.fn();
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -291,7 +304,7 @@ describe("SearchHistorySidebar", () => {
   describe("Navigation", () => {
     it("navigates to report page when search with reportId is clicked", async () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 
@@ -326,7 +339,7 @@ describe("SearchHistorySidebar", () => {
 
     it("navigates to search page when search without reportId is clicked", async () => {
       mockUseAuth.mockReturnValue({
-        user: { getIdToken: vi.fn().mockResolvedValue("mock-token") },
+        user: { id: "user-1" },
         isAuthenticated: true,
       });
 

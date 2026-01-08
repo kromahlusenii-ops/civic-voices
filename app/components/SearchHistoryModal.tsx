@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 interface SavedSearch {
   id: string;
@@ -59,10 +60,13 @@ export default function SearchHistoryModal({ isOpen, onClose }: SearchHistoryMod
     setError(null);
 
     try {
-      const idToken = await user.getIdToken();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("No active session");
+      }
       const response = await fetch("/api/search/history", {
         headers: {
-          Authorization: `Bearer ${idToken}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
