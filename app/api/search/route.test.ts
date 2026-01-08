@@ -41,10 +41,6 @@ vi.mock("@/lib/providers/XProvider", () => {
 // Mock TikTokApiService
 const mockSearchVideos = vi.fn();
 const mockTransformToPosts = vi.fn();
-const mockFilterByTimeRange = vi.fn();
-const mockHasBooleanQuery = vi.fn();
-const mockFilterByBooleanQuery = vi.fn();
-const mockGetBaseQuery = vi.fn();
 
 vi.mock("@/lib/services/tiktokApi", () => ({
   default: vi.fn().mockImplementation(() => ({
