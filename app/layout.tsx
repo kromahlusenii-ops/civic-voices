@@ -17,7 +17,19 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: "Civic Voices | Social Intelligence Platform",
-  description: "Track what Americans think across social media. AI-powered insights from X, TikTok, Reddit, and more.",
+  description: "Insights from billions of public conversations. AI-powered social intelligence from X, TikTok, Reddit, YouTube, and more.",
+  metadataBase: new URL('https://civic-voices-six.vercel.app'),
+  openGraph: {
+    title: "Civic Voices",
+    description: "Insights from billions of public conversations.",
+    siteName: "Civic Voices",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Civic Voices",
+    description: "Insights from billions of public conversations.",
+  },
 };
 
 export default function RootLayout({
