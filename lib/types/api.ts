@@ -130,3 +130,41 @@ export interface TikTokSearchResponse {
   cursor?: number;
   hasMore?: boolean;
 }
+
+// YouTube specific types
+export interface YouTubeVideo {
+  id: string;
+  snippet: {
+    publishedAt: string;
+    channelId: string;
+    title: string;
+    description: string;
+    channelTitle: string;
+    thumbnails: {
+      default?: { url: string; width: number; height: number };
+      medium?: { url: string; width: number; height: number };
+      high?: { url: string; width: number; height: number };
+    };
+  };
+  statistics?: {
+    viewCount: string;
+    likeCount: string;
+    commentCount: string;
+  };
+}
+
+export interface YouTubeSearchResponse {
+  items?: Array<{
+    id: { videoId: string };
+    snippet: YouTubeVideo["snippet"];
+  }>;
+  nextPageToken?: string;
+  pageInfo?: {
+    totalResults: number;
+    resultsPerPage: number;
+  };
+}
+
+export interface YouTubeVideosResponse {
+  items?: YouTubeVideo[];
+}

@@ -209,7 +209,7 @@ describe("POST /api/search", () => {
       expect(response.status).toBe(200);
       expect(data.posts).toHaveLength(0);
       expect(data.summary.platforms.x).toBe(0);
-      expect(data.warnings).toContain("X/Twitter search failed: X API error: 401 - Unauthorized");
+      expect(data.warnings).toContain("X search failed: X API error: 401 - Unauthorized");
     });
 
     it("passes language filter to X API", async () => {

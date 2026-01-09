@@ -1,13 +1,54 @@
 import "@testing-library/jest-dom/vitest";
 
-// Mock ResizeObserver for tests using D3.js charts
-class ResizeObserverMock {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+/**
+ * Mock ResizeObserver for tests using D3.js charts
+ * D3 charts use ResizeObserver to handle responsive sizing
+ */
+class ResizeObserverMock implements Partial<ResizeObserver> {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
 }
 
-global.ResizeObserver = ResizeObserverMock;
+global.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+
+/**
+ * Mock IntersectionObserver for animated components
+ * Used by components that trigger animations when entering viewport
+ */
+class IntersectionObserverMock {
+  private callback: IntersectionObserverCallback;
+
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    this.triggerIntersection();
+  }
+
+  /**
+   * Simulates element entering viewport immediately after observation
+   */
+  private triggerIntersection(): void {
+    const mockEntry: IntersectionObserverEntry = {
+      isIntersecting: true,
+      target: document.body,
+      boundingClientRect: {} as DOMRectReadOnly,
+      intersectionRatio: 1,
+      intersectionRect: {} as DOMRectReadOnly,
+      rootBounds: null,
+      time: Date.now(),
+    };
+
+    setTimeout(() => {
+      this.callback([mockEntry], this as unknown as IntersectionObserver);
+    }, 0);
+  }
+
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+global.IntersectionObserver = IntersectionObserverMock as unknown as typeof IntersectionObserver;
 
 // Set test environment variables (all required by lib/config.ts)
 process.env.DATABASE_URL = "postgresql://test:test@localhost:5432/test";

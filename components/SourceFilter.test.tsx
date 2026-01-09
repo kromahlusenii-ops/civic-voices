@@ -17,35 +17,35 @@ describe("SourceFilter", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x"]}
+        selectedSources={["youtube"]}
         onSourcesChange={mockOnChange}
       />
     );
 
     const button = screen.getByTestId("source-filter-button");
     expect(button).toBeInTheDocument();
-    expect(button).toHaveTextContent("X");
-    expect(button).toHaveTextContent("✖️");
+    expect(button).toHaveTextContent("YouTube");
+    // SVG icon is rendered instead of emoji
   });
 
   it("renders button with +N modifier for multiple sources", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x", "tiktok", "reddit"]}
+        selectedSources={["youtube", "tiktok", "reddit"]}
         onSourcesChange={mockOnChange}
       />
     );
 
     const button = screen.getByTestId("source-filter-button");
-    expect(button).toHaveTextContent("X +2");
+    expect(button).toHaveTextContent("YouTube +2");
   });
 
   it("opens dropdown when button is clicked", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x"]}
+        selectedSources={["youtube"]}
         onSourcesChange={mockOnChange}
       />
     );
@@ -66,7 +66,7 @@ describe("SourceFilter", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x"]}
+        selectedSources={["youtube"]}
         onSourcesChange={mockOnChange}
       />
     );
@@ -80,14 +80,14 @@ describe("SourceFilter", () => {
     fireEvent.click(tiktokOption);
 
     // Should call onSourcesChange with both sources
-    expect(mockOnChange).toHaveBeenCalledWith(["x", "tiktok"]);
+    expect(mockOnChange).toHaveBeenCalledWith(["youtube", "tiktok"]);
   });
 
   it("removes source when deselecting", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x", "tiktok"]}
+        selectedSources={["youtube", "tiktok"]}
         onSourcesChange={mockOnChange}
       />
     );
@@ -96,9 +96,9 @@ describe("SourceFilter", () => {
     const button = screen.getByTestId("source-filter-button");
     fireEvent.click(button);
 
-    // Click X to remove it
-    const xOption = screen.getByTestId("source-option-x");
-    fireEvent.click(xOption);
+    // Click YouTube to remove it
+    const youtubeOption = screen.getByTestId("source-option-youtube");
+    fireEvent.click(youtubeOption);
 
     // Should call onSourcesChange with only tiktok
     expect(mockOnChange).toHaveBeenCalledWith(["tiktok"]);
@@ -108,7 +108,7 @@ describe("SourceFilter", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x"]}
+        selectedSources={["youtube"]}
         onSourcesChange={mockOnChange}
       />
     );
@@ -127,7 +127,7 @@ describe("SourceFilter", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x"]}
+        selectedSources={["youtube"]}
         onSourcesChange={mockOnChange}
       />
     );
@@ -148,7 +148,7 @@ describe("SourceFilter", () => {
     const mockOnChange = vi.fn();
     render(
       <SourceFilter
-        selectedSources={["x", "tiktok"]}
+        selectedSources={["youtube", "tiktok"]}
         onSourcesChange={mockOnChange}
       />
     );
@@ -157,9 +157,9 @@ describe("SourceFilter", () => {
     const button = screen.getByTestId("source-filter-button");
     fireEvent.click(button);
 
-    // X and TikTok should have checkmarks (checked)
-    const xOption = screen.getByTestId("source-option-x");
-    expect(xOption).toHaveAttribute("aria-checked", "true");
+    // YouTube and TikTok should have checkmarks (checked)
+    const youtubeOption = screen.getByTestId("source-option-youtube");
+    expect(youtubeOption).toHaveAttribute("aria-checked", "true");
 
     const tiktokOption = screen.getByTestId("source-option-tiktok");
     expect(tiktokOption).toHaveAttribute("aria-checked", "true");

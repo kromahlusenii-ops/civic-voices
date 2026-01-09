@@ -1,9 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XProvider } from "@/lib/providers/XProvider";
+import { YouTubeProvider } from "@/lib/providers/YouTubeProvider";
 import TikTokApiService from "@/lib/services/tiktokApi";
 import AIAnalysisService from "@/lib/services/aiAnalysis";
 import { config } from "@/lib/config";
 import type { SearchParams, SearchResponse, Post, AIAnalysis } from "@/lib/types/api";
+
+interface SentimentCounts {
+  positive: number;
+  neutral: number;
+  negative: number;
+}
+
+/**
+ * Calculate sentiment distribution from AI analysis or use defaults
+ */
+function calculateSentimentCounts(
+  aiAnalysis: AIAnalysis | undefined,
+  totalPosts: number
+): SentimentCounts {
+  if (!aiAnalysis?.sentimentBreakdown) {
+    return {
+      positive: Math.floor(totalPosts * 0.4),
+      neutral: Math.floor(totalPosts * 0.4),
+      negative: Math.floor(totalPosts * 0.2),
+    };
+  }
+
+  const overall = aiAnalysis.sentimentBreakdown.overall;
+  const majorityCount = Math.ceil(totalPosts * 0.6);
+  const minorityCount = Math.floor(totalPosts * 0.3);
+  const smallCount = Math.floor(totalPosts * 0.2);
+
+  switch (overall) {
+    case "positive":
+      return { positive: majorityCount, neutral: minorityCount, negative: smallCount };
+    case "negative":
+      return { positive: minorityCount, neutral: minorityCount, negative: majorityCount };
+    case "neutral":
+      return { positive: minorityCount, neutral: majorityCount, negative: smallCount };
+    default:
+      return { positive: minorityCount, neutral: minorityCount, negative: minorityCount };
+  }
+}
+
+// Timeout wrapper for API calls
+async function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`${name} timed out after ${ms}ms`)), ms)
+  );
+  return Promise.race([promise, timeout]);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,114 +75,156 @@ export async function POST(request: NextRequest) {
     const platformCounts: Record<string, number> = {};
     const warnings: string[] = [];
 
-    // Fetch from X if selected
+    // Create promises for parallel execution
+    const searchPromises: Promise<void>[] = [];
+
+    // X search promise
     if (sources.includes("x")) {
-      try {
-        if (!config.x.bearerToken) {
-          console.warn("X API: Bearer token not configured");
-          platformCounts.x = 0;
-        } else {
+      const xSearch = async () => {
+        try {
+          if (!config.x.bearerToken) {
+            console.warn("X API: Bearer token not configured");
+            platformCounts.x = 0;
+            return;
+          }
+
           const xProvider = new XProvider({
             bearerToken: config.x.bearerToken,
           });
 
           const timeRange = XProvider.getTimeRange(timeFilter);
-          const xResult = await xProvider.searchWithWarning(query, {
-            maxResults: 20,
-            startTime: timeRange.startTime,
-            endTime: timeRange.endTime,
-            language: language, // Pass language filter to X API
-          });
+          const xResult = await withTimeout(
+            xProvider.searchWithWarning(query, {
+              maxResults: 20,
+              startTime: timeRange.startTime,
+              endTime: timeRange.endTime,
+              language: language,
+            }),
+            15000, // 15 second timeout
+            "X API"
+          );
 
           allPosts.push(...xResult.posts);
           platformCounts.x = xResult.posts.length;
 
-          // Collect warnings (e.g., time range clamped)
           if (xResult.warning) {
             warnings.push(xResult.warning);
           }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error("X API error:", errorMessage);
+          platformCounts.x = 0;
+          warnings.push(`X search failed: ${errorMessage}`);
         }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error("X API error:", errorMessage);
-        platformCounts.x = 0;
-        // Add warning so user knows X failed
-        warnings.push(`X/Twitter search failed: ${errorMessage}`);
-      }
+      };
+      searchPromises.push(xSearch());
     }
 
-    // Fetch from TikTok if selected
+    // TikTok search promise
     if (sources.includes("tiktok")) {
-      try {
-        const tiktokService = new TikTokApiService(
-          config.tiktok.apiKey || "",
-          config.tiktok.apiUrl
-        );
+      const tiktokSearch = async () => {
+        try {
+          const tiktokService = new TikTokApiService(
+            config.tiktok.apiKey || "",
+            config.tiktok.apiUrl
+          );
 
-        // TikTok doesn't support Boolean operators - extract base query for API
-        const tiktokQuery = TikTokApiService.getBaseQuery(query);
-        const tiktokResults = await tiktokService.searchVideos(tiktokQuery, {
-          count: 20,
-        });
+          const tiktokQuery = TikTokApiService.getBaseQuery(query);
+          const tiktokResults = await withTimeout(
+            tiktokService.searchVideos(tiktokQuery, { count: 20 }),
+            15000, // 15 second timeout
+            "TikTok API"
+          );
 
-        console.log("TikTok raw results:", JSON.stringify(tiktokResults, null, 2));
+          let tiktokPosts = tiktokService.transformToPosts(tiktokResults);
 
-        let tiktokPosts = tiktokService.transformToPosts(tiktokResults);
-        console.log("TikTok transformed posts count:", tiktokPosts.length);
+          tiktokPosts = TikTokApiService.filterByTimeRange(tiktokPosts, timeFilter);
 
-        // Filter by time range (TikTok API doesn't support time filtering directly)
-        tiktokPosts = TikTokApiService.filterByTimeRange(
-          tiktokPosts,
-          timeFilter
-        );
+          if (TikTokApiService.hasBooleanQuery(query)) {
+            tiktokPosts = TikTokApiService.filterByBooleanQuery(tiktokPosts, query);
+          }
 
-        // Apply Boolean query filtering if query has AND/OR operators
-        if (TikTokApiService.hasBooleanQuery(query)) {
-          tiktokPosts = TikTokApiService.filterByBooleanQuery(tiktokPosts, query);
-          console.log("TikTok posts after Boolean filter:", tiktokPosts.length);
+          allPosts.push(...tiktokPosts);
+          platformCounts.tiktok = tiktokPosts.length;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error("TikTok API error:", errorMessage);
+          platformCounts.tiktok = 0;
+          warnings.push(`TikTok search failed: ${errorMessage}`);
         }
-
-        allPosts.push(...tiktokPosts);
-        platformCounts.tiktok = tiktokPosts.length;
-      } catch (error) {
-        console.error("TikTok API error:", error);
-        platformCounts.tiktok = 0;
-      }
+      };
+      searchPromises.push(tiktokSearch());
     }
+
+    // YouTube search promise
+    if (sources.includes("youtube")) {
+      const youtubeSearch = async () => {
+        try {
+          if (!config.providers.youtube?.apiKey) {
+            console.warn("YouTube API: API key not configured");
+            platformCounts.youtube = 0;
+            return;
+          }
+
+          const youtubeProvider = new YouTubeProvider({
+            apiKey: config.providers.youtube.apiKey,
+          });
+
+          const timeRange = YouTubeProvider.getTimeRange(timeFilter);
+          const youtubeResult = await withTimeout(
+            youtubeProvider.searchWithStats(query, {
+              maxResults: 20,
+              publishedAfter: timeRange.publishedAfter,
+              publishedBefore: timeRange.publishedBefore,
+              relevanceLanguage: language,
+              order: "relevance",
+            }),
+            15000, // 15 second timeout
+            "YouTube API"
+          );
+
+          allPosts.push(...youtubeResult.posts);
+          platformCounts.youtube = youtubeResult.posts.length;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error("YouTube API error:", errorMessage);
+          platformCounts.youtube = 0;
+          warnings.push(`YouTube search failed: ${errorMessage}`);
+        }
+      };
+      searchPromises.push(youtubeSearch());
+    }
+
+    // Wait for all platform searches to complete in parallel
+    await Promise.all(searchPromises);
 
     // Sort by creation date (newest first)
     allPosts.sort((a, b) => {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
 
-    // Generate AI analysis using Claude
+    // Generate AI analysis using Claude (only if we have posts)
     let aiAnalysis: AIAnalysis | undefined;
-    if (config.llm.anthropic.apiKey) {
+    if (config.llm.anthropic.apiKey && allPosts.length > 0) {
       try {
         const aiService = new AIAnalysisService(config.llm.anthropic.apiKey);
-        aiAnalysis = await aiService.generateAnalysis(query, allPosts, {
-          timeRange: timeFilter,
-          language: language || "all",
-          sources,
-        });
+        aiAnalysis = await withTimeout(
+          aiService.generateAnalysis(query, allPosts, {
+            timeRange: timeFilter,
+            language: language || "all",
+            sources,
+          }),
+          20000, // 20 second timeout for AI
+          "AI Analysis"
+        );
       } catch (error) {
         console.error("AI analysis error:", error);
-        // Continue without AI analysis if it fails
+        // Continue without AI analysis if it fails or times out
       }
     }
 
     // Calculate sentiment from AI analysis or use defaults
-    const sentiment = aiAnalysis?.sentimentBreakdown
-      ? {
-          positive: aiAnalysis.sentimentBreakdown.overall === "positive" ? Math.ceil(allPosts.length * 0.6) : Math.floor(allPosts.length * 0.3),
-          neutral: aiAnalysis.sentimentBreakdown.overall === "neutral" ? Math.ceil(allPosts.length * 0.6) : Math.floor(allPosts.length * 0.3),
-          negative: aiAnalysis.sentimentBreakdown.overall === "negative" ? Math.ceil(allPosts.length * 0.6) : Math.floor(allPosts.length * 0.2),
-        }
-      : {
-          positive: Math.floor(allPosts.length * 0.4),
-          neutral: Math.floor(allPosts.length * 0.4),
-          negative: Math.floor(allPosts.length * 0.2),
-        };
+    const sentiment = calculateSentimentCounts(aiAnalysis, allPosts.length);
 
     // Build response
     const timeRange = XProvider.getTimeRange(timeFilter);

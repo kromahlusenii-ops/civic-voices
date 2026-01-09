@@ -81,6 +81,23 @@ function getOptionalEnv(key: string): string | undefined {
 }
 
 /**
+ * Sanitizes the X bearer token by:
+ * 1. Removing surrounding quotes (if copied with quotes)
+ * 2. URL decoding (if copied with encoding)
+ */
+function sanitizeXBearerToken(token: string | undefined): string | undefined {
+  if (!token) {
+    return undefined;
+  }
+
+  // Remove surrounding quotes if present
+  const unquotedToken = token.replace(/^["']|["']$/g, '');
+
+  // URL decode in case it was copied with encoding
+  return decodeURIComponent(unquotedToken);
+}
+
+/**
  * Validates and constructs the configuration object
  */
 function loadConfig(): Config {
@@ -116,7 +133,7 @@ function loadConfig(): Config {
     },
 
     x: {
-      bearerToken: getOptionalEnv('X_BEARER_TOKEN'),
+      bearerToken: sanitizeXBearerToken(getOptionalEnv('X_BEARER_TOKEN')),
     },
 
     tiktok: {
