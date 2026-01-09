@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "../contexts/AuthContext";
 import AuthModal from "../components/AuthModal";
 import SearchHistoryModal from "../components/SearchHistoryModal";
@@ -162,6 +163,7 @@ function SearchPageContent() {
     if (searchResults && searchQuery.trim()) {
       executeSearchWithFilters(searchQuery, selectedSources, value, language);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchResults, searchQuery, selectedSources, language, updateUrlParams]);
 
   // Handle language change
@@ -172,6 +174,7 @@ function SearchPageContent() {
     if (searchResults && searchQuery.trim()) {
       executeSearchWithFilters(searchQuery, selectedSources, timeRange, value);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchResults, searchQuery, selectedSources, timeRange, updateUrlParams]);
 
   const executeSearchWithFilters = async (
@@ -894,11 +897,13 @@ function SearchPageContent() {
                           </div>
                           <p className="text-gray-800 line-clamp-3">{post.text}</p>
                           {post.thumbnail && (
-                            <div className="mt-3 rounded-lg overflow-hidden">
-                              <img
+                            <div className="mt-3 rounded-lg overflow-hidden relative h-32">
+                              <Image
                                 src={post.thumbnail}
                                 alt=""
-                                className="w-full h-32 object-cover"
+                                fill
+                                className="object-cover"
+                                unoptimized
                               />
                             </div>
                           )}

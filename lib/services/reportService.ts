@@ -463,8 +463,10 @@ export async function getReportStatus(
   };
 }
 
-export default {
+const reportService = {
   startReport,
   getReport,
   getReportStatus,
 };
+
+export default reportService;
