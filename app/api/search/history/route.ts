@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySupabaseToken } from "@/lib/supabase-server";
 import { getSearchHistory } from "@/lib/services/searchStorage";
 
+// Mark route as dynamic since it uses request.headers
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     // Get Supabase access token from Authorization header

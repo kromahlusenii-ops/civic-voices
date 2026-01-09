@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifySupabaseToken } from "@/lib/supabase-server";
 import { saveSearch, SearchPost } from "@/lib/services/searchStorage";
 
+// Mark route as dynamic since it uses request.headers
+export const dynamic = "force-dynamic";
+
 interface SaveSearchRequest {
   queryText: string;
   name?: string;
