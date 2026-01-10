@@ -59,7 +59,12 @@ export class BlueskyProvider {
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          headers: {
+            "User-Agent": "CivicVoices/1.0 (https://civic-voices.vercel.app)",
+            "Accept": "application/json",
+          },
+        });
 
         if (response.status === 429) {
           const retryAfter = parseInt(response.headers.get("retry-after") || "60", 10);
