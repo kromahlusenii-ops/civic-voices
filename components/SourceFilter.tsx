@@ -56,7 +56,7 @@ const BlueskyIcon = () => (
 const SOURCES: Source[] = [
   { id: "youtube", name: "YouTube", enabled: true, icon: <YouTubeIcon /> },
   { id: "tiktok", name: "TikTok", enabled: true, icon: <TikTokIcon /> },
-  { id: "bluesky", name: "Bluesky", enabled: true, icon: <BlueskyIcon /> },
+  { id: "bluesky", name: "Bluesky", enabled: false, icon: <BlueskyIcon /> },
   { id: "x", name: "X", enabled: false, icon: <XIcon /> },
   { id: "reddit", name: "Reddit", enabled: false, icon: <RedditIcon /> },
   { id: "instagram", name: "Instagram", enabled: false, icon: <InstagramIcon /> },
