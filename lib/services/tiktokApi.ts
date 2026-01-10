@@ -60,8 +60,18 @@ export class TikTokApiService {
     let videos: unknown[] = [];
 
     if (data.data && Array.isArray(data.data)) {
-      // Items might be directly in data array or nested in item property
-      videos = data.data.map((item: Record<string, unknown>) => item.item || item).filter(Boolean);
+      // New format: data[].common.doc_id_str contains the ID, data[].item contains the video
+      videos = data.data.map((entry: Record<string, unknown>) => {
+        const item = entry.item as Record<string, unknown> | undefined;
+        const common = entry.common as Record<string, unknown> | undefined;
+
+        if (item) {
+          // Merge the ID from common into the item
+          const videoId = common?.doc_id_str || item.id;
+          return { ...item, id: videoId };
+        }
+        return entry;
+      }).filter(Boolean);
       console.log("Found videos in data.data:", videos.length);
     } else if (data.itemList) {
       videos = data.itemList;
