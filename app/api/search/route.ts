@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { XProvider } from "@/lib/providers/XProvider";
 import { YouTubeProvider } from "@/lib/providers/YouTubeProvider";
+import { BlueskyProvider } from "@/lib/providers/BlueskyProvider";
 import TikTokApiService from "@/lib/services/tiktokApi";
 import AIAnalysisService from "@/lib/services/aiAnalysis";
 import { config } from "@/lib/config";
@@ -193,6 +194,37 @@ export async function POST(request: NextRequest) {
         }
       };
       searchPromises.push(youtubeSearch());
+    }
+
+    // Bluesky search promise
+    if (sources.includes("bluesky")) {
+      const blueskySearch = async () => {
+        try {
+          const blueskyProvider = new BlueskyProvider();
+
+          const timeRange = BlueskyProvider.getTimeRange(timeFilter);
+          const blueskyResult = await withTimeout(
+            blueskyProvider.search(query, {
+              limit: 25,
+              sort: "latest",
+              since: timeRange.since,
+              until: timeRange.until,
+              lang: language,
+            }),
+            15000, // 15 second timeout
+            "Bluesky API"
+          );
+
+          allPosts.push(...blueskyResult.posts);
+          platformCounts.bluesky = blueskyResult.posts.length;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error("Bluesky API error:", errorMessage);
+          platformCounts.bluesky = 0;
+          warnings.push(`Bluesky search failed: ${errorMessage}`);
+        }
+      };
+      searchPromises.push(blueskySearch());
     }
 
     // Wait for all platform searches to complete in parallel

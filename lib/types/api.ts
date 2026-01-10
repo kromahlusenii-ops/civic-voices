@@ -15,7 +15,7 @@ export interface Post {
   authorHandle: string;
   authorAvatar?: string;
   createdAt: string;
-  platform: "x" | "tiktok" | "reddit" | "instagram" | "youtube" | "linkedin";
+  platform: "x" | "tiktok" | "reddit" | "instagram" | "youtube" | "linkedin" | "bluesky";
   engagement: {
     likes: number;
     comments: number;
@@ -167,4 +167,43 @@ export interface YouTubeSearchResponse {
 
 export interface YouTubeVideosResponse {
   items?: YouTubeVideo[];
+}
+
+// Bluesky specific types
+export interface BlueskyAuthor {
+  did: string;
+  handle: string;
+  displayName?: string;
+  avatar?: string;
+}
+
+export interface BlueskyRecord {
+  text: string;
+  createdAt: string;
+  langs?: string[];
+}
+
+export interface BlueskyPost {
+  uri: string;
+  cid: string;
+  author: BlueskyAuthor;
+  record: BlueskyRecord;
+  replyCount: number;
+  repostCount: number;
+  likeCount: number;
+  indexedAt: string;
+  embed?: {
+    $type: string;
+    images?: Array<{
+      thumb: string;
+      fullsize: string;
+      alt?: string;
+    }>;
+  };
+}
+
+export interface BlueskySearchResponse {
+  posts: BlueskyPost[];
+  cursor?: string;
+  hitsTotal?: number;
 }
