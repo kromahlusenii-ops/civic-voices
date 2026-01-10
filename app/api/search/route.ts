@@ -96,12 +96,12 @@ export async function POST(request: NextRequest) {
           const timeRange = XProvider.getTimeRange(timeFilter);
           const xResult = await withTimeout(
             xProvider.searchWithWarning(query, {
-              maxResults: 20,
+              maxResults: 100,
               startTime: timeRange.startTime,
               endTime: timeRange.endTime,
               language: language,
             }),
-            15000, // 15 second timeout
+            30000, // 30 second timeout for more data
             "X API"
           );
 
@@ -132,8 +132,8 @@ export async function POST(request: NextRequest) {
 
           const tiktokQuery = TikTokApiService.getBaseQuery(query);
           const tiktokResults = await withTimeout(
-            tiktokService.searchVideos(tiktokQuery, { count: 20 }),
-            15000, // 15 second timeout
+            tiktokService.searchVideos(tiktokQuery, { count: 50 }),
+            30000, // 30 second timeout for more data
             "TikTok API"
           );
 
@@ -174,13 +174,13 @@ export async function POST(request: NextRequest) {
           const timeRange = YouTubeProvider.getTimeRange(timeFilter);
           const youtubeResult = await withTimeout(
             youtubeProvider.searchWithStats(query, {
-              maxResults: 20,
+              maxResults: 50,
               publishedAfter: timeRange.publishedAfter,
               publishedBefore: timeRange.publishedBefore,
               relevanceLanguage: language,
               order: "relevance",
             }),
-            15000, // 15 second timeout
+            30000, // 30 second timeout for more data
             "YouTube API"
           );
 
@@ -214,13 +214,13 @@ export async function POST(request: NextRequest) {
           const timeRange = BlueskyProvider.getTimeRange(timeFilter);
           const blueskyResult = await withTimeout(
             blueskyProvider.search(query, {
-              limit: 25,
+              limit: 100,
               sort: "latest",
               since: timeRange.since,
               until: timeRange.until,
               lang: language,
             }),
-            15000, // 15 second timeout
+            30000, // 30 second timeout for more data
             "Bluesky API"
           );
 
@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
             language: language || "all",
             sources,
           }),
-          20000, // 20 second timeout for AI
+          45000, // 45 second timeout for AI with more posts
           "AI Analysis"
         );
       } catch (error) {
