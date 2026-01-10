@@ -200,7 +200,16 @@ export async function POST(request: NextRequest) {
     if (sources.includes("bluesky")) {
       const blueskySearch = async () => {
         try {
-          const blueskyProvider = new BlueskyProvider();
+          if (!config.bluesky.identifier || !config.bluesky.appPassword) {
+            console.warn("Bluesky API: Credentials not configured");
+            platformCounts.bluesky = 0;
+            return;
+          }
+
+          const blueskyProvider = new BlueskyProvider({
+            identifier: config.bluesky.identifier,
+            appPassword: config.bluesky.appPassword,
+          });
 
           const timeRange = BlueskyProvider.getTimeRange(timeFilter);
           const blueskyResult = await withTimeout(

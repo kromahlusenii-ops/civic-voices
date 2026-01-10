@@ -1,10 +1,12 @@
 import type { BlueskySearchResponse, BlueskyPost, Post } from "../types/api";
 
-const BLUESKY_API_BASE = "https://public.api.bsky.app/xrpc";
+const BLUESKY_API_BASE = "https://bsky.social/xrpc";
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_DELAY_MS = 1000;
 
 export interface BlueskyProviderConfig {
+  identifier?: string;
+  appPassword?: string;
   maxRetries?: number;
   baseDelayMs?: number;
 }
@@ -21,6 +23,13 @@ export interface BlueskySearchResult {
   posts: Post[];
   cursor?: string;
   hitsTotal?: number;
+}
+
+interface BlueskySession {
+  accessJwt: string;
+  refreshJwt: string;
+  handle: string;
+  did: string;
 }
 
 export class BlueskyRateLimitError extends Error {
@@ -48,23 +57,66 @@ export class BlueskyApiError extends Error {
 export class BlueskyProvider {
   private maxRetries: number;
   private baseDelayMs: number;
+  private identifier?: string;
+  private appPassword?: string;
+  private session: BlueskySession | null = null;
 
   constructor(config: BlueskyProviderConfig = {}) {
     this.maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.baseDelayMs = config.baseDelayMs ?? DEFAULT_BASE_DELAY_MS;
+    this.identifier = config.identifier;
+    this.appPassword = config.appPassword;
+  }
+
+  private async authenticate(): Promise<void> {
+    if (!this.identifier || !this.appPassword) {
+      throw new BlueskyApiError("Bluesky credentials not configured", 401);
+    }
+
+    const response = await fetch(`${BLUESKY_API_BASE}/com.atproto.server.createSession`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        identifier: this.identifier,
+        password: this.appPassword,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new BlueskyApiError(
+        `Bluesky authentication failed: ${response.status} - ${errorBody}`,
+        response.status
+      );
+    }
+
+    this.session = await response.json();
   }
 
   private async fetchWithRetry<T>(url: string): Promise<T> {
+    // Ensure we have a valid session
+    if (!this.session) {
+      await this.authenticate();
+    }
+
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
         const response = await fetch(url, {
           headers: {
-            "User-Agent": "CivicVoices/1.0 (https://civic-voices.vercel.app)",
+            "Authorization": `Bearer ${this.session!.accessJwt}`,
             "Accept": "application/json",
           },
         });
+
+        if (response.status === 401) {
+          // Token might be expired, re-authenticate
+          await this.authenticate();
+          continue;
+        }
 
         if (response.status === 429) {
           const retryAfter = parseInt(response.headers.get("retry-after") || "60", 10);

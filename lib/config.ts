@@ -51,6 +51,12 @@ interface Config {
     apiUrl?: string;
   };
 
+  // Bluesky API
+  bluesky: {
+    identifier?: string;
+    appPassword?: string;
+  };
+
   // Future providers (placeholders)
   providers: {
     linkedin?: {
@@ -139,6 +145,11 @@ function loadConfig(): Config {
     tiktok: {
       apiKey: getOptionalEnv('TIKTOK_API_KEY'),
       apiUrl: getOptionalEnv('TIKTOK_API_URL'),
+    },
+
+    bluesky: {
+      identifier: getOptionalEnv('BLUESKY_IDENTIFIER'),
+      appPassword: getOptionalEnv('BLUESKY_APP_PASSWORD'),
     },
 
     providers: {
