@@ -239,9 +239,11 @@ export async function POST(request: NextRequest) {
     // Wait for all platform searches to complete in parallel
     await Promise.all(searchPromises);
 
-    // Sort by creation date (newest first)
+    // Sort by engagement (likes + comments), highest first
     allPosts.sort((a, b) => {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      const engagementA = (a.engagement.likes || 0) + (a.engagement.comments || 0);
+      const engagementB = (b.engagement.likes || 0) + (b.engagement.comments || 0);
+      return engagementB - engagementA;
     });
 
     // Generate AI analysis using Claude (only if we have posts)
