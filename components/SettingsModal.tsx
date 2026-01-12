@@ -81,13 +81,18 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   if (!isOpen) return null;
 
   const handleLogout = async () => {
+    console.log("Starting logout...");
     setIsLoggingOut(true);
     try {
       // Clear Supabase session
+      console.log("Clearing Supabase session...");
       await supabaseSignOut();
+      console.log("Supabase session cleared, redirecting...");
       // Close modal and redirect to home
       onClose();
       router.push("/");
+      // Force a full page reload to clear all state
+      window.location.href = "/";
     } catch (error) {
       console.error("Logout error:", error);
       setIsLoggingOut(false);
@@ -105,8 +110,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       {/* Logout Confirmation Dialog */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl z-[70]">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">Log out?</h3>
             <p className="text-gray-600 mb-6">Are you sure you want to log out of your account?</p>
             <div className="flex gap-3">
