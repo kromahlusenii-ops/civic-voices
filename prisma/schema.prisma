@@ -22,10 +22,14 @@ model User {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
+  // Onboarding
+  onboardingCompletedAt DateTime?  // null means not completed
+
   researchJobs  ResearchJob[]
   searches      Search[]
   accounts      Account[]
   sessions      Session[]
+  trackedTopics TrackedTopic[]
 
   @@index([firebaseUid])
   @@index([supabaseUid])
@@ -143,12 +147,28 @@ model SearchPost {
   platform    String   // "x" | "tiktok" | "reddit" | "instagram" | "youtube" | "linkedin"
   url         String
   thumbnail   String?
-  
+
   // Engagement metrics
   engagement  Json     // { likes, comments, shares, views? }
 
   // Sentiment classification (from AI analysis)
   sentiment   String?  // "positive" | "negative" | "neutral"
+
+  // Credibility system fields
+  credibilityScore  Float?   // 0-1 computed credibility score
+  credibilityTier   String?  // "official" | "news" | "journalist" | "expert" | "verified" | "unknown"
+  verificationBadge String?  // Badge type if applicable
+
+  // Author metadata for credibility assessment
+  authorFollowers   Int?     // Follower count
+  authorFollowing   Int?     // Following count
+  authorAccountAge  Int?     // Account age in days
+  authorVerified    Boolean? // Platform verification status
+  authorBio         String?  // Author bio/description
+
+  // Demographic data for analysis
+  authorPronouns    String?  // Extracted pronouns (e.g., "she/her", "they/them")
+  authorGender      String?  // Inferred gender: "male" | "female" | "non-binary" | "other" | "unknown"
 
   // Metadata
   createdAt   DateTime // When post was created on external platform
@@ -156,6 +176,8 @@ model SearchPost {
 
   @@index([searchId])
   @@index([searchId, createdAt])
+  @@index([credibilityTier])
+  @@index([authorGender])
   @@map("search_posts")
 }
 
@@ -205,4 +227,20 @@ model Insight {
 
   @@index([jobId, createdAt(sort: Desc)])
   @@map("insights")
+}
+
+model TrackedTopic {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  query     String   // The search query/topic to track
+  name      String?  // Optional display name (defaults to query)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, query])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("tracked_topics")
 }

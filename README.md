@@ -1,8 +1,18 @@
 # Civic Voices
 
-Civic Voices is a cross-platform conversation discovery and analysis tool that helps users understand how public issues are being discussed across major social platforms, including Reddit, TikTok, Instagram, Threads, and X.
+Civic Voices is a cross-platform conversation discovery and analysis tool that helps users understand how public issues are being discussed across major social platforms, including X/Twitter, TikTok, YouTube, Bluesky, and more.
 
-The platform aggregates public, platform-permitted content and generates high-level topic summaries, recurring questions, and discussion patterns so users can quickly understand large volumes of conversation without replacing or re-hosting the original content. All insights link directly back to the source platform, preserving attribution and context.
+The platform aggregates public, platform-permitted content and generates high-level topic summaries, sentiment analysis, and discussion patterns with **credibility-weighted ranking** so users can quickly understand large volumes of conversation while prioritizing trustworthy sources. All insights link directly back to the source platform, preserving attribution and context.
+
+## Key Features
+
+- **Multi-Platform Search**: Aggregate posts from X/Twitter, TikTok, YouTube, Bluesky simultaneously
+- **Credibility System**: Source verification with ~200 curated Tier 1 sources (governments, news outlets, journalists, experts)
+- **AI-Powered Analysis**: Claude-generated insights, themes, and sentiment breakdown
+- **Verification Badges**: Visual indicators for Official, News, Journalist, Expert, and Verified sources
+- **Smart Ranking**: Credibility × 0.4 + Engagement × 0.3 + Recency × 0.3
+- **Sort Options**: Relevance, Recent, Most Engaged, Verified Only
+- **Report Dashboard**: Professional analytics with D3.js visualizations
 
 Civic Voices is designed as a read-only system. It does not post, comment, vote, message users, or automate engagement on any platform. The application does not profile users, infer sensitive personal attributes, attempt to re-identify individuals, or train machine learning or foundation models on platform data.
 
@@ -84,14 +94,15 @@ npm start
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Database**: PostgreSQL with Prisma ORM (Supabase hosted)
-- **Authentication**: Supabase Auth (migrated from Firebase)
+- **Authentication**: Supabase Auth
 - **AI Analysis**: Claude API (Anthropic) for sentiment & insights
 - **Charts**: D3.js for interactive visualizations
-- **Testing**: Vitest + React Testing Library
+- **Testing**: Vitest + React Testing Library + Playwright E2E
 - **Data Sources**:
-  - X/Twitter API
-  - TikTok API
-  - Reddit API (OAuth)
+  - X/Twitter: The Old Bird V2 via RapidAPI (primary) or Official API v2 (fallback)
+  - TikTok: TikAPI.io
+  - YouTube: YouTube Data API v3
+  - Bluesky: AT Protocol API (authenticated)
 
 ## Project Structure
 
@@ -144,17 +155,24 @@ civic-voices/
 ├── lib/                          # Shared utilities
 │   ├── config.ts                 # Environment configuration
 │   ├── prisma.ts                 # Prisma client instance
-│   ├── firebase.ts               # Firebase client config
-│   ├── firebase-admin.ts         # Firebase admin SDK
 │   ├── supabase.ts               # Supabase client
 │   ├── supabase-server.ts        # Supabase server client
+│   ├── providers/                # External API providers
+│   │   ├── XProvider.ts          # Official X/Twitter API v2
+│   │   ├── XRapidApiProvider.ts  # X via RapidAPI (The Old Bird V2)
+│   │   ├── YouTubeProvider.ts    # YouTube Data API v3
+│   │   ├── BlueskyProvider.ts    # Bluesky AT Protocol
+│   │   └── TruthSocialProvider.ts # Truth Social
+│   ├── credibility/              # Source credibility system
+│   │   ├── tier1Sources.ts       # Curated Tier 1 sources (~200)
+│   │   └── index.ts              # Scoring & badge assignment
 │   ├── types/                    # TypeScript types
 │   │   └── api.ts                # API type definitions
 │   ├── utils/                    # Utility functions
 │   │   ├── booleanQuery.ts       # Boolean query parser
-│   │   └── mentions.ts           # Mention detection
+│   │   ├── mentions.ts           # Mention detection
+│   │   └── pronounDetection.ts   # Pronoun extraction
 │   └── services/                 # Backend services
-│       ├── xApi.ts               # X/Twitter API client
 │       ├── tiktokApi.ts          # TikTok API client
 │       ├── reportService.ts      # Report orchestration
 │       ├── aiAnalysis.ts         # Claude AI analysis
@@ -172,10 +190,12 @@ civic-voices/
 
 The application uses the following database models:
 
-- **User**: User accounts with email authentication
+- **User**: User accounts with email authentication (Supabase Auth)
+- **Search**: Saved searches with query, sources, filters
+- **SearchPost**: Individual posts with credibility scoring (score, tier, badge, author metadata)
 - **ResearchJob**: Research query jobs with status tracking
-- **SourceResult**: Individual content items from various sources (Reddit, X, TikTok, etc.)
-- **Insight**: LLM-generated insights and analysis for each research job
+- **SourceResult**: Individual content items from various platforms
+- **Insight**: LLM-generated insights and analysis
 
 See [prisma/schema.prisma](prisma/schema.prisma) for the complete schema definition.
 

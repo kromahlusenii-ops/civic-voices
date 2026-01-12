@@ -12,6 +12,8 @@ import {
   type Sentiment,
 } from "./sentimentClassification";
 import AIAnalysisService from "./aiAnalysis";
+import { XRapidApiProvider } from "@/lib/providers/XRapidApiProvider";
+import { config } from "@/lib/config";
 import type { Post, AIAnalysis } from "@/lib/types/api";
 
 // Types for report data
@@ -47,6 +49,61 @@ export interface ReportData {
   posts: Array<Post & { sentiment: Sentiment | null }>;
   aiAnalysis: AIAnalysis | null;
   topPosts: Array<Post & { sentiment: Sentiment | null }>;
+  topPostReplies?: Array<{ parentId: string; replies: Post[] }>;
+}
+
+/**
+ * Fetch replies for top engaging X posts to enrich report analysis
+ */
+async function fetchTopPostReplies(
+  posts: Post[],
+  maxPosts: number = 5,
+  maxRepliesPerPost: number = 20
+): Promise<Array<{ parentId: string; replies: Post[] }>> {
+  if (!config.x.rapidApiKey) {
+    return [];
+  }
+
+  const xProvider = new XRapidApiProvider({ apiKey: config.x.rapidApiKey });
+
+  // Get top X posts by engagement
+  const xPosts = posts
+    .filter(p => p.platform === "x")
+    .sort((a, b) => {
+      const engA = (a.engagement.likes || 0) + (a.engagement.comments || 0) * 2;
+      const engB = (b.engagement.likes || 0) + (b.engagement.comments || 0) * 2;
+      return engB - engA;
+    })
+    .slice(0, maxPosts);
+
+  if (xPosts.length === 0) return [];
+
+  console.log(`[Report] Fetching replies for ${xPosts.length} top X posts`);
+
+  const results: Array<{ parentId: string; replies: Post[] }> = [];
+
+  // Fetch replies in parallel with a limit
+  const replyPromises = xPosts.map(async (post) => {
+    try {
+      const replies = await xProvider.getTweetReplies(post.id, maxRepliesPerPost);
+      return { parentId: post.id, replies };
+    } catch (error) {
+      console.error(`[Report] Failed to fetch replies for ${post.id}:`, error);
+      return { parentId: post.id, replies: [] };
+    }
+  });
+
+  const settled = await Promise.allSettled(replyPromises);
+  for (const result of settled) {
+    if (result.status === "fulfilled" && result.value.replies.length > 0) {
+      results.push(result.value);
+    }
+  }
+
+  const totalReplies = results.reduce((sum, r) => sum + r.replies.length, 0);
+  console.log(`[Report] Fetched ${totalReplies} total replies from ${results.length} posts`);
+
+  return results;
 }
 
 /**
@@ -154,28 +211,42 @@ export async function startReport(
       );
     }
 
+    // Convert posts to the format expected by AI service
+    const postsForAnalysis: Post[] = search.posts.map((post) => ({
+      id: post.postId,
+      text: post.text,
+      author: post.author,
+      authorHandle: post.authorHandle,
+      authorAvatar: post.authorAvatar || undefined,
+      createdAt: post.createdAt.toISOString(),
+      platform: post.platform.toLowerCase() as Post["platform"],
+      engagement: post.engagement as Post["engagement"],
+      url: post.url,
+      thumbnail: post.thumbnail || undefined,
+    }));
+
+    // Fetch replies for top posts to enrich analysis
+    let topPostReplies: Array<{ parentId: string; replies: Post[] }> = [];
+    try {
+      topPostReplies = await fetchTopPostReplies(postsForAnalysis, 5, 20);
+    } catch (error) {
+      console.error("[Report] Failed to fetch top post replies:", error);
+    }
+
     // Generate AI analysis
     let aiAnalysis: AIAnalysis | null = null;
     if (process.env.ANTHROPIC_API_KEY) {
       const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
 
-      // Convert posts to the format expected by AI service
-      const postsForAnalysis: Post[] = search.posts.map((post) => ({
-        id: post.postId,
-        text: post.text,
-        author: post.author,
-        authorHandle: post.authorHandle,
-        authorAvatar: post.authorAvatar || undefined,
-        createdAt: post.createdAt.toISOString(),
-        platform: post.platform.toLowerCase() as Post["platform"],
-        engagement: post.engagement as Post["engagement"],
-        url: post.url,
-        thumbnail: post.thumbnail || undefined,
-      }));
+      // Combine main posts with replies for richer analysis
+      const allReplies = topPostReplies.flatMap(r => r.replies);
+      const enrichedPosts = [...postsForAnalysis, ...allReplies];
+
+      console.log(`[Report] AI analysis with ${postsForAnalysis.length} posts + ${allReplies.length} replies`);
 
       aiAnalysis = await aiService.generateAnalysis(
         search.queryText,
-        postsForAnalysis,
+        enrichedPosts,
         {
           timeRange: (search.filtersJson as { timeFilter?: string })?.timeFilter,
           language: (search.filtersJson as { language?: string })?.language,
@@ -298,6 +369,14 @@ export async function getReport(
   // Get top posts by engagement
   const topPosts = getTopPosts(posts, 5);
 
+  // Fetch replies for top posts (for display in report)
+  let topPostReplies: Array<{ parentId: string; replies: Post[] }> = [];
+  try {
+    topPostReplies = await fetchTopPostReplies(posts, 5, 10);
+  } catch (error) {
+    console.error("[Report] Failed to fetch replies for report view:", error);
+  }
+
   return {
     report: {
       id: job.id,
@@ -312,6 +391,7 @@ export async function getReport(
     posts,
     aiAnalysis,
     topPosts,
+    topPostReplies,
   };
 }
 

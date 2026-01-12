@@ -53,11 +53,18 @@ const BlueskyIcon = () => (
   </svg>
 );
 
+const TruthSocialIcon = () => (
+  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M2 4h20v3H2V4zm7 5h6v11h-3V12H9V9z" />
+  </svg>
+);
+
 const SOURCES: Source[] = [
+  { id: "x", name: "X", enabled: true, icon: <XIcon /> },
   { id: "youtube", name: "YouTube", enabled: true, icon: <YouTubeIcon /> },
   { id: "tiktok", name: "TikTok", enabled: true, icon: <TikTokIcon /> },
   { id: "bluesky", name: "Bluesky", enabled: true, icon: <BlueskyIcon /> },
-  { id: "x", name: "X", enabled: false, icon: <XIcon /> },
+  { id: "truthsocial", name: "Truth Social", enabled: false, icon: <TruthSocialIcon /> }, // Blocked by Cloudflare
   { id: "reddit", name: "Reddit", enabled: false, icon: <RedditIcon /> },
   { id: "instagram", name: "Instagram", enabled: false, icon: <InstagramIcon /> },
   { id: "linkedin", name: "LinkedIn", enabled: false, icon: <LinkedInIcon /> },

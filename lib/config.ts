@@ -43,6 +43,7 @@ interface Config {
   // X (Twitter) API
   x: {
     bearerToken?: string;
+    rapidApiKey?: string;  // The Old Bird V2 API via RapidAPI (unofficial)
   };
 
   // TikTok API
@@ -55,6 +56,12 @@ interface Config {
   bluesky: {
     identifier?: string;
     appPassword?: string;
+  };
+
+  // Truth Social API
+  truthSocial: {
+    username?: string;
+    password?: string;
   };
 
   // Future providers (placeholders)
@@ -140,6 +147,7 @@ function loadConfig(): Config {
 
     x: {
       bearerToken: sanitizeXBearerToken(getOptionalEnv('X_BEARER_TOKEN')),
+      rapidApiKey: getOptionalEnv('X_RAPIDAPI_KEY'),  // The Old Bird V2 API
     },
 
     tiktok: {
@@ -150,6 +158,11 @@ function loadConfig(): Config {
     bluesky: {
       identifier: getOptionalEnv('BLUESKY_IDENTIFIER'),
       appPassword: getOptionalEnv('BLUESKY_APP_PASSWORD'),
+    },
+
+    truthSocial: {
+      username: getOptionalEnv('TRUTHSOCIAL_USERNAME'),
+      password: getOptionalEnv('TRUTHSOCIAL_PASSWORD'),
     },
 
     providers: {

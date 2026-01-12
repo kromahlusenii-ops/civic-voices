@@ -24,9 +24,6 @@ describe("Landing Page", () => {
 
     // Check for primary CTA
     expect(screen.getByRole("link", { name: /Try it free/i })).toBeInTheDocument();
-
-    // Check for secondary CTA
-    expect(screen.getByRole("button", { name: /Watch demo/i })).toBeInTheDocument();
   });
 
   it("renders navigation with logo, login, and sign up", () => {
@@ -40,7 +37,7 @@ describe("Landing Page", () => {
     expect(screen.getByRole("link", { name: /Start Free/i })).toBeInTheDocument();
   });
 
-  it("renders stats bar with key metrics", async () => {
+  it("renders trust indicator", async () => {
     render(<Home />);
 
     // Advance timers to let IntersectionObserver callback fire
@@ -48,11 +45,8 @@ describe("Landing Page", () => {
       vi.advanceTimersByTime(100);
     });
 
-    // Check for stats labels
-    expect(screen.getByText(/Platforms monitored/i)).toBeInTheDocument();
-    expect(screen.getByText(/Posts analyzed daily/i)).toBeInTheDocument();
-    expect(screen.getByText(/Accuracy rate/i)).toBeInTheDocument();
-    expect(screen.getByText(/Avg. response time/i)).toBeInTheDocument();
+    // Check for trust indicator
+    expect(screen.getByText(/researchers trust us/i)).toBeInTheDocument();
   });
 
   it("renders How It Works section with 3 steps", () => {

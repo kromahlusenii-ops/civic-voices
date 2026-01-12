@@ -1,4 +1,5 @@
-import type { BlueskySearchResponse, BlueskyPost, Post } from "../types/api";
+import type { BlueskySearchResponse, BlueskyPost, Post, AuthorMetadata } from "../types/api";
+import { extractPronouns } from "../utils/pronounDetection";
 
 const BLUESKY_API_BASE = "https://bsky.social/xrpc";
 const DEFAULT_MAX_RETRIES = 3;
@@ -196,6 +197,11 @@ export class BlueskyProvider {
     const postId = this.extractPostId(post.uri);
     const thumbnail = post.embed?.images?.[0]?.thumb;
 
+    // Extract author metadata for credibility scoring
+    // Note: Bluesky search API doesn't return follower counts in post results
+    // indexedAt is when the account was first seen by the network
+    const authorMetadata = this.extractAuthorMetadata(post);
+
     return {
       id: postId,
       text: post.record.text,
@@ -211,6 +217,45 @@ export class BlueskyProvider {
       },
       url: `https://bsky.app/profile/${post.author.handle}/post/${postId}`,
       thumbnail,
+      authorMetadata,
+    };
+  }
+
+  /**
+   * Extract author metadata for credibility scoring
+   */
+  private extractAuthorMetadata(post: BlueskyPost): AuthorMetadata | undefined {
+    const author = post.author;
+    if (!author) return undefined;
+
+    // Calculate account age from indexedAt (when account was first seen)
+    let accountAgeDays: number | undefined;
+    if (post.indexedAt) {
+      const indexedDate = new Date(post.indexedAt);
+      const now = new Date();
+      accountAgeDays = Math.floor((now.getTime() - indexedDate.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    // Bluesky doesn't have platform verification, but we can infer from handle patterns
+    // Official handles often use custom domains (e.g., @nytimes.com)
+    const isCustomDomain = author.handle.includes('.') && !author.handle.endsWith('.bsky.social');
+
+    // Bio/description not available in search results, but we can check displayName
+    // Some users put pronouns in their display name
+    const displayNamePronouns = extractPronouns(author.displayName);
+
+    return {
+      // Follower counts not available in search API, would need separate profile fetch
+      followersCount: undefined,
+      followingCount: undefined,
+      accountAgeDays,
+      isVerified: false, // Bluesky doesn't have verification badges yet
+      isPlatformOfficial: isCustomDomain, // Custom domain handles suggest official accounts
+      bio: undefined, // Not available in search results
+      profileUrl: `https://bsky.app/profile/${author.handle}`,
+      createdAt: post.indexedAt,
+      pronouns: displayNamePronouns.pronouns,
+      inferredGender: displayNamePronouns.inferredGender,
     };
   }
 

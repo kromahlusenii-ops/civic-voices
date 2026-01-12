@@ -1,9 +1,10 @@
-import type { TikTokSearchResponse, Post } from "../types/api";
+import type { TikTokSearchResponse, Post, AuthorMetadata } from "../types/api";
 import {
   extractBaseQuery,
   hasBooleanOperators,
   filterPostsByBooleanQuery,
 } from "../utils/booleanQuery";
+import { extractPronouns } from "../utils/pronounDetection";
 
 export class TikTokApiService {
   private apiKey: string;
@@ -111,6 +112,9 @@ export class TikTokApiService {
         const authorId = String(author.uniqueId || author.unique_id || v.author_id || "unknown");
         const authorName = String(author.nickname || author.nick_name || authorId);
 
+        // Extract author metadata for credibility scoring
+        const authorMetadata = this.extractAuthorMetadata(author, authorId);
+
         return {
           id: videoId,
           text: String(v.desc || v.description || ""),
@@ -130,8 +134,44 @@ export class TikTokApiService {
             views: Number(stats.playCount || stats.play_count || stats.views || 0),
           },
           url: `https://www.tiktok.com/@${authorId}/video/${videoId}`,
+          authorMetadata,
         };
       });
+  }
+
+  /**
+   * Extract author metadata for credibility scoring
+   * TikTok API may include follower counts in author object
+   */
+  private extractAuthorMetadata(
+    author: Record<string, unknown>,
+    authorId: string
+  ): AuthorMetadata | undefined {
+    if (!author || Object.keys(author).length === 0) return undefined;
+
+    // TikTok API may return follower/following counts
+    const followersCount = Number(author.followerCount || author.follower_count || 0) || undefined;
+    const followingCount = Number(author.followingCount || author.following_count || 0) || undefined;
+
+    // TikTok has verified badges
+    const isVerified = Boolean(author.verified || author.is_verified);
+
+    // Extract bio (signature in TikTok)
+    const bio = author.signature ? String(author.signature) : undefined;
+
+    // Extract pronouns and infer gender from bio
+    const pronounResult = extractPronouns(bio);
+
+    return {
+      followersCount,
+      followingCount,
+      accountAgeDays: undefined, // Not available in TikTok API
+      isVerified,
+      bio,
+      profileUrl: `https://www.tiktok.com/@${authorId}`,
+      pronouns: pronounResult.pronouns,
+      inferredGender: pronounResult.inferredGender,
+    };
   }
 
   /**

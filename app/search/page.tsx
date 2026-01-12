@@ -12,6 +12,7 @@ import { SkeletonCardList } from "../components/SkeletonCard";
 import QuerySuggestions from "../components/QuerySuggestions";
 import SourceFilter from "../../components/SourceFilter";
 import FilterDropdown from "../../components/FilterDropdown";
+import VerificationBadge from "../../components/VerificationBadge";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
 import { supabase } from "@/lib/supabase";
 import {
@@ -149,6 +150,7 @@ function SearchPageContent() {
   const [followUpQuery, setFollowUpQuery] = useState("");
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -857,6 +859,22 @@ function SearchPageContent() {
                     testId="results-language-filter"
                   />
 
+                  {/* Verified Only Toggle */}
+                  <button
+                    onClick={() => setVerifiedOnly(!verifiedOnly)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                      verifiedOnly
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100"
+                    }`}
+                    data-testid="verified-only-filter"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Verified only
+                  </button>
+
                   <button
                     onClick={handleStartReportGeneration}
                     disabled={isGeneratingReport || !searchResults.searchId}
@@ -920,7 +938,9 @@ function SearchPageContent() {
               {/* Posts Feed - Scrollable */}
               <div ref={postsContainerRef} className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
-                  {searchResults.posts.map((post) => (
+                  {searchResults.posts
+                    .filter((post) => !verifiedOnly || post.verificationBadge || (post.credibilityScore && post.credibilityScore >= 0.7))
+                    .map((post) => (
                     <a
                       key={post.id}
                       href={post.url}
@@ -938,6 +958,9 @@ function SearchPageContent() {
                         <div className="flex-1 min-w-0">
                           <div className="mb-1 flex items-center gap-2">
                             <span className="font-medium text-gray-900">{post.author}</span>
+                            {post.verificationBadge && (
+                              <VerificationBadge badge={post.verificationBadge} size="sm" />
+                            )}
                             <span className="text-sm text-gray-500">{formatRelativeTime(post.createdAt)}</span>
                           </div>
                           <p className="text-gray-800 line-clamp-3">{post.text}</p>

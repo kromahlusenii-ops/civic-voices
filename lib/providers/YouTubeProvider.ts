@@ -1,4 +1,4 @@
-import type { YouTubeSearchResponse, YouTubeVideosResponse, YouTubeVideo, Post } from "../types/api";
+import type { YouTubeSearchResponse, YouTubeVideosResponse, YouTubeVideo, Post, AuthorMetadata } from "../types/api";
 
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
 const DEFAULT_MAX_RETRIES = 3;
@@ -307,6 +307,20 @@ export class YouTubeProvider {
   private normalizePost(video: YouTubeVideo): Post {
     const stats = video.statistics;
 
+    // Build author metadata (limited for YouTube - no bio/pronouns in search results)
+    const authorMetadata: AuthorMetadata = {
+      // Note: YouTube search API doesn't return subscriber counts or channel descriptions
+      // Would need separate channel API call (quota-expensive) to get these
+      followersCount: undefined,
+      followingCount: undefined,
+      accountAgeDays: undefined,
+      isVerified: false, // YouTube verified status requires channel branding API
+      bio: undefined, // Not available in search results
+      profileUrl: `https://www.youtube.com/channel/${video.snippet.channelId}`,
+      pronouns: undefined, // Cannot extract - no bio in search results
+      inferredGender: "unknown",
+    };
+
     return {
       id: video.id,
       text: video.snippet.title + (video.snippet.description ? `\n\n${video.snippet.description.slice(0, 500)}` : ""),
@@ -322,6 +336,7 @@ export class YouTubeProvider {
       },
       url: `https://www.youtube.com/watch?v=${video.id}`,
       thumbnail: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.medium?.url,
+      authorMetadata,
     };
   }
 

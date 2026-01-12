@@ -1,4 +1,5 @@
-import type { XSearchResponse, XTweet, XUser, Post } from "../types/api";
+import type { XSearchResponse, XTweet, XUser, Post, AuthorMetadata } from "../types/api";
+import { extractPronouns } from "../utils/pronounDetection";
 
 const X_API_BASE = "https://api.twitter.com/2";
 const DEFAULT_MAX_RETRIES = 3;
@@ -139,7 +140,8 @@ export class XProvider {
     const params = new URLSearchParams({
       query: builtQuery,
       "tweet.fields": "created_at,public_metrics,author_id",
-      "user.fields": "name,username,profile_image_url",
+      // Include credibility-relevant user fields
+      "user.fields": "name,username,profile_image_url,verified,created_at,description,public_metrics",
       expansions: "author_id",
       max_results: String(Math.min(options.maxResults || 10, 100)), // Basic tier max is 100
     });
@@ -352,6 +354,9 @@ export class XProvider {
   private normalizePost(tweet: XTweet, userMap: Map<string, XUser>): Post {
     const author = userMap.get(tweet.author_id);
 
+    // Extract author metadata for credibility scoring
+    const authorMetadata = this.extractAuthorMetadata(author);
+
     return {
       id: tweet.id,
       text: tweet.text,
@@ -367,6 +372,44 @@ export class XProvider {
         views: tweet.public_metrics.impression_count,
       },
       url: `https://twitter.com/${author?.username || "i"}/status/${tweet.id}`,
+      authorMetadata,
+    };
+  }
+
+  /**
+   * Extract author metadata for credibility scoring
+   */
+  private extractAuthorMetadata(author: XUser | undefined): AuthorMetadata | undefined {
+    if (!author) return undefined;
+
+    // Calculate account age in days
+    let accountAgeDays: number | undefined;
+    if (author.created_at) {
+      const createdDate = new Date(author.created_at);
+      const now = new Date();
+      accountAgeDays = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    // Extract pronouns from bio and/or name
+    const bioPronouns = extractPronouns(author.description);
+    const namePronouns = extractPronouns(author.name);
+
+    // Prefer bio pronouns over name pronouns if both found
+    const pronouns = bioPronouns.pronouns || namePronouns.pronouns;
+    const inferredGender = bioPronouns.pronouns
+      ? bioPronouns.inferredGender
+      : namePronouns.inferredGender;
+
+    return {
+      followersCount: author.public_metrics?.followers_count,
+      followingCount: author.public_metrics?.following_count,
+      accountAgeDays,
+      isVerified: author.verified,
+      bio: author.description,
+      profileUrl: `https://twitter.com/${author.username}`,
+      createdAt: author.created_at,
+      pronouns,
+      inferredGender,
     };
   }
 
