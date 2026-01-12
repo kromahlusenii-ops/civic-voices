@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 
 type SettingsTab = "credit_usage" | "plan_billing" | "team_members" | "integrations";
@@ -76,6 +76,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { signOut: supabaseSignOut } = useAuth();
+  const router = useRouter();
 
   if (!isOpen) return null;
 
@@ -84,8 +85,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       // Clear Supabase session
       await supabaseSignOut();
-      // Clear NextAuth session and redirect
-      await signOut({ callbackUrl: "/" });
+      // Close modal and redirect to home
+      onClose();
+      router.push("/");
     } catch (error) {
       console.error("Logout error:", error);
       setIsLoggingOut(false);
