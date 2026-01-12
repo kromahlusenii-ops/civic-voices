@@ -13,6 +13,7 @@ import QuerySuggestions from "../components/QuerySuggestions";
 import SourceFilter from "../../components/SourceFilter";
 import FilterDropdown from "../../components/FilterDropdown";
 import VerificationBadge from "../../components/VerificationBadge";
+import SettingsModal from "../../components/SettingsModal";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
 import { supabase } from "@/lib/supabase";
 import {
@@ -143,6 +144,8 @@ function SearchPageContent() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSearchHistoryModal, setShowSearchHistoryModal] = useState(false);
   const [showSearchHistorySidebar, setShowSearchHistorySidebar] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingSearch, setPendingSearch] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -496,6 +499,20 @@ function SearchPageContent() {
         onClose={() => setShowSearchHistorySidebar(false)}
       />
 
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+      />
+
+      {/* Click outside to close user menu */}
+      {showUserMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowUserMenu(false)}
+        />
+      )}
+
       {/* Mobile hamburger */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -553,13 +570,52 @@ function SearchPageContent() {
             </button>
           </div>
 
-          {/* User */}
-          <button
-            aria-label="User profile"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-700"
-          >
-            {isAuthenticated ? (user?.user_metadata?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U") : "?"}
-          </button>
+          {/* User Menu */}
+          <div className="relative">
+            <button
+              onClick={() => {
+                if (isAuthenticated) {
+                  setShowUserMenu(!showUserMenu);
+                } else {
+                  setShowAuthModal(true);
+                }
+              }}
+              aria-label="User profile"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-300 transition-colors"
+            >
+              {isAuthenticated ? (user?.user_metadata?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "U") : "?"}
+            </button>
+
+            {/* User Dropdown Menu */}
+            {showUserMenu && isAuthenticated && (
+              <div className="absolute bottom-full left-0 mb-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50" onClick={(e) => e.stopPropagation()}>
+                {/* User Info */}
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {user?.user_metadata?.name || "User"}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                </div>
+
+                {/* Menu Items */}
+                <div className="py-1">
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      setShowSettingsModal(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <circle cx="12" cy="12" r="3" strokeWidth="2" />
+                    </svg>
+                    Settings
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
