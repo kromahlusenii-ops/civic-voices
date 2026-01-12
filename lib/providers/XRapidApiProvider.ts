@@ -490,6 +490,15 @@ export class XRapidApiProvider {
         return this.fetchWithRetry<T>(url, attempt + 1);
       }
 
+      // Handle authentication errors
+      if (response.status === 401) {
+        throw new XRapidApiError(
+          "Unauthorized - check your X_RAPIDAPI_KEY environment variable",
+          401,
+          "AUTH_ERROR"
+        );
+      }
+
       // Handle subscription/payment errors
       if (response.status === 403) {
         throw new XRapidApiError(
