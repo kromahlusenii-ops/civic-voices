@@ -387,7 +387,6 @@ export default function Home() {
                 {[
                   { value: "12M+", label: "posts analyzed daily" },
                   { value: "6", label: "platforms monitored" },
-                  { value: "<30s", label: "insight latency" },
                 ].map((stat, i) => (
                   <div key={i}>
                     <div className="font-mono text-2xl sm:text-3xl font-bold text-stone-900">{stat.value}</div>
