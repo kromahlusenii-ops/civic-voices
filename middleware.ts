@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
+import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -10,38 +10,59 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/login") ||
-    pathname.startsWith("/register") ||
+    pathname.startsWith("/signup") ||
+    pathname.startsWith("/auth") ||
     pathname === "/" ||
     pathname === "/search"
   ) {
     return NextResponse.next();
   }
 
-  // Get the JWT token to check auth and onboarding status
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+  // Create Supabase client for middleware
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
   });
 
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  // Get the session
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   // If not authenticated, redirect to login
-  if (!token) {
+  if (!session) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  // If authenticated but hasn't completed onboarding, redirect to onboarding
-  // (unless already on the onboarding page)
-  if (!token.onboardingCompleted && !pathname.startsWith("/onboarding")) {
-    return NextResponse.redirect(new URL("/onboarding", request.url));
-  }
-
-  // If already completed onboarding but trying to access /onboarding, redirect to dashboard
-  if (token.onboardingCompleted && pathname.startsWith("/onboarding")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
