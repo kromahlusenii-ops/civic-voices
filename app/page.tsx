@@ -351,7 +351,7 @@ export default function Home() {
 
       {/* Hero Section - Editorial Style */}
       <section ref={heroRef} className="relative overflow-hidden grain">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
           <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-start">
             {/* Left Column - Editorial */}
             <div className={`lg:col-span-7 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
@@ -491,7 +491,7 @@ export default function Home() {
 
       {/* Platform Status Board */}
       <section ref={statusRef} className="py-16 lg:py-24 bg-white grain">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className={`grid lg:grid-cols-2 gap-12 items-start transition-all duration-700 ${statusVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             {/* Left - Header */}
             <div>
@@ -550,7 +550,7 @@ export default function Home() {
 
       {/* Voice Stream Section */}
       <section ref={voicesRef} className="py-16 lg:py-24 bg-stone-50 grain">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className={`transition-all duration-700 ${voicesVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8 pb-4 border-b border-stone-300">
@@ -600,7 +600,7 @@ export default function Home() {
 
       {/* Use Cases - Magazine Layout */}
       <section className="py-16 lg:py-24 bg-stone-100 grain">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">WHO IT&apos;S FOR</div>
           <h2 className="font-display text-4xl sm:text-5xl text-stone-900 mb-12">
             Built for those who
