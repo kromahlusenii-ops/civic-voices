@@ -13,7 +13,6 @@ const COMPANY_LOGOS = [
   { name: "NC IDEA", src: "/logos/NC-IDEA-logo.png", width: 90, height: 40 },
   { name: "Washington Post", src: "/logos/the-washington-post-logo-svg-vector.svg", width: 140, height: 22 },
   { name: "Bank of America", src: "/logos/bank-of-america-logo.png", width: 140, height: 28 },
-  { name: "Truist", src: "/logos/truist-logo.png", width: 100, height: 28 },
 ];
 
 // Simulated live voice data - actual social posts feeling
@@ -488,6 +487,34 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Use Cases - Magazine Layout */}
+      <section className="py-16 lg:py-24 bg-stone-100 grain">
+        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">WHO IT&apos;S FOR</div>
+          <h2 className="font-display text-4xl sm:text-5xl text-stone-900 mb-12">
+            Built for those who
+            <br />
+            <span className="italic">need to know</span>
+            <span className="text-red-600">.</span>
+          </h2>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-px bg-stone-300">
+            {[
+              { role: "Journalists", icon: "◆", desc: "Find emerging stories before they break. Verify what people are actually saying." },
+              { role: "Researchers", icon: "◇", desc: "Track opinion formation across platforms. Export data for deeper analysis." },
+              { role: "Marketing Teams", icon: "○", desc: "See what messaging resonates. Understand why campaigns succeed or fail." },
+              { role: "Policy Teams", icon: "□", desc: "Gauge public reaction in real time. Find gaps between statements and reality." },
+            ].map((persona, i) => (
+              <div key={i} className="bg-white p-8 hover:bg-stone-50 transition-colors group">
+                <div className="text-4xl text-stone-200 group-hover:text-red-600 transition-colors mb-4 font-display">{persona.icon}</div>
+                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">{persona.role.toUpperCase()}</h3>
+                <p className="font-body text-stone-600 leading-relaxed">{persona.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Platform Status Board */}
       <section ref={statusRef} className="py-16 lg:py-24 bg-white grain">
         <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -591,34 +618,6 @@ export default function Home() {
                   height={company.height}
                   className="object-contain max-h-8 w-auto"
                 />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases - Magazine Layout */}
-      <section className="py-16 lg:py-24 bg-stone-100 grain">
-        <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">WHO IT&apos;S FOR</div>
-          <h2 className="font-display text-4xl sm:text-5xl text-stone-900 mb-12">
-            Built for those who
-            <br />
-            <span className="italic">need to know</span>
-            <span className="text-red-600">.</span>
-          </h2>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-px bg-stone-300">
-            {[
-              { role: "Journalists", icon: "◆", desc: "Find emerging stories before they break. Verify what people are actually saying." },
-              { role: "Researchers", icon: "◇", desc: "Track opinion formation across platforms. Export data for deeper analysis." },
-              { role: "Marketing Teams", icon: "○", desc: "See what messaging resonates. Understand why campaigns succeed or fail." },
-              { role: "Policy Teams", icon: "□", desc: "Gauge public reaction in real time. Find gaps between statements and reality." },
-            ].map((persona, i) => (
-              <div key={i} className="bg-white p-8 hover:bg-stone-50 transition-colors group">
-                <div className="text-4xl text-stone-200 group-hover:text-red-600 transition-colors mb-4 font-display">{persona.icon}</div>
-                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">{persona.role.toUpperCase()}</h3>
-                <p className="font-body text-stone-600 leading-relaxed">{persona.desc}</p>
               </div>
             ))}
           </div>
