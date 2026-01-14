@@ -84,13 +84,13 @@ function mapToSourceEnum(source: string): Source | null {
 }
 
 /**
- * Get or create a user by Firebase UID
- * During migration, we need to handle users that may not exist yet
+ * Get or create a user by Supabase UID
+ * Checks both supabaseUid and firebaseUid fields for compatibility
  */
-async function getOrCreateUserByFirebaseUid(firebaseUid: string): Promise<string> {
-  // First try to find existing user
+async function getOrCreateUserBySupabaseUid(supabaseUid: string): Promise<string> {
+  // First try supabaseUid field
   let user = await prisma.user.findUnique({
-    where: { firebaseUid },
+    where: { supabaseUid },
     select: { id: true },
   });
 
@@ -98,12 +98,22 @@ async function getOrCreateUserByFirebaseUid(firebaseUid: string): Promise<string
     return user.id;
   }
 
-  // Create a placeholder user if not found
-  // In production, users should be created during auth flow
+  // Fall back to firebaseUid field (legacy)
+  user = await prisma.user.findUnique({
+    where: { firebaseUid: supabaseUid },
+    select: { id: true },
+  });
+
+  if (user) {
+    return user.id;
+  }
+
+  // Create new user with both fields set for compatibility
   user = await prisma.user.create({
     data: {
-      firebaseUid,
-      email: `${firebaseUid}@placeholder.local`, // Placeholder email
+      supabaseUid,
+      firebaseUid: supabaseUid,
+      email: `${supabaseUid}@placeholder.local`,
     },
     select: { id: true },
   });
@@ -115,7 +125,7 @@ async function getOrCreateUserByFirebaseUid(firebaseUid: string): Promise<string
  * Save a search to PostgreSQL
  */
 export async function saveSearch(
-  firebaseUid: string,
+  supabaseUid: string,
   data: {
     queryText: string;
     name?: string;
@@ -125,8 +135,8 @@ export async function saveSearch(
     posts?: SearchPost[];
   }
 ): Promise<{ searchId: string }> {
-  // Get or create user by Firebase UID
-  const userId = await getOrCreateUserByFirebaseUid(firebaseUid);
+  // Get or create user by Supabase UID
+  const userId = await getOrCreateUserBySupabaseUid(supabaseUid);
 
   // Map sources to enum
   const validSources = data.sources
@@ -163,7 +173,7 @@ export async function saveSearch(
   });
 
   // Invalidate user's cache
-  invalidateUserCache(firebaseUid);
+  invalidateUserCache(supabaseUid);
 
   return { searchId: search.id };
 }
@@ -172,7 +182,7 @@ export async function saveSearch(
  * Get search history for a user with caching
  */
 export async function getSearchHistory(
-  firebaseUid: string,
+  supabaseUid: string,
   options: {
     query?: string;
     limit?: number;
@@ -180,7 +190,7 @@ export async function getSearchHistory(
   } = {}
 ): Promise<{ searches: SavedSearch[]; total: number; fromCache: boolean }> {
   const { query, limit = 50, useCache = true } = options;
-  const cacheKey = `${firebaseUid}:${query || "all"}:${limit}`;
+  const cacheKey = `${supabaseUid}:${query || "all"}:${limit}`;
 
   // Check cache first
   if (useCache) {
@@ -194,11 +204,18 @@ export async function getSearchHistory(
     }
   }
 
-  // Find user by Firebase UID
-  const user = await prisma.user.findUnique({
-    where: { firebaseUid },
+  // Find user by Supabase UID (check both fields for compatibility)
+  let user = await prisma.user.findUnique({
+    where: { supabaseUid },
     select: { id: true },
   });
+
+  if (!user) {
+    user = await prisma.user.findUnique({
+      where: { firebaseUid: supabaseUid },
+      select: { id: true },
+    });
+  }
 
   if (!user) {
     return { searches: [], total: 0, fromCache: false };
@@ -239,7 +256,7 @@ export async function getSearchHistory(
 
   const searches: SavedSearch[] = dbSearches.map((search) => ({
     id: search.id,
-    userId: firebaseUid, // Return the firebaseUid for API compatibility
+    userId: supabaseUid, // Return the supabaseUid for API compatibility
     name: search.name || search.queryText,
     queryText: search.queryText,
     sources: search.sources as string[],
@@ -270,13 +287,20 @@ export async function getSearchHistory(
  */
 export async function getSearchById(
   searchId: string,
-  firebaseUid: string
+  supabaseUid: string
 ): Promise<SavedSearch | null> {
-  // Find user by Firebase UID
-  const user = await prisma.user.findUnique({
-    where: { firebaseUid },
+  // Find user by Supabase UID (check both fields for compatibility)
+  let user = await prisma.user.findUnique({
+    where: { supabaseUid },
     select: { id: true },
   });
+
+  if (!user) {
+    user = await prisma.user.findUnique({
+      where: { firebaseUid: supabaseUid },
+      select: { id: true },
+    });
+  }
 
   if (!user) {
     return null;
@@ -306,7 +330,7 @@ export async function getSearchById(
 
   return {
     id: search.id,
-    userId: firebaseUid,
+    userId: supabaseUid,
     name: search.name || search.queryText,
     queryText: search.queryText,
     sources: search.sources as string[],
@@ -322,10 +346,10 @@ export async function getSearchById(
  */
 export async function getSearchPosts(
   searchId: string,
-  firebaseUid: string
+  supabaseUid: string
 ): Promise<SearchPost[]> {
   // Verify ownership first
-  const search = await getSearchById(searchId, firebaseUid);
+  const search = await getSearchById(searchId, supabaseUid);
   if (!search) {
     return [];
   }
@@ -359,13 +383,20 @@ export async function getSearchPosts(
  */
 export async function deleteSearch(
   searchId: string,
-  firebaseUid: string
+  supabaseUid: string
 ): Promise<boolean> {
-  // Find user by Firebase UID
-  const user = await prisma.user.findUnique({
-    where: { firebaseUid },
+  // Find user by Supabase UID (check both fields for compatibility)
+  let user = await prisma.user.findUnique({
+    where: { supabaseUid },
     select: { id: true },
   });
+
+  if (!user) {
+    user = await prisma.user.findUnique({
+      where: { firebaseUid: supabaseUid },
+      select: { id: true },
+    });
+  }
 
   if (!user) {
     return false;
@@ -389,7 +420,7 @@ export async function deleteSearch(
   });
 
   // Invalidate cache
-  invalidateUserCache(firebaseUid);
+  invalidateUserCache(supabaseUid);
 
   return true;
 }
@@ -399,14 +430,21 @@ export async function deleteSearch(
  */
 export async function renameSearch(
   searchId: string,
-  firebaseUid: string,
+  supabaseUid: string,
   newName: string
 ): Promise<boolean> {
-  // Find user by Firebase UID
-  const user = await prisma.user.findUnique({
-    where: { firebaseUid },
+  // Find user by Supabase UID (check both fields for compatibility)
+  let user = await prisma.user.findUnique({
+    where: { supabaseUid },
     select: { id: true },
   });
+
+  if (!user) {
+    user = await prisma.user.findUnique({
+      where: { firebaseUid: supabaseUid },
+      select: { id: true },
+    });
+  }
 
   if (!user) {
     return false;
@@ -431,7 +469,7 @@ export async function renameSearch(
   });
 
   // Invalidate cache
-  invalidateUserCache(firebaseUid);
+  invalidateUserCache(supabaseUid);
 
   return true;
 }
@@ -439,9 +477,9 @@ export async function renameSearch(
 /**
  * Invalidate cache for a user
  */
-export function invalidateUserCache(firebaseUid: string): void {
+export function invalidateUserCache(supabaseUid: string): void {
   for (const key of searchHistoryCache.keys()) {
-    if (key.startsWith(`${firebaseUid}:`)) {
+    if (key.startsWith(`${supabaseUid}:`)) {
       searchHistoryCache.delete(key);
     }
   }
