@@ -5,6 +5,8 @@
  * Optimized for speed and cost-effectiveness.
  */
 
+import { anthropicFetch } from "./anthropicClient";
+
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 
 export type Sentiment = "positive" | "negative" | "neutral";
@@ -68,7 +70,7 @@ Respond with ONLY a JSON array in this exact format (no other text):
 Use the number from the brackets as the id. Classify ALL ${posts.length} posts.`;
 
     try {
-      const response = await fetch(ANTHROPIC_API_URL, {
+      const response = await anthropicFetch(ANTHROPIC_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -62,6 +62,13 @@ vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Mock ToastContext
+vi.mock("@/app/contexts/ToastContext", () => ({
+  useToast: () => ({
+    showToast: vi.fn(),
+  }),
+}));
+
 // Mock Next.js router
 const mockPush = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -118,11 +125,18 @@ describe("Report Page", () => {
   });
 
   it("shows auth modal for unauthenticated users", async () => {
+    // Mock 401 response for non-public reports
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: "Unauthorized" }),
+    });
+
     mockUseAuth.mockReturnValue({
       isAuthenticated: false,
       loading: false,
       user: null,
-      getAccessToken: mockGetAccessToken,
+      getAccessToken: vi.fn().mockResolvedValue(null),
     });
 
     render(<ReportPage />);
@@ -181,11 +195,18 @@ describe("Report Page", () => {
   });
 
   it("does not redirect unauthenticated users", async () => {
+    // Mock 401 response for non-public reports
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => ({ error: "Unauthorized" }),
+    });
+
     mockUseAuth.mockReturnValue({
       isAuthenticated: false,
       loading: false,
       user: null,
-      getAccessToken: mockGetAccessToken,
+      getAccessToken: vi.fn().mockResolvedValue(null),
     });
 
     render(<ReportPage />);

@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -91,6 +92,13 @@ model ResearchJob {
 
   // Counts and stats
   totalResults  Int            @default(0)
+  topPostCommentsJson Json?
+
+  // Sharing settings
+  isPublic              Boolean    @default(false)
+  shareToken            String?    @unique
+  shareTokenExpiresAt   DateTime?
+  shareTokenCreatedAt   DateTime?
 
   // Relations
   sourceResults SourceResult[]
@@ -99,6 +107,7 @@ model ResearchJob {
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([status])
+  @@index([shareToken])
   @@map("research_jobs")
 }
 

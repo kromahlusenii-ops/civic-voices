@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Post, TopicAnalysis } from "@/lib/types/api";
 
 export interface TopicData {
   id: string;
@@ -12,7 +13,9 @@ export interface TopicData {
   sentimentPositive: number;
   sentimentNegative: number;
   date: Date;
-  details?: string;
+  postsOverview?: string;      // AI summary about posts
+  commentsOverview?: string;   // AI summary about comments
+  posts?: Post[];              // Related posts for Mentions section
 }
 
 interface TopicsTableProps {
@@ -136,6 +139,161 @@ function InfoIcon({ tooltip }: { tooltip: string }) {
       )}
     </div>
   );
+}
+
+// Platform icons for topic mention cards
+const PLATFORM_ICONS: Record<string, React.ReactNode> = {
+  x: (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  ),
+  tiktok: (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
+    </svg>
+  ),
+  reddit: (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.694-3.13 4.87-7.004 4.87-3.874 0-7.004-2.176-7.004-4.87 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.906.617a1.214 1.214 0 0 1 1.108-.701zM9.25 12C8.561 12 8 12.562 8 13.25c0 .687.561 1.248 1.25 1.248.687 0 1.248-.561 1.248-1.249 0-.688-.561-1.249-1.249-1.249zm5.5 0c-.687 0-1.248.561-1.248 1.25 0 .687.561 1.248 1.249 1.248.688 0 1.249-.561 1.249-1.249 0-.687-.562-1.249-1.25-1.249z" />
+    </svg>
+  ),
+  youtube: (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  ),
+  bluesky: (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z" />
+    </svg>
+  ),
+  instagram: (
+    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+    </svg>
+  ),
+};
+
+// Platform colors
+const PLATFORM_COLORS: Record<string, string> = {
+  x: "bg-black",
+  tiktok: "bg-black",
+  reddit: "bg-orange-500",
+  youtube: "bg-red-600",
+  bluesky: "bg-blue-500",
+  instagram: "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500",
+};
+
+// Format time ago for compact display
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffDays < 1) {
+    const diffHours = Math.floor(diffMs / 3600000);
+    if (diffHours < 1) return "now";
+    return `${diffHours}h ago`;
+  }
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return `${Math.floor(diffDays / 30)}mo ago`;
+}
+
+// Compact post card for Mentions section
+function TopicMentionCard({ post }: { post: Post }) {
+  const platformColor = PLATFORM_COLORS[post.platform] || "bg-gray-500";
+
+  return (
+    <a
+      href={post.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex gap-3 p-3 bg-white rounded-lg border border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all"
+    >
+      {/* Thumbnail */}
+      {post.thumbnail && (
+        <div className="relative w-24 h-20 flex-shrink-0 rounded-md overflow-hidden bg-gray-100">
+          <img
+            src={post.thumbnail}
+            alt=""
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+          <div className={`absolute top-1 left-1 ${platformColor} text-white p-1 rounded`}>
+            {PLATFORM_ICONS[post.platform]}
+          </div>
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {/* Author row */}
+        <div className="flex items-center gap-2 mb-1">
+          {post.authorAvatar ? (
+            <img
+              src={post.authorAvatar}
+              alt={post.author}
+              className="w-5 h-5 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center">
+              <span className="text-[10px] text-gray-500 font-medium">
+                {post.author.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
+          <span className="text-xs font-medium text-gray-900 truncate">
+            {post.author}
+          </span>
+          {!post.thumbnail && (
+            <span className={`${platformColor} text-white p-0.5 rounded`}>
+              {PLATFORM_ICONS[post.platform]}
+            </span>
+          )}
+          <span className="text-xs text-gray-400">{formatTimeAgo(post.createdAt)}</span>
+        </div>
+
+        {/* Text */}
+        <p className="text-xs text-gray-600 line-clamp-2 mb-2">{post.text}</p>
+
+        {/* Metrics */}
+        <div className="flex items-center gap-3 text-xs text-gray-500">
+          <span className="flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            {formatNumber(post.engagement.views || 0)}
+          </span>
+          <span className="flex items-center gap-1">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+            {formatNumber(post.engagement.likes)}
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+// Render text with **bold** markers
+function renderHighlightedText(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      const boldText = part.slice(2, -2);
+      return (
+        <strong key={index} className="font-semibold text-gray-900">
+          {boldText}
+        </strong>
+      );
+    }
+    return part;
+  });
 }
 
 export default function TopicsTable({
@@ -311,12 +469,65 @@ export default function TopicsTable({
                   </td>
                 </tr>
                 {/* Expanded details row */}
-                {expandedId === topic.id && topic.details && (
-                  <tr key={`${topic.id}-details`} className="bg-gray-50/50">
-                    <td colSpan={6} className="px-5 py-4">
-                      <p className="text-sm text-gray-600 pl-9">
-                        {topic.details}
-                      </p>
+                {expandedId === topic.id && (
+                  <tr key={`${topic.id}-details`} className="bg-gray-50/30">
+                    <td colSpan={6} className="px-5 py-5">
+                      <div className="space-y-5">
+                        {/* Posts overview and Comments overview - two columns */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Posts overview */}
+                          {topic.postsOverview && (
+                            <div className="bg-white rounded-lg border border-gray-100 p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                </svg>
+                                <span className="text-xs font-medium text-gray-700">Posts overview</span>
+                                <InfoIcon tooltip="Key trends and highlights from posts about this topic" />
+                              </div>
+                              <p className="text-sm text-gray-600 leading-relaxed">
+                                {renderHighlightedText(topic.postsOverview)}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Comments overview */}
+                          {topic.commentsOverview && (
+                            <div className="bg-white rounded-lg border border-gray-100 p-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                                </svg>
+                                <span className="text-xs font-medium text-gray-700">Comments overview</span>
+                                <InfoIcon tooltip="How audiences are engaging and reacting in comments" />
+                              </div>
+                              <p className="text-sm text-gray-600 leading-relaxed">
+                                {renderHighlightedText(topic.commentsOverview)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Mentions section */}
+                        {topic.posts && topic.posts.length > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-xs font-medium text-gray-700">Mentions</span>
+                              <button className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors">
+                                View more
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {topic.posts.slice(0, 4).map((post) => (
+                                <TopicMentionCard key={post.id} post={post} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -345,7 +556,9 @@ export default function TopicsTable({
 export function generateTopicsFromThemes(
   themes: string[],
   totalViews: number,
-  totalLikes: number
+  totalLikes: number,
+  topicAnalysis?: TopicAnalysis[],
+  posts?: Post[]
 ): TopicData[] {
   const themeIcons: Record<string, string> = {
     policy: "\uD83D\uDCDC",
@@ -359,6 +572,14 @@ export function generateTopicsFromThemes(
     climate: "\uD83C\uDF21\uFE0F",
     default: "\uD83D\uDCAC",
   };
+
+  // Create a map of posts by ID for quick lookup
+  const postsMap = new Map(posts?.map(p => [p.id, p]) || []);
+
+  // Create a map of topic analysis by topic name (case-insensitive)
+  const analysisMap = new Map(
+    topicAnalysis?.map(ta => [ta.topic.toLowerCase(), ta]) || []
+  );
 
   return themes.map((theme, index) => {
     const icon =
@@ -387,6 +608,28 @@ export function generateTopicsFromThemes(
     const date = new Date();
     date.setHours(date.getHours() - hoursAgo);
 
+    // Get topic analysis for this theme
+    const analysis = analysisMap.get(theme.toLowerCase());
+
+    // Get posts for this topic from the analysis
+    let topicPosts: Post[] = [];
+    if (analysis?.postIds && postsMap.size > 0) {
+      topicPosts = analysis.postIds
+        .map(id => postsMap.get(id))
+        .filter((p): p is Post => p !== undefined)
+        .slice(0, 4);
+    }
+
+    // Fallback: if no posts from analysis, use first 4 posts
+    if (topicPosts.length === 0 && posts && posts.length > 0) {
+      // Rotate posts for different topics to show variety
+      const startIndex = (index * 4) % posts.length;
+      topicPosts = posts.slice(startIndex, startIndex + 4);
+      if (topicPosts.length < 4) {
+        topicPosts = [...topicPosts, ...posts.slice(0, 4 - topicPosts.length)];
+      }
+    }
+
     return {
       id: `topic-${index}`,
       name: theme,
@@ -397,7 +640,9 @@ export function generateTopicsFromThemes(
       sentimentPositive,
       sentimentNegative,
       date,
-      details: `Topic "${theme}" is trending with significant engagement. Key discussions focus on recent developments and their implications.`,
+      postsOverview: analysis?.postsOverview,
+      commentsOverview: analysis?.commentsOverview,
+      posts: topicPosts,
     };
   });
 }

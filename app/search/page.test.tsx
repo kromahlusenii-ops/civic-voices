@@ -8,6 +8,15 @@ vi.mock("@/app/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
+// Mock useToast hook
+const mockShowToast = vi.fn();
+vi.mock("@/app/contexts/ToastContext", () => ({
+  useToast: () => ({
+    showToast: mockShowToast,
+    hideToast: vi.fn(),
+  }),
+}));
+
 // Track router calls
 const mockRouterReplace = vi.fn();
 
@@ -389,9 +398,17 @@ describe("Search Page", () => {
       const postCards = screen.getAllByTestId("post-card");
       expect(postCards.length).toBe(2);
 
-      // Verify post cards are links to real URLs
-      expect(postCards[0]).toHaveAttribute("href", "https://www.tiktok.com/@testuser/video/7312345678901234567");
-      expect(postCards[1]).toHaveAttribute("href", "https://twitter.com/newsaccount/status/1876543210987654321");
+      // Verify post cards are clickable buttons (not external links) - users should generate report to view posts
+      expect(postCards[0]).toHaveAttribute("role", "button");
+      expect(postCards[1]).toHaveAttribute("role", "button");
+      expect(postCards[0]).toHaveAttribute("tabindex", "0");
+      expect(postCards[1]).toHaveAttribute("tabindex", "0");
+
+      // Clicking a post card should show toast prompting to generate report
+      fireEvent.click(postCards[0]);
+      expect(mockShowToast).toHaveBeenCalledWith(expect.objectContaining({
+        message: "Generate a report to view full post details and analysis",
+      }));
     });
 
     it("clicking new research resets to initial state", async () => {

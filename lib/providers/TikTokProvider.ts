@@ -252,6 +252,9 @@ export class TikTokProvider {
    * Normalize a single video to Post format
    */
   private normalizePost(video: TikTokVideo): Post {
+    // Extract thumbnail from video cover fields (prefer originCover for quality)
+    const thumbnail = video.video?.originCover || video.video?.cover || video.video?.dynamicCover;
+
     return {
       id: video.id,
       text: video.desc || "",
@@ -267,6 +270,7 @@ export class TikTokProvider {
         views: video.stats.playCount,
       },
       url: `https://www.tiktok.com/@${video.author.uniqueId}/video/${video.id}`,
+      thumbnail,
     };
   }
 

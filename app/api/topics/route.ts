@@ -1,22 +1,88 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { verifySupabaseToken } from "@/lib/supabase-server";
 import { prisma } from "@/lib/prisma";
 
-// GET - List user's tracked topics
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions);
+// Mark route as dynamic since it uses request.headers
+export const dynamic = "force-dynamic";
 
-    if (!session?.user?.id) {
+/**
+ * Get or create user by Supabase UID
+ */
+async function getUserBySupabaseUid(supabaseUid: string, email?: string): Promise<string | null> {
+  // First try to find by supabaseUid
+  let user = await prisma.user.findUnique({
+    where: { supabaseUid },
+    select: { id: true },
+  });
+
+  if (user) {
+    return user.id;
+  }
+
+  // If not found by supabaseUid, try by email and update supabaseUid
+  if (email) {
+    user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (user) {
+      // Update user with supabaseUid
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { supabaseUid },
+      });
+      return user.id;
+    }
+
+    // Create new user if not found
+    const newUser = await prisma.user.create({
+      data: {
+        supabaseUid,
+        email,
+      },
+      select: { id: true },
+    });
+    return newUser.id;
+  }
+
+  return null;
+}
+
+// GET - List user's tracked topics
+export async function GET(request: NextRequest) {
+  try {
+    // Get Supabase access token from Authorization header
+    const authHeader = request.headers.get("Authorization");
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Unauthorized - No token provided" },
         { status: 401 }
       );
     }
 
+    const accessToken = authHeader.split("Bearer ")[1];
+    const supabaseUser = await verifySupabaseToken(accessToken);
+
+    if (!supabaseUser) {
+      return NextResponse.json(
+        { error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const userId = await getUserBySupabaseUid(supabaseUser.id, supabaseUser.email);
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
     const topics = await prisma.trackedTopic.findMany({
-      where: { userId: session.user.id },
+      where: { userId },
       orderBy: { createdAt: "desc" },
     });
 
@@ -33,12 +99,32 @@ export async function GET() {
 // POST - Add a new tracked topic
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    // Get Supabase access token from Authorization header
+    const authHeader = request.headers.get("Authorization");
 
-    if (!session?.user?.id) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Unauthorized - No token provided" },
         { status: 401 }
+      );
+    }
+
+    const accessToken = authHeader.split("Bearer ")[1];
+    const supabaseUser = await verifySupabaseToken(accessToken);
+
+    if (!supabaseUser) {
+      return NextResponse.json(
+        { error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const userId = await getUserBySupabaseUid(supabaseUser.id, supabaseUser.email);
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
       );
     }
 
@@ -58,7 +144,7 @@ export async function POST(request: NextRequest) {
     const existing = await prisma.trackedTopic.findUnique({
       where: {
         userId_query: {
-          userId: session.user.id,
+          userId,
           query: normalizedQuery,
         },
       },
@@ -73,7 +159,7 @@ export async function POST(request: NextRequest) {
 
     const topic = await prisma.trackedTopic.create({
       data: {
-        userId: session.user.id,
+        userId,
         query: normalizedQuery,
         name: name?.trim() || query.trim(),
       },
@@ -92,12 +178,32 @@ export async function POST(request: NextRequest) {
 // DELETE - Remove a tracked topic
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    // Get Supabase access token from Authorization header
+    const authHeader = request.headers.get("Authorization");
 
-    if (!session?.user?.id) {
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(
-        { error: "Unauthorized" },
+        { error: "Unauthorized - No token provided" },
         { status: 401 }
+      );
+    }
+
+    const accessToken = authHeader.split("Bearer ")[1];
+    const supabaseUser = await verifySupabaseToken(accessToken);
+
+    if (!supabaseUser) {
+      return NextResponse.json(
+        { error: "Unauthorized - Invalid token" },
+        { status: 401 }
+      );
+    }
+
+    const userId = await getUserBySupabaseUid(supabaseUser.id, supabaseUser.email);
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
       );
     }
 
@@ -115,7 +221,7 @@ export async function DELETE(request: NextRequest) {
     const topic = await prisma.trackedTopic.findFirst({
       where: {
         id: topicId,
-        userId: session.user.id,
+        userId,
       },
     });
 

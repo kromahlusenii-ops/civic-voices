@@ -78,6 +78,19 @@ export interface SuggestedQuery {
   query: string;
 }
 
+export interface IntentionData {
+  name: "Inform" | "Persuade" | "Entertain" | "Express";
+  percentage: number;
+  engagementRate: number;
+}
+
+export interface TopicAnalysis {
+  topic: string;
+  postsOverview: string;      // AI summary of post trends/highlights
+  commentsOverview: string;   // AI summary of audience engagement in comments
+  postIds: string[];          // IDs of related posts for Mentions section
+}
+
 export interface AIAnalysis {
   interpretation: string;
   keyThemes: string[];
@@ -87,6 +100,8 @@ export interface AIAnalysis {
   };
   suggestedQueries: SuggestedQuery[];
   followUpQuestion: string;
+  intentionsBreakdown?: IntentionData[];
+  topicAnalysis?: TopicAnalysis[];
 }
 
 export interface PlatformError {
@@ -184,6 +199,10 @@ export interface TikTokVideo {
   };
   video: {
     downloadAddr: string;
+    cover?: string;        // Standard thumbnail image
+    originCover?: string;  // Original/full-resolution cover
+    dynamicCover?: string; // Animated cover (GIF preview)
+    reflowCover?: string;  // Square-cropped thumbnail (480x480)
   };
 }
 
@@ -229,6 +248,45 @@ export interface YouTubeSearchResponse {
 
 export interface YouTubeVideosResponse {
   items?: YouTubeVideo[];
+}
+
+// YouTube Comment types
+export interface YouTubeCommentSnippet {
+  videoId: string;
+  textDisplay: string;
+  textOriginal: string;
+  authorDisplayName: string;
+  authorProfileImageUrl: string;
+  authorChannelUrl: string;
+  authorChannelId?: { value: string };
+  likeCount: number;
+  publishedAt: string;
+  updatedAt: string;
+}
+
+export interface YouTubeComment {
+  id: string;
+  snippet: YouTubeCommentSnippet;
+}
+
+export interface YouTubeCommentThread {
+  id: string;
+  snippet: {
+    videoId: string;
+    topLevelComment: YouTubeComment;
+    canReply: boolean;
+    totalReplyCount: number;
+    isPublic: boolean;
+  };
+}
+
+export interface YouTubeCommentThreadsResponse {
+  items?: YouTubeCommentThread[];
+  nextPageToken?: string;
+  pageInfo?: {
+    totalResults: number;
+    resultsPerPage: number;
+  };
 }
 
 // Bluesky specific types

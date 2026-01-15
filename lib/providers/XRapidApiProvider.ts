@@ -22,6 +22,8 @@ const RAPIDAPI_HOST = "twitter-v24.p.rapidapi.com";
 const RAPIDAPI_BASE = `https://${RAPIDAPI_HOST}`;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_BASE_DELAY_MS = 1000;
+const REPLIES_CACHE_TTL_MS = 5 * 60 * 1000;
+const repliesCache = new Map<string, { expiresAt: number; data: Post[] }>();
 
 export interface XRapidApiProviderConfig {
   apiKey: string;
@@ -41,6 +43,28 @@ export interface XRapidApiSearchResult {
   totalResults?: number;
 }
 
+// Media types from Twitter extended_entities
+interface OldBirdMedia {
+  type?: "photo" | "video" | "animated_gif";
+  media_url_https?: string;
+  url?: string;
+  display_url?: string;
+  expanded_url?: string;
+  sizes?: {
+    thumb?: { w: number; h: number };
+    small?: { w: number; h: number };
+    medium?: { w: number; h: number };
+    large?: { w: number; h: number };
+  };
+  video_info?: {
+    variants?: Array<{
+      bitrate?: number;
+      content_type?: string;
+      url?: string;
+    }>;
+  };
+}
+
 // Response types from The Old Bird V2 API
 interface OldBirdTweet {
   rest_id?: string;
@@ -57,6 +81,12 @@ interface OldBirdTweet {
       count?: string;
     };
     user_id_str?: string;
+    extended_entities?: {
+      media?: OldBirdMedia[];
+    };
+    entities?: {
+      media?: OldBirdMedia[];
+    };
   };
   views?: {
     count?: string;
@@ -280,13 +310,29 @@ export class XRapidApiProvider {
    * Endpoint: /tweet/replies?tweet_id=...
    */
   async getTweetReplies(tweetId: string, maxResults: number = 50): Promise<Post[]> {
+    const cacheKey = `${tweetId}:${maxResults}`;
+    const cached = repliesCache.get(cacheKey);
+    if (cached) {
+      if (cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
+      repliesCache.delete(cacheKey);
+    }
+
     const url = `${RAPIDAPI_BASE}/tweet/replies?tweet_id=${tweetId}&count=${maxResults}`;
 
     try {
       const response = await this.fetchWithRetry<OldBirdSearchResponse>(url);
       const result = this.parseSearchResponse(response);
+      repliesCache.set(cacheKey, {
+        expiresAt: Date.now() + REPLIES_CACHE_TTL_MS,
+        data: result.posts,
+      });
       return result.posts;
     } catch (error) {
+      if (error instanceof XRapidApiError && error.status === 404) {
+        return [];
+      }
       console.error(`[X RapidAPI] Failed to fetch replies for tweet ${tweetId}:`, error);
       return [];
     }
@@ -356,6 +402,11 @@ export class XRapidApiProvider {
     // Extract author metadata for credibility scoring
     const authorMetadata = this.extractAuthorMetadata(user);
 
+    // Extract thumbnail from media (prefer extended_entities over entities)
+    const media = legacy.extended_entities?.media || legacy.entities?.media;
+    const firstMedia = media?.[0];
+    const thumbnail = firstMedia?.media_url_https;
+
     return {
       id: tweetId,
       text: legacy.full_text || "",
@@ -371,6 +422,7 @@ export class XRapidApiProvider {
         views: viewCount,
       },
       url: `https://twitter.com/${screenName}/status/${tweetId}`,
+      thumbnail,
       authorMetadata,
     };
   }

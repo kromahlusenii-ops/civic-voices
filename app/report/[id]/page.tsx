@@ -11,11 +11,15 @@ import {
   convertSentimentToEmotions,
   ContentBreakdown,
   generateCategoryData,
+  generateFormatData,
   TopicsTable,
   generateTopicsFromThemes,
-  PlatformBreakdown,
   TopPosts,
+  ShareModal,
+  DashboardTabs,
+  SocialPostGrid,
 } from "@/app/components/report";
+import type { DashboardTab } from "@/app/components/report";
 import type { Post, AIAnalysis } from "@/lib/types/api";
 import type { JobStatus } from "@prisma/client";
 
@@ -82,52 +86,79 @@ export default function ReportPage() {
   const { isAuthenticated, loading: authLoading, getAccessToken } = useAuth();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [isInsightsLoading, setIsInsightsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_insightsError, setInsightsError] = useState<string | null>(null);
 
   // Track if initial load has happened
   const hasLoadedRef = useRef(false);
+  const hasTriggeredInsightsRef = useRef(false);
+  const insightsPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch report data from API
-  const fetchReportData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchReportData = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setIsLoading(true);
+      setError(null);
+    }
 
     try {
-      const token = await getAccessToken();
-      if (!token) {
-        setShowAuthModal(true);
-        setIsLoading(false);
-        return;
+      // Check for share token in URL
+      const searchParams = new URLSearchParams(window.location.search);
+      const shareToken = searchParams.get("token");
+
+      // Build fetch URL
+      let url = `/api/report/${params.id}`;
+      if (shareToken) {
+        url += `?token=${shareToken}`;
       }
 
-      const response = await fetch(`/api/report/${params.id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      // Try authenticated access if available
+      const token = await getAccessToken();
+      const headers: HeadersInit = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url, { headers });
 
       if (!response.ok) {
         if (response.status === 401) {
-          setShowAuthModal(true);
+          // No auth and no valid share - show login
+          if (!shareToken) {
+            setShowAuthModal(true);
+            setIsLoading(false);
+            return;
+          }
+          setError("Share link is invalid or expired");
           setIsLoading(false);
           return;
         }
         if (response.status === 404) {
-          setError("Report not found");
+          setError(shareToken ? "Share link is invalid or expired" : "Report not found");
           setIsLoading(false);
           return;
         }
         throw new Error("Failed to fetch report");
       }
 
-      const data: ReportData = await response.json();
+      const data = await response.json();
       setReportData(data);
+      setIsOwner(data.isOwner === true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      if (!options?.silent) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
     } finally {
-      setIsLoading(false);
+      if (!options?.silent) {
+        setIsLoading(false);
+      }
     }
   }, [params.id, getAccessToken]);
 
@@ -135,9 +166,25 @@ export default function ReportPage() {
   useEffect(() => {
     if (authLoading) return;
 
+    const searchParams = new URLSearchParams(window.location.search);
+    const shareToken = searchParams.get("token");
+
+    // If has share token, proceed without requiring auth
+    if (shareToken) {
+      if (!hasLoadedRef.current) {
+        hasLoadedRef.current = true;
+        fetchReportData();
+      }
+      return;
+    }
+
+    // Otherwise check auth
     if (!isAuthenticated) {
-      setShowAuthModal(true);
-      setIsLoading(false);
+      // Try fetching anyway - might be a public report
+      if (!hasLoadedRef.current) {
+        hasLoadedRef.current = true;
+        fetchReportData();
+      }
     } else if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
       setShowAuthModal(false);
@@ -151,6 +198,119 @@ export default function ReportPage() {
     hasLoadedRef.current = true;
     fetchReportData();
   };
+
+  const triggerInsights = useCallback(async (): Promise<boolean> => {
+    if (hasTriggeredInsightsRef.current) return false;
+    hasTriggeredInsightsRef.current = true;
+    setInsightsError(null);
+    setIsInsightsLoading(true);
+
+    try {
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required to generate insights");
+      }
+
+      const response = await fetch(`/api/report/${params.id}/insights`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to start insights");
+      }
+
+      return true;
+    } catch (err) {
+      setInsightsError(err instanceof Error ? err.message : "Failed to generate insights");
+      setIsInsightsLoading(false);
+      hasTriggeredInsightsRef.current = false;
+      return false;
+    }
+  }, [getAccessToken, params.id]);
+
+  const startInsightsPolling = useCallback(() => {
+    let attempts = 0;
+    const maxAttempts = 12;
+    const intervalMs = 10000;
+
+    const poll = async () => {
+      attempts += 1;
+      await fetchReportData({ silent: true });
+
+      if (attempts >= maxAttempts) {
+        setIsInsightsLoading(false);
+        return;
+      }
+
+      insightsPollTimeoutRef.current = setTimeout(poll, intervalMs);
+    };
+
+    insightsPollTimeoutRef.current = setTimeout(poll, 4000);
+  }, [fetchReportData]);
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _handleRetryInsights = useCallback(async () => {
+    hasTriggeredInsightsRef.current = false;
+    setInsightsError(null);
+    const started = await triggerInsights();
+    if (started) {
+      startInsightsPolling();
+    }
+  }, [triggerInsights, startInsightsPolling]);
+
+  useEffect(() => {
+    if (!reportData || reportData.aiAnalysis || !isOwner) return;
+    if (isInsightsLoading) return;
+
+    triggerInsights().then((started) => {
+      if (started) {
+        startInsightsPolling();
+      }
+    });
+  }, [reportData, isOwner, isInsightsLoading, triggerInsights, startInsightsPolling]);
+
+  useEffect(() => {
+    if (reportData?.aiAnalysis) {
+      if (insightsPollTimeoutRef.current) {
+        clearTimeout(insightsPollTimeoutRef.current);
+      }
+      setIsInsightsLoading(false);
+      setInsightsError(null);
+    }
+  }, [reportData?.aiAnalysis]);
+
+  useEffect(() => {
+    return () => {
+      if (insightsPollTimeoutRef.current) {
+        clearTimeout(insightsPollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Sync tab state with URL on mount
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tabParam = searchParams.get("tab");
+    if (tabParam === "social-posts") {
+      setActiveTab("social-posts");
+    }
+  }, []);
+
+  // Handle tab change with URL persistence
+  const handleTabChange = useCallback((tab: DashboardTab) => {
+    setActiveTab(tab);
+    const url = new URL(window.location.href);
+    if (tab === "overview") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", tab);
+    }
+    window.history.replaceState({}, "", url.toString());
+  }, []);
 
   // Format date
   const formatDate = (dateString: string) => {
@@ -264,6 +424,24 @@ export default function ReportPage() {
                       </span>
                     ))}
                   </div>
+                  {/* Share Button - only show for owner */}
+                  {isOwner && (
+                    <button
+                      onClick={() => setShowShareModal(true)}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      aria-label="Share report"
+                      title="Share report"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                        />
+                      </svg>
+                    </button>
+                  )}
                   {/* Status Badge */}
                   <span
                     className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -284,120 +462,118 @@ export default function ReportPage() {
             </div>
           </header>
 
-          {/* Dashboard Content */}
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-            {/* AI Summary - Full Width */}
-            {reportData.aiAnalysis && (
-              <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">Summary</h3>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  {renderSummaryWithHighlights(reportData.aiAnalysis.interpretation)}
-                </p>
-              </div>
-            )}
-
-            {/* Metrics Row - Full Width */}
-            <MetricsRow
-              totalMentions={reportData.metrics.totalMentions}
-              totalEngagement={reportData.metrics.totalEngagement}
-              avgEngagement={reportData.metrics.avgEngagement}
-              overallSentiment={getOverallSentiment(reportData.metrics.sentimentBreakdown)}
+          {/* Tab Bar */}
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <DashboardTabs
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
             />
+          </div>
 
-            {/* Activity Chart - Full Width */}
-            <ActivityChart data={reportData.activityOverTime} />
+          {/* Dashboard Content */}
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+            {/* Overview Tab Content */}
+            {activeTab === "overview" && (
+              <>
+                {/* AI Summary - Full Width */}
+                {reportData.aiAnalysis && (
+                  <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-3">Summary</h3>
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      {renderSummaryWithHighlights(reportData.aiAnalysis.interpretation)}
+                    </p>
 
-            {/* Two Column: Emotions + Content Breakdown */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Emotions Breakdown */}
-              <EmotionsBreakdown
-                emotions={convertSentimentToEmotions(reportData.metrics.sentimentBreakdown)}
-                total={
-                  reportData.metrics.sentimentBreakdown.positive +
-                  reportData.metrics.sentimentBreakdown.neutral +
-                  reportData.metrics.sentimentBreakdown.negative
-                }
-              />
-
-              {/* Content Breakdown */}
-              {reportData.aiAnalysis?.keyThemes && (
-                <ContentBreakdown
-                  categories={generateCategoryData(reportData.aiAnalysis.keyThemes)}
-                />
-              )}
-            </div>
-
-            {/* Topics Table - Full Width */}
-            {reportData.aiAnalysis?.keyThemes && (
-              <TopicsTable
-                topics={generateTopicsFromThemes(
-                  reportData.aiAnalysis.keyThemes,
-                  reportData.metrics.totalEngagement * 15,
-                  reportData.metrics.totalEngagement
+                    {/* Sentiment Commentary */}
+                    {reportData.aiAnalysis.sentimentBreakdown && (
+                      <div className="mt-4 rounded-lg bg-gray-50 p-3">
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Sentiment: </span>
+                          <span className={`capitalize ${
+                            reportData.aiAnalysis.sentimentBreakdown.overall === "positive" ? "text-green-600" :
+                            reportData.aiAnalysis.sentimentBreakdown.overall === "negative" ? "text-red-600" :
+                            reportData.aiAnalysis.sentimentBreakdown.overall === "mixed" ? "text-yellow-600" :
+                            "text-gray-600"
+                          }`}>
+                            {reportData.aiAnalysis.sentimentBreakdown.overall}
+                          </span>
+                          {" - "}{reportData.aiAnalysis.sentimentBreakdown.summary}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
-              />
+
+                {/* Metrics Row - Full Width */}
+                <MetricsRow
+                  totalMentions={reportData.metrics.totalMentions}
+                  totalEngagement={reportData.metrics.totalEngagement}
+                  avgEngagement={reportData.metrics.avgEngagement}
+                  overallSentiment={getOverallSentiment(reportData.metrics.sentimentBreakdown)}
+                />
+
+                {/* Activity Chart - Full Width */}
+                <ActivityChart data={reportData.activityOverTime} />
+
+                {/* Two Column: Emotions + Content Breakdown */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Emotions Breakdown */}
+                  <EmotionsBreakdown
+                    emotions={convertSentimentToEmotions(reportData.metrics.sentimentBreakdown)}
+                    total={
+                      reportData.metrics.sentimentBreakdown.positive +
+                      reportData.metrics.sentimentBreakdown.neutral +
+                      reportData.metrics.sentimentBreakdown.negative
+                    }
+                  />
+
+                  {/* Content Breakdown */}
+                  {reportData.aiAnalysis?.keyThemes && (
+                    <ContentBreakdown
+                      categories={generateCategoryData(reportData.aiAnalysis.keyThemes)}
+                      intentions={reportData.aiAnalysis.intentionsBreakdown}
+                      formats={generateFormatData(reportData.posts)}
+                    />
+                  )}
+                </div>
+
+                {/* Topics Table - Full Width */}
+                {reportData.aiAnalysis?.keyThemes && (
+                  <TopicsTable
+                    topics={generateTopicsFromThemes(
+                      reportData.aiAnalysis.keyThemes,
+                      reportData.metrics.totalEngagement * 15,
+                      reportData.metrics.totalEngagement,
+                      reportData.aiAnalysis.topicAnalysis,
+                      reportData.posts
+                    )}
+                  />
+                )}
+
+                {/* Top Posts - Full Width */}
+                <TopPosts posts={reportData.topPosts} limit={5} />
+              </>
             )}
 
-            {/* Platform & Top Posts - Two Column */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Platform Breakdown */}
-              <PlatformBreakdown platforms={reportData.metrics.platformBreakdown} />
-
-              {/* Top Posts */}
-              <TopPosts posts={reportData.topPosts} limit={5} />
-            </div>
-
-            {/* All Posts Section - Collapsible */}
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100">
-                <h3 className="text-sm font-semibold text-gray-800">
-                  All Posts ({reportData.posts.length})
-                </h3>
-              </div>
-              <div className="divide-y divide-gray-50 max-h-96 overflow-y-auto">
-                {reportData.posts.map((post) => (
-                  <a
-                    key={post.id}
-                    href={post.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block px-5 py-4 hover:bg-gray-50/50 transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="text-gray-400 mt-0.5">
-                        {SOURCE_ICONS[post.platform]}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-gray-900 text-sm">
-                            {post.author}
-                          </span>
-                          <span className="text-gray-400 text-xs">
-                            @{post.authorHandle}
-                          </span>
-                          {post.sentiment && (
-                            <span
-                              className={`text-xs px-2 py-0.5 rounded-full ${
-                                post.sentiment === "positive"
-                                  ? "bg-green-50 text-green-700"
-                                  : post.sentiment === "negative"
-                                  ? "bg-red-50 text-red-700"
-                                  : "bg-gray-50 text-gray-600"
-                              }`}
-                            >
-                              {post.sentiment}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-gray-600 text-sm line-clamp-2">{post.text}</p>
-                      </div>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
+            {/* Social Posts Tab Content */}
+            {activeTab === "social-posts" && (
+              <>
+                {/* Social Posts Grid */}
+                <SocialPostGrid posts={reportData.posts} />
+              </>
+            )}
           </main>
         </div>
+      )}
+
+      {/* Share Modal */}
+      {reportData && (
+        <ShareModal
+          isOpen={showShareModal}
+          reportId={reportData.report.id}
+          reportQuery={reportData.report.query}
+          onClose={() => setShowShareModal(false)}
+          getAccessToken={getAccessToken}
+        />
       )}
     </div>
   );

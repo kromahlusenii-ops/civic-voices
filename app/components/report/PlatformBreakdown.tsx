@@ -1,5 +1,10 @@
 "use client";
 
+import { useState } from "react";
+import InfoButton, { type ValueExplanation } from "@/components/InfoButton";
+import InfoModal from "@/components/InfoModal";
+import { getExplanation } from "@/lib/valueExplanations";
+
 interface PlatformBreakdownProps {
   platforms: Record<string, number>;
 }
@@ -56,15 +61,28 @@ const PLATFORM_CONFIG: Record<
 };
 
 export default function PlatformBreakdown({ platforms }: PlatformBreakdownProps) {
+  const [modalExplanation, setModalExplanation] = useState<ValueExplanation | null>(null);
   const total = Object.values(platforms).reduce((sum, count) => sum + count, 0);
 
   if (total === 0) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-4">
-        <h3 className="text-sm font-medium text-gray-700 mb-4">
-          Platform Distribution
-        </h3>
+        <div className="flex items-center mb-4">
+          <h3 className="text-sm font-medium text-gray-700">
+            Platform Distribution
+          </h3>
+          <InfoButton
+            explanation={getExplanation("platformBreakdown")}
+            onOpenModal={setModalExplanation}
+          />
+        </div>
         <p className="text-sm text-gray-500">No platform data available</p>
+
+        <InfoModal
+          isOpen={modalExplanation !== null}
+          explanation={modalExplanation}
+          onClose={() => setModalExplanation(null)}
+        />
       </div>
     );
   }
@@ -74,46 +92,61 @@ export default function PlatformBreakdown({ platforms }: PlatformBreakdownProps)
     .filter(([, count]) => count > 0);
 
   return (
-    <div
-      className="bg-white rounded-lg border border-gray-200 p-4"
-      data-testid="platform-breakdown"
-    >
-      <h3 className="text-sm font-medium text-gray-700 mb-4">
-        Platform Distribution
-      </h3>
+    <>
+      <div
+        className="bg-white rounded-lg border border-gray-200 p-4"
+        data-testid="platform-breakdown"
+      >
+        <div className="flex items-center mb-4">
+          <h3 className="text-sm font-medium text-gray-700">
+            Platform Distribution
+          </h3>
+          <InfoButton
+            explanation={getExplanation("platformBreakdown")}
+            onOpenModal={setModalExplanation}
+          />
+        </div>
 
-      <div className="space-y-3">
-        {sortedPlatforms.map(([platform, count]) => {
-          const config = PLATFORM_CONFIG[platform] || {
-            label: platform,
-            color: "bg-gray-500",
-            icon: null,
-          };
-          const percentage = Math.round((count / total) * 100);
+        <div className="space-y-3">
+          {sortedPlatforms.map(([platform, count]) => {
+            const config = PLATFORM_CONFIG[platform] || {
+              label: platform,
+              color: "bg-gray-500",
+              icon: null,
+            };
+            const percentage = Math.round((count / total) * 100);
 
-          return (
-            <div key={platform}>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  {config.icon && (
-                    <span className="text-gray-600">{config.icon}</span>
-                  )}
-                  <span className="text-sm text-gray-700">{config.label}</span>
+            return (
+              <div key={platform}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    {config.icon && (
+                      <span className="text-gray-600">{config.icon}</span>
+                    )}
+                    <span className="text-sm text-gray-700">{config.label}</span>
+                  </div>
+                  <span className="text-sm text-gray-600">
+                    {count} ({percentage}%)
+                  </span>
                 </div>
-                <span className="text-sm text-gray-600">
-                  {count} ({percentage}%)
-                </span>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${config.color} transition-all duration-300`}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
               </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${config.color} transition-all duration-300`}
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Info Modal */}
+      <InfoModal
+        isOpen={modalExplanation !== null}
+        explanation={modalExplanation}
+        onClose={() => setModalExplanation(null)}
+      />
+    </>
   );
 }

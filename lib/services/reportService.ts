@@ -7,14 +7,130 @@
 
 import { prisma } from "@/lib/prisma";
 import { JobStatus, Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import {
   SentimentClassificationService,
   type Sentiment,
 } from "./sentimentClassification";
 import AIAnalysisService from "./aiAnalysis";
 import { XRapidApiProvider } from "@/lib/providers/XRapidApiProvider";
+import { YouTubeProvider } from "@/lib/providers/YouTubeProvider";
 import { config } from "@/lib/config";
 import type { Post, AIAnalysis } from "@/lib/types/api";
+
+// Comment data structure for multi-platform support
+export interface PostComments {
+  parentId: string;
+  platform: string;
+  comments: Post[];
+}
+
+// Progress event types for streaming report generation
+export type ReportProgressStep =
+  | "initializing"
+  | "fetching_data"
+  | "sentiment_analysis"
+  | "fetching_comments"
+  | "calculating_metrics"
+  | "ai_analysis";
+
+export interface ReportProgressEvent {
+  type: "connected" | "progress" | "complete" | "error";
+  step?: ReportProgressStep;
+  message: string;
+  reportId?: string;
+}
+
+export type ProgressCallback = (event: ReportProgressEvent) => void;
+
+const TRANSACTION_TIMEOUT_MS = Number(
+  process.env.PRISMA_TRANSACTION_TIMEOUT_MS ?? 30000
+);
+const SENTIMENT_BATCH_SIZE = Number(
+  process.env.PRISMA_SENTIMENT_BATCH_SIZE ?? 200
+);
+const SENTIMENT_API_BATCH_SIZE = Number(
+  process.env.SENTIMENT_API_BATCH_SIZE ?? 30
+);
+const SENTIMENT_API_MAX_CONCURRENT = Number(
+  process.env.SENTIMENT_API_MAX_CONCURRENT ?? 10
+);
+const SENTIMENT_MAX_POSTS = Number(
+  process.env.SENTIMENT_MAX_POSTS ?? 150
+);
+// Default to NOT deferring insights - AI analysis runs during report generation
+const DEFER_REPORT_INSIGHTS = process.env.REPORT_DEFER_INSIGHTS === "true";
+const REPORT_AI_MAX_POSTS = Number(process.env.REPORT_AI_MAX_POSTS ?? 60);
+const REPORT_AI_MAX_COMMENT_POSTS = Number(
+  process.env.REPORT_AI_MAX_COMMENT_POSTS ?? 5
+);
+const REPORT_AI_MAX_COMMENTS_PER_POST = Number(
+  process.env.REPORT_AI_MAX_COMMENTS_PER_POST ?? 10
+);
+
+type PrismaClientLike = Prisma.TransactionClient | PrismaClient;
+
+export function getEngagementScore(post: {
+  engagement: Post["engagement"];
+}): number {
+  return (
+    (post.engagement.likes || 0) +
+    (post.engagement.comments || 0) +
+    (post.engagement.shares || 0) +
+    (post.engagement.views || 0)
+  );
+}
+
+export function getTopSentimentPosts<T extends { engagement: Post["engagement"] }>(
+  posts: T[],
+  limit: number
+): T[] {
+  if (limit <= 0 || posts.length <= limit) {
+    return posts;
+  }
+
+  return [...posts]
+    .sort((a, b) => getEngagementScore(b) - getEngagementScore(a))
+    .slice(0, limit);
+}
+
+function getTopAnalysisPosts(posts: Post[], limit: number): Post[] {
+  if (limit <= 0 || posts.length <= limit) {
+    return posts;
+  }
+
+  return [...posts]
+    .sort((a, b) => getEngagementScore(b) - getEngagementScore(a))
+    .slice(0, limit);
+}
+
+async function updatePostSentiments(
+  client: PrismaClientLike,
+  sentiments: Map<string, Sentiment>
+) {
+  if (sentiments.size === 0) {
+    return;
+  }
+
+  const entries = Array.from(sentiments.entries());
+  for (let i = 0; i < entries.length; i += SENTIMENT_BATCH_SIZE) {
+    const batch = entries.slice(i, i + SENTIMENT_BATCH_SIZE);
+    const caseFragments = batch.map(([id, sentiment]) =>
+      Prisma.sql`WHEN ${id} THEN ${sentiment}`
+    );
+    const idFragments = batch.map(([id]) => Prisma.sql`${id}`);
+
+    // Use a CASE update to reduce per-row updates inside the transaction.
+    await client.$executeRaw(
+      Prisma.sql`UPDATE "search_posts"
+        SET "sentiment" = CASE "id"
+          ${Prisma.join(caseFragments, " ")}
+          ELSE "sentiment"
+        END
+        WHERE "id" IN (${Prisma.join(idFragments, ", ")})`
+    );
+  }
+}
 
 // Types for report data
 export interface ReportMetrics {
@@ -49,59 +165,106 @@ export interface ReportData {
   posts: Array<Post & { sentiment: Sentiment | null }>;
   aiAnalysis: AIAnalysis | null;
   topPosts: Array<Post & { sentiment: Sentiment | null }>;
-  topPostReplies?: Array<{ parentId: string; replies: Post[] }>;
+  topPostComments?: PostComments[];
+}
+
+export interface ShareSettings {
+  isPublic: boolean;
+  shareToken: string | null;
+  shareTokenExpiresAt: string | null;
+  shareUrl: string | null;
+}
+
+export interface UpdateShareSettingsInput {
+  isPublic?: boolean;
+  generateToken?: boolean;
+  revokeToken?: boolean;
+  tokenExpiresInDays?: number;
 }
 
 /**
- * Fetch replies for top engaging X posts to enrich report analysis
+ * Fetch comments/replies for top engaging posts across platforms
+ * Currently supports: X/Twitter and YouTube
  */
-async function fetchTopPostReplies(
+async function fetchTopPostComments(
   posts: Post[],
-  maxPosts: number = 5,
-  maxRepliesPerPost: number = 20
-): Promise<Array<{ parentId: string; replies: Post[] }>> {
-  if (!config.x.rapidApiKey) {
-    return [];
+  maxPostsPerPlatform: number = 5,
+  maxCommentsPerPost: number = 20
+): Promise<PostComments[]> {
+  const results: PostComments[] = [];
+  const xMaxPosts = Math.min(maxPostsPerPlatform, 3);
+  const xMaxComments = Math.min(maxCommentsPerPost, 10);
+
+  // Sort posts by engagement helper
+  const sortByEngagement = (a: Post, b: Post) => {
+    const engA = (a.engagement.likes || 0) + (a.engagement.comments || 0) * 2;
+    const engB = (b.engagement.likes || 0) + (b.engagement.comments || 0) * 2;
+    return engB - engA;
+  };
+
+  // Fetch X/Twitter replies
+  if (config.x.rapidApiKey) {
+    const xProvider = new XRapidApiProvider({ apiKey: config.x.rapidApiKey });
+    const xPosts = posts
+      .filter(p => p.platform === "x")
+      .sort(sortByEngagement)
+      .slice(0, xMaxPosts);
+
+    if (xPosts.length > 0) {
+      console.log(`[Report] Fetching replies for ${xPosts.length} top X posts`);
+
+      const xPromises = xPosts.map(async (post) => {
+        try {
+          const replies = await xProvider.getTweetReplies(post.id, xMaxComments);
+          return { parentId: post.id, platform: "x", comments: replies };
+        } catch (error) {
+          console.error(`[Report] Failed to fetch X replies for ${post.id}:`, error);
+          return { parentId: post.id, platform: "x", comments: [] };
+        }
+      });
+
+      const xSettled = await Promise.allSettled(xPromises);
+      for (const result of xSettled) {
+        if (result.status === "fulfilled" && result.value.comments.length > 0) {
+          results.push(result.value);
+        }
+      }
+    }
   }
 
-  const xProvider = new XRapidApiProvider({ apiKey: config.x.rapidApiKey });
+  // Fetch YouTube comments
+  if (config.providers.youtube?.apiKey) {
+    const youtubeProvider = new YouTubeProvider({ apiKey: config.providers.youtube.apiKey });
+    const youtubePosts = posts
+      .filter(p => p.platform === "youtube")
+      .sort(sortByEngagement)
+      .slice(0, maxPostsPerPlatform);
 
-  // Get top X posts by engagement
-  const xPosts = posts
-    .filter(p => p.platform === "x")
-    .sort((a, b) => {
-      const engA = (a.engagement.likes || 0) + (a.engagement.comments || 0) * 2;
-      const engB = (b.engagement.likes || 0) + (b.engagement.comments || 0) * 2;
-      return engB - engA;
-    })
-    .slice(0, maxPosts);
+    if (youtubePosts.length > 0) {
+      console.log(`[Report] Fetching comments for ${youtubePosts.length} top YouTube videos`);
 
-  if (xPosts.length === 0) return [];
+      const ytPromises = youtubePosts.map(async (post) => {
+        try {
+          const comments = await youtubeProvider.getVideoComments(post.id, maxCommentsPerPost);
+          return { parentId: post.id, platform: "youtube", comments };
+        } catch (error) {
+          console.error(`[Report] Failed to fetch YouTube comments for ${post.id}:`, error);
+          return { parentId: post.id, platform: "youtube", comments: [] };
+        }
+      });
 
-  console.log(`[Report] Fetching replies for ${xPosts.length} top X posts`);
-
-  const results: Array<{ parentId: string; replies: Post[] }> = [];
-
-  // Fetch replies in parallel with a limit
-  const replyPromises = xPosts.map(async (post) => {
-    try {
-      const replies = await xProvider.getTweetReplies(post.id, maxRepliesPerPost);
-      return { parentId: post.id, replies };
-    } catch (error) {
-      console.error(`[Report] Failed to fetch replies for ${post.id}:`, error);
-      return { parentId: post.id, replies: [] };
-    }
-  });
-
-  const settled = await Promise.allSettled(replyPromises);
-  for (const result of settled) {
-    if (result.status === "fulfilled" && result.value.replies.length > 0) {
-      results.push(result.value);
+      const ytSettled = await Promise.allSettled(ytPromises);
+      for (const result of ytSettled) {
+        if (result.status === "fulfilled" && result.value.comments.length > 0) {
+          results.push(result.value);
+        }
+      }
     }
   }
 
-  const totalReplies = results.reduce((sum, r) => sum + r.replies.length, 0);
-  console.log(`[Report] Fetched ${totalReplies} total replies from ${results.length} posts`);
+  const totalComments = results.reduce((sum, r) => sum + r.comments.length, 0);
+  const platforms = [...new Set(results.map(r => r.platform))];
+  console.log(`[Report] Fetched ${totalComments} total comments from ${results.length} posts (${platforms.join(", ")})`);
 
   return results;
 }
@@ -146,15 +309,19 @@ async function getUserIdFromSupabaseUid(supabaseUid: string): Promise<string> {
 
 /**
  * Start a report generation job from a saved search
+ *
+ * Uses "Read Fast, Process Slow, Write Fast" pattern to prevent
+ * connection pool exhaustion during long-running external API calls.
  */
 export async function startReport(
   searchId: string,
   supabaseUid: string
 ): Promise<{ reportId: string }> {
-  // Get internal user ID
+  // ============================================
+  // PHASE 1: Quick DB reads - get all data needed
+  // ============================================
   const userId = await getUserIdFromSupabaseUid(supabaseUid);
 
-  // Fetch the search with its posts
   const search = await prisma.search.findFirst({
     where: {
       id: searchId,
@@ -169,7 +336,6 @@ export async function startReport(
     throw new Error("Search not found or access denied");
   }
 
-  // Create a new ResearchJob
   const job = await prisma.researchJob.create({
     data: {
       userId,
@@ -184,35 +350,59 @@ export async function startReport(
     },
   });
 
+  // Store all data we need in local variables - DB connections now released
+  const searchData = {
+    id: search.id,
+    queryText: search.queryText,
+    sources: search.sources as string[],
+    filtersJson: search.filtersJson as { timeFilter?: string; language?: string },
+    posts: search.posts.map((post) => ({
+      id: post.id,  // Internal DB ID for updates
+      postId: post.postId,
+      text: post.text,
+      author: post.author,
+      authorHandle: post.authorHandle,
+      authorAvatar: post.authorAvatar,
+      createdAt: post.createdAt,
+      platform: post.platform,
+      engagement: post.engagement as Post["engagement"],
+      url: post.url,
+      thumbnail: post.thumbnail,
+    })),
+  };
+
+  const jobId = job.id;
+
   try {
-    // Run sentiment classification if we have posts and API key
-    if (search.posts.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    // ============================================
+    // PHASE 2: External API calls (no DB connections held)
+    // ============================================
+
+    // Sentiment classification - results stored in memory
+    let sentiments: Map<string, Sentiment> = new Map();
+    if (searchData.posts.length > 0 && process.env.ANTHROPIC_API_KEY) {
       const sentimentService = new SentimentClassificationService(
-        process.env.ANTHROPIC_API_KEY
+        process.env.ANTHROPIC_API_KEY,
+        {
+          batchSize: SENTIMENT_API_BATCH_SIZE,
+          maxConcurrent: SENTIMENT_API_MAX_CONCURRENT,
+        }
       );
 
-      // Prepare posts for classification
-      const postsToClassify = search.posts.map((post) => ({
+      const sentimentCandidates = getTopSentimentPosts(
+        searchData.posts,
+        SENTIMENT_MAX_POSTS
+      );
+      const postsToClassify = sentimentCandidates.map((post) => ({
         id: post.id,
         text: post.text,
       }));
 
-      // Classify all posts
-      const sentiments = await sentimentService.classifyAll(postsToClassify);
-
-      // Update posts with sentiment using a transaction (single connection)
-      await prisma.$transaction(
-        Array.from(sentiments.entries()).map(([postId, sentiment]) =>
-          prisma.searchPost.update({
-            where: { id: postId },
-            data: { sentiment },
-          })
-        )
-      );
+      sentiments = await sentimentService.classifyAll(postsToClassify);
     }
 
     // Convert posts to the format expected by AI service
-    const postsForAnalysis: Post[] = search.posts.map((post) => ({
+    const postsForAnalysis: Post[] = searchData.posts.map((post) => ({
       id: post.postId,
       text: post.text,
       author: post.author,
@@ -225,67 +415,101 @@ export async function startReport(
       thumbnail: post.thumbnail || undefined,
     }));
 
-    // Fetch replies for top posts to enrich analysis
-    let topPostReplies: Array<{ parentId: string; replies: Post[] }> = [];
-    try {
-      topPostReplies = await fetchTopPostReplies(postsForAnalysis, 5, 20);
-    } catch (error) {
-      console.error("[Report] Failed to fetch top post replies:", error);
-    }
+    const limitedPostsForAnalysis = getTopAnalysisPosts(
+      postsForAnalysis,
+      REPORT_AI_MAX_POSTS
+    );
 
-    // Generate AI analysis
+    // Optionally defer comments + AI analysis to speed up report generation.
+    let topPostComments: PostComments[] = [];
+    let commentsFetched = false;
     let aiAnalysis: AIAnalysis | null = null;
-    if (process.env.ANTHROPIC_API_KEY) {
-      const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
 
-      // Combine main posts with replies for richer analysis
-      const allReplies = topPostReplies.flatMap(r => r.replies);
-      const enrichedPosts = [...postsForAnalysis, ...allReplies];
+    if (!DEFER_REPORT_INSIGHTS) {
+      // Fetch comments from X/YouTube - results stored in memory
+      try {
+        topPostComments = await fetchTopPostComments(
+          limitedPostsForAnalysis,
+          REPORT_AI_MAX_COMMENT_POSTS,
+          REPORT_AI_MAX_COMMENTS_PER_POST
+        );
+        commentsFetched = true;
+      } catch (error) {
+        console.error("[Report] Failed to fetch top post comments:", error);
+      }
 
-      console.log(`[Report] AI analysis with ${postsForAnalysis.length} posts + ${allReplies.length} replies`);
+      // AI analysis - results stored in memory
+      if (process.env.ANTHROPIC_API_KEY) {
+        const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
 
-      aiAnalysis = await aiService.generateAnalysis(
-        search.queryText,
-        enrichedPosts,
-        {
-          timeRange: (search.filtersJson as { timeFilter?: string })?.timeFilter,
-          language: (search.filtersJson as { language?: string })?.language,
-          sources: search.sources as string[],
+        const totalCommentsCount = topPostComments.reduce(
+          (sum, r) => sum + r.comments.length,
+          0
+        );
+        console.log(
+          `[Report] AI analysis with ${limitedPostsForAnalysis.length} posts + ${totalCommentsCount} comments`
+        );
+
+        aiAnalysis = await aiService.generateAnalysis(
+          searchData.queryText,
+          limitedPostsForAnalysis,
+          {
+            timeRange: searchData.filtersJson?.timeFilter,
+            language: searchData.filtersJson?.language,
+            sources: searchData.sources,
+          },
+          topPostComments
+        );
+      }
+    }
+
+    // ============================================
+    // PHASE 3: Single batched DB write
+    // ============================================
+    await updatePostSentiments(prisma, sentiments);
+
+    await prisma.$transaction(
+      async (tx) => {
+        // Store AI insights
+        if (aiAnalysis) {
+          await tx.insight.create({
+            data: {
+              jobId,
+              outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
+              model: "claude-3-haiku-20240307",
+            },
+          });
         }
-      );
-    }
 
-    // Store AI insights
-    if (aiAnalysis) {
-      await prisma.insight.create({
-        data: {
-          jobId: job.id,
-          outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-          model: "claude-3-haiku-20240307",
-        },
-      });
-    }
+        // Link the search to this report
+        await tx.search.update({
+          where: { id: searchData.id },
+          data: { reportId: jobId },
+        });
 
-    // Link the search to this report
-    await prisma.search.update({
-      where: { id: searchId },
-      data: { reportId: job.id },
-    });
+        // Mark job as completed
+        const jobUpdateData: Prisma.ResearchJobUpdateInput = {
+          status: JobStatus.COMPLETED,
+          completedAt: new Date(),
+        };
+        if (commentsFetched) {
+          jobUpdateData.topPostCommentsJson =
+            topPostComments as unknown as Prisma.InputJsonValue;
+        }
 
-    // Mark job as completed
-    await prisma.researchJob.update({
-      where: { id: job.id },
-      data: {
-        status: JobStatus.COMPLETED,
-        completedAt: new Date(),
+        await tx.researchJob.update({
+          where: { id: jobId },
+          data: jobUpdateData,
+        });
       },
-    });
+      { timeout: TRANSACTION_TIMEOUT_MS }
+    );
 
-    return { reportId: job.id };
+    return { reportId: jobId };
   } catch (error) {
-    // Mark job as failed
+    // Mark job as failed (separate transaction since main one failed)
     await prisma.researchJob.update({
-      where: { id: job.id },
+      where: { id: jobId },
       data: {
         status: JobStatus.FAILED,
         completedAt: new Date(),
@@ -293,6 +517,369 @@ export async function startReport(
     });
     throw error;
   }
+}
+
+/**
+ * Start report generation with progress callbacks for streaming UI
+ *
+ * Uses "Read Fast, Process Slow, Write Fast" pattern to prevent
+ * connection pool exhaustion during long-running external API calls.
+ */
+export async function startReportWithProgress(
+  searchId: string,
+  supabaseUid: string,
+  onProgress: ProgressCallback
+): Promise<{ reportId: string }> {
+  // ============================================
+  // PHASE 1: Quick DB reads - get all data needed
+  // ============================================
+  onProgress({
+    type: "progress",
+    step: "initializing",
+    message: "Firing up the engines",
+  });
+
+  const userId = await getUserIdFromSupabaseUid(supabaseUid);
+
+  const search = await prisma.search.findFirst({
+    where: {
+      id: searchId,
+      userId,
+    },
+    include: {
+      posts: true,
+    },
+  });
+
+  if (!search) {
+    throw new Error("Search not found or access denied");
+  }
+
+  const job = await prisma.researchJob.create({
+    data: {
+      userId,
+      queryJson: {
+        query: search.queryText,
+        sources: search.sources,
+        filters: search.filtersJson,
+      } as Prisma.InputJsonValue,
+      status: JobStatus.RUNNING,
+      startedAt: new Date(),
+      totalResults: search.posts.length,
+    },
+  });
+
+  // Store all data we need in local variables - DB connections now released
+  const searchData = {
+    id: search.id,
+    queryText: search.queryText,
+    sources: search.sources as string[],
+    filtersJson: search.filtersJson as { timeFilter?: string; language?: string },
+    posts: search.posts.map((post) => ({
+      id: post.id,  // Internal DB ID for updates
+      postId: post.postId,
+      text: post.text,
+      author: post.author,
+      authorHandle: post.authorHandle,
+      authorAvatar: post.authorAvatar,
+      createdAt: post.createdAt,
+      platform: post.platform,
+      engagement: post.engagement as Post["engagement"],
+      url: post.url,
+      thumbnail: post.thumbnail,
+    })),
+  };
+
+  const jobId = job.id;
+
+  try {
+    // ============================================
+    // PHASE 2: External API calls (no DB connections held)
+    // ============================================
+
+    onProgress({
+      type: "progress",
+      step: "fetching_data",
+      message: "Gathering the juicy data",
+    });
+
+    // Convert posts to the format expected by AI service
+    const postsForAnalysis: Post[] = searchData.posts.map((post) => ({
+      id: post.postId,
+      text: post.text,
+      author: post.author,
+      authorHandle: post.authorHandle,
+      authorAvatar: post.authorAvatar || undefined,
+      createdAt: post.createdAt.toISOString(),
+      platform: post.platform.toLowerCase() as Post["platform"],
+      engagement: post.engagement as Post["engagement"],
+      url: post.url,
+      thumbnail: post.thumbnail || undefined,
+    }));
+
+    const limitedPostsForAnalysis = getTopAnalysisPosts(
+      postsForAnalysis,
+      REPORT_AI_MAX_POSTS
+    );
+
+    // Sentiment classification - results stored in memory
+    onProgress({
+      type: "progress",
+      step: "sentiment_analysis",
+      message: "Picking out the hot takes",
+    });
+
+    let sentiments: Map<string, Sentiment> = new Map();
+    if (searchData.posts.length > 0 && process.env.ANTHROPIC_API_KEY) {
+      const sentimentService = new SentimentClassificationService(
+        process.env.ANTHROPIC_API_KEY,
+        {
+          batchSize: SENTIMENT_API_BATCH_SIZE,
+          maxConcurrent: SENTIMENT_API_MAX_CONCURRENT,
+        }
+      );
+
+      const sentimentCandidates = getTopSentimentPosts(
+        searchData.posts,
+        SENTIMENT_MAX_POSTS
+      );
+      const postsToClassify = sentimentCandidates.map((post) => ({
+        id: post.id,
+        text: post.text,
+      }));
+
+      sentiments = await sentimentService.classifyAll(postsToClassify);
+    }
+
+    let topPostComments: PostComments[] = [];
+    let commentsFetched = false;
+    let aiAnalysis: AIAnalysis | null = null;
+
+    if (!DEFER_REPORT_INSIGHTS) {
+      // Fetch comments from X/YouTube - results stored in memory
+      onProgress({
+        type: "progress",
+        step: "fetching_comments",
+        message: "Connecting the dots",
+      });
+
+      try {
+        topPostComments = await fetchTopPostComments(
+          limitedPostsForAnalysis,
+          REPORT_AI_MAX_COMMENT_POSTS,
+          REPORT_AI_MAX_COMMENTS_PER_POST
+        );
+        commentsFetched = true;
+      } catch (error) {
+        console.error("[Report] Failed to fetch top post comments:", error);
+      }
+    }
+
+    onProgress({
+      type: "progress",
+      step: "calculating_metrics",
+      message: "Calculating the numbers",
+    });
+
+    if (!DEFER_REPORT_INSIGHTS) {
+      // AI analysis - results stored in memory
+      onProgress({
+        type: "progress",
+        step: "ai_analysis",
+        message: "Packaging your insights",
+      });
+
+      if (process.env.ANTHROPIC_API_KEY) {
+        const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+
+        const totalCommentsCount = topPostComments.reduce(
+          (sum, r) => sum + r.comments.length,
+          0
+        );
+        console.log(
+          `[Report] AI analysis with ${limitedPostsForAnalysis.length} posts + ${totalCommentsCount} comments`
+        );
+
+        aiAnalysis = await aiService.generateAnalysis(
+          searchData.queryText,
+          limitedPostsForAnalysis,
+          {
+            timeRange: searchData.filtersJson?.timeFilter,
+            language: searchData.filtersJson?.language,
+            sources: searchData.sources,
+          },
+          topPostComments
+        );
+      }
+    }
+
+    // ============================================
+    // PHASE 3: Single batched DB write
+    // ============================================
+    await updatePostSentiments(prisma, sentiments);
+
+    await prisma.$transaction(
+      async (tx) => {
+        // Store AI insights
+        if (aiAnalysis) {
+          await tx.insight.create({
+            data: {
+              jobId,
+              outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
+              model: "claude-3-haiku-20240307",
+            },
+          });
+        }
+
+        // Link the search to this report
+        await tx.search.update({
+          where: { id: searchData.id },
+          data: { reportId: jobId },
+        });
+
+        // Mark job as completed
+        const jobUpdateData: Prisma.ResearchJobUpdateInput = {
+          status: JobStatus.COMPLETED,
+          completedAt: new Date(),
+        };
+        if (commentsFetched) {
+          jobUpdateData.topPostCommentsJson =
+            topPostComments as unknown as Prisma.InputJsonValue;
+        }
+
+        await tx.researchJob.update({
+          where: { id: jobId },
+          data: jobUpdateData,
+        });
+      },
+      { timeout: TRANSACTION_TIMEOUT_MS }
+    );
+
+    return { reportId: jobId };
+  } catch (error) {
+    // Mark job as failed (separate transaction since main one failed)
+    await prisma.researchJob.update({
+      where: { id: jobId },
+      data: {
+        status: JobStatus.FAILED,
+        completedAt: new Date(),
+      },
+    });
+    throw error;
+  }
+}
+
+/**
+ * Generate AI insights for an existing report (async)
+ */
+export async function generateReportInsights(
+  reportId: string,
+  supabaseUid: string
+): Promise<{ status: "created" | "exists" }> {
+  const userId = await getUserIdFromSupabaseUid(supabaseUid);
+
+  const job = await prisma.researchJob.findFirst({
+    where: {
+      id: reportId,
+      userId,
+    },
+    include: {
+      insights: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+      searches: {
+        include: {
+          posts: true,
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!job) {
+    throw new Error("Report not found or access denied");
+  }
+
+  if (job.insights.length > 0) {
+    return { status: "exists" };
+  }
+
+  const search = job.searches[0];
+  if (!search) {
+    throw new Error("Report search not found");
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error("Anthropic API key not configured");
+  }
+
+  const queryJson = job.queryJson as {
+    query: string;
+    sources: string[];
+    filters?: { timeFilter?: string; language?: string };
+  };
+
+  const posts: Post[] = search.posts.map((post) => ({
+    id: post.postId,
+    text: post.text,
+    author: post.author,
+    authorHandle: post.authorHandle,
+    authorAvatar: post.authorAvatar || undefined,
+    createdAt: post.createdAt.toISOString(),
+    platform: post.platform.toLowerCase() as Post["platform"],
+    engagement: post.engagement as Post["engagement"],
+    url: post.url,
+    thumbnail: post.thumbnail || undefined,
+  }));
+
+  const limitedPosts = getTopAnalysisPosts(posts, REPORT_AI_MAX_POSTS);
+
+  let topPostComments: PostComments[] =
+    (job.topPostCommentsJson as unknown as PostComments[]) || [];
+
+  if (topPostComments.length === 0) {
+    try {
+      topPostComments = await fetchTopPostComments(
+        limitedPosts,
+        REPORT_AI_MAX_COMMENT_POSTS,
+        REPORT_AI_MAX_COMMENTS_PER_POST
+      );
+      if (topPostComments.length > 0) {
+        await prisma.researchJob.update({
+          where: { id: reportId },
+          data: {
+            topPostCommentsJson:
+              topPostComments as unknown as Prisma.InputJsonValue,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("[Report] Failed to fetch comments for AI analysis:", error);
+    }
+  }
+
+  const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+  const aiAnalysis = await aiService.generateAnalysis(
+    queryJson.query,
+    limitedPosts,
+    {
+      timeRange: queryJson.filters?.timeFilter,
+      language: queryJson.filters?.language,
+      sources: queryJson.sources,
+    },
+    topPostComments
+  );
+
+  await prisma.insight.create({
+    data: {
+      jobId: reportId,
+      outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
+      model: "claude-3-haiku-20240307",
+    },
+  });
+
+  return { status: "created" };
 }
 
 /**
@@ -369,12 +956,22 @@ export async function getReport(
   // Get top posts by engagement
   const topPosts = getTopPosts(posts, 5);
 
-  // Fetch replies for top posts (for display in report)
-  let topPostReplies: Array<{ parentId: string; replies: Post[] }> = [];
-  try {
-    topPostReplies = await fetchTopPostReplies(posts, 5, 10);
-  } catch (error) {
-    console.error("[Report] Failed to fetch replies for report view:", error);
+  // Fetch comments for top posts (for display in report)
+  let topPostComments: PostComments[] =
+    (job.topPostCommentsJson as unknown as PostComments[]) || [];
+  if (topPostComments.length === 0) {
+    try {
+      topPostComments = await fetchTopPostComments(posts, 5, 10);
+      await prisma.researchJob.update({
+        where: { id: reportId },
+        data: {
+          topPostCommentsJson:
+            topPostComments as unknown as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      console.error("[Report] Failed to fetch comments for report view:", error);
+    }
   }
 
   return {
@@ -391,7 +988,7 @@ export async function getReport(
     posts,
     aiAnalysis,
     topPosts,
-    topPostReplies,
+    topPostComments,
   };
 }
 
@@ -543,10 +1140,212 @@ export async function getReportStatus(
   };
 }
 
+/**
+ * Get report data for shared/public access (no auth required)
+ * Validates either public flag or share token
+ */
+export async function getReportForSharing(
+  reportId: string,
+  shareToken?: string
+): Promise<ReportData | null> {
+  // Find report by ID (no userId filter)
+  const job = await prisma.researchJob.findUnique({
+    where: { id: reportId },
+    include: {
+      insights: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+      searches: {
+        include: {
+          posts: {
+            orderBy: { createdAt: "desc" },
+          },
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!job) {
+    return null;
+  }
+
+  // Validate access - must be public OR have valid token
+  const isPublicAccess = job.isPublic;
+  const isTokenAccess =
+    shareToken &&
+    job.shareToken === shareToken &&
+    (!job.shareTokenExpiresAt || new Date(job.shareTokenExpiresAt) > new Date());
+
+  if (!isPublicAccess && !isTokenAccess) {
+    return null;
+  }
+
+  // Get search and posts (same logic as getReport)
+  const search = job.searches[0];
+  if (!search) {
+    return null;
+  }
+
+  const queryJson = job.queryJson as { query: string; sources: string[] };
+
+  // Convert posts to the expected format
+  const posts: Array<Post & { sentiment: Sentiment | null }> = search.posts.map(
+    (post) => ({
+      id: post.postId,
+      text: post.text,
+      author: post.author,
+      authorHandle: post.authorHandle,
+      authorAvatar: post.authorAvatar || undefined,
+      createdAt: post.createdAt.toISOString(),
+      platform: post.platform.toLowerCase() as Post["platform"],
+      engagement: post.engagement as Post["engagement"],
+      url: post.url,
+      thumbnail: post.thumbnail || undefined,
+      sentiment: (post.sentiment as Sentiment) || null,
+    })
+  );
+
+  const metrics = aggregateMetrics(posts);
+  const activityOverTime = calculateActivityOverTime(posts);
+  const aiAnalysis = job.insights[0]
+    ? (job.insights[0].outputJson as unknown as AIAnalysis)
+    : null;
+  const topPosts = getTopPosts(posts, 5);
+  const topPostComments: PostComments[] =
+    (job.topPostCommentsJson as unknown as PostComments[]) || [];
+
+  return {
+    report: {
+      id: job.id,
+      query: queryJson.query,
+      sources: queryJson.sources || [],
+      status: job.status,
+      createdAt: job.createdAt.toISOString(),
+      completedAt: job.completedAt?.toISOString() || null,
+    },
+    metrics,
+    activityOverTime,
+    posts,
+    aiAnalysis,
+    topPosts,
+    topPostComments,
+  };
+}
+
+/**
+ * Get current sharing settings for a report (owner only)
+ */
+export async function getShareSettings(
+  reportId: string,
+  supabaseUid: string
+): Promise<ShareSettings | null> {
+  const userId = await getUserIdFromSupabaseUid(supabaseUid);
+
+  const job = await prisma.researchJob.findFirst({
+    where: { id: reportId, userId },
+    select: {
+      id: true,
+      isPublic: true,
+      shareToken: true,
+      shareTokenExpiresAt: true,
+    },
+  });
+
+  if (!job) return null;
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  return {
+    isPublic: job.isPublic,
+    shareToken: job.shareToken,
+    shareTokenExpiresAt: job.shareTokenExpiresAt?.toISOString() || null,
+    shareUrl: job.shareToken
+      ? `${baseUrl}/report/${job.id}?token=${job.shareToken}`
+      : null,
+  };
+}
+
+/**
+ * Update sharing settings for a report (owner only)
+ */
+export async function updateShareSettings(
+  reportId: string,
+  supabaseUid: string,
+  settings: UpdateShareSettingsInput
+): Promise<ShareSettings> {
+  const userId = await getUserIdFromSupabaseUid(supabaseUid);
+
+  // Verify ownership
+  const job = await prisma.researchJob.findFirst({
+    where: { id: reportId, userId },
+    select: {
+      id: true,
+      isPublic: true,
+      shareToken: true,
+      shareTokenExpiresAt: true,
+    },
+  });
+
+  if (!job) {
+    throw new Error("Report not found or access denied");
+  }
+
+  const updateData: Prisma.ResearchJobUpdateInput = {};
+
+  // Handle public toggle
+  if (settings.isPublic !== undefined) {
+    updateData.isPublic = settings.isPublic;
+  }
+
+  // Handle token generation
+  if (settings.generateToken) {
+    updateData.shareToken = crypto.randomUUID();
+    updateData.shareTokenCreatedAt = new Date();
+    updateData.shareTokenExpiresAt = settings.tokenExpiresInDays
+      ? new Date(Date.now() + settings.tokenExpiresInDays * 24 * 60 * 60 * 1000)
+      : null;
+  }
+
+  // Handle token revocation
+  if (settings.revokeToken) {
+    updateData.shareToken = null;
+    updateData.shareTokenCreatedAt = null;
+    updateData.shareTokenExpiresAt = null;
+  }
+
+  const updated = await prisma.researchJob.update({
+    where: { id: reportId },
+    data: updateData,
+    select: {
+      id: true,
+      isPublic: true,
+      shareToken: true,
+      shareTokenExpiresAt: true,
+    },
+  });
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  return {
+    isPublic: updated.isPublic,
+    shareToken: updated.shareToken,
+    shareTokenExpiresAt: updated.shareTokenExpiresAt?.toISOString() || null,
+    shareUrl: updated.shareToken
+      ? `${baseUrl}/report/${updated.id}?token=${updated.shareToken}`
+      : null,
+  };
+}
+
 const reportService = {
   startReport,
+  generateReportInsights,
   getReport,
+  getReportForSharing,
   getReportStatus,
+  getShareSettings,
+  updateShareSettings,
 };
 
 export default reportService;

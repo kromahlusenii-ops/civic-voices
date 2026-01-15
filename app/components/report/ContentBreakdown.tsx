@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import type { Post, IntentionData } from "@/lib/types/api";
 
 export interface CategoryData {
+  name: string;
+  percentage: number;
+  engagementRate: number;
+  color: string;
+}
+
+export interface FormatData {
   name: string;
   percentage: number;
   engagementRate: number;
@@ -13,6 +21,8 @@ type TabType = "intentions" | "category" | "format";
 
 interface ContentBreakdownProps {
   categories: CategoryData[];
+  intentions?: IntentionData[];
+  formats?: FormatData[];
   activeTab?: TabType;
   onTabChange?: (tab: TabType) => void;
 }
@@ -26,6 +36,23 @@ const DEFAULT_COLORS = [
   "#ec4899", // pink
   "#14b8a6", // teal
 ];
+
+// Intention-specific colors
+const INTENTION_COLORS: Record<string, string> = {
+  Inform: "#3b82f6",    // blue - knowledge
+  Persuade: "#f97316",  // orange - action
+  Entertain: "#ec4899", // pink - fun
+  Express: "#a855f7",   // purple - emotion
+};
+
+// Format-specific colors
+const FORMAT_COLORS: Record<string, string> = {
+  Video: "#ef4444",         // red (YouTube)
+  "Short-form Video": "#000000", // black (TikTok)
+  Thread: "#1d9bf0",        // blue (X)
+  "Text Post": "#64748b",   // gray
+  Image: "#8b5cf6",         // violet
+};
 
 // Info icon component
 function InfoIcon({ tooltip }: { tooltip: string }) {
@@ -86,6 +113,8 @@ function EngagementIndicator({ rate }: { rate: number }) {
 
 export default function ContentBreakdown({
   categories,
+  intentions,
+  formats,
   activeTab = "category",
   onTabChange,
 }: ContentBreakdownProps) {
@@ -96,15 +125,41 @@ export default function ContentBreakdown({
     onTabChange?.(tab);
   };
 
-  // Ensure categories have colors
-  const categoriesWithColors = categories.map((cat, index) => ({
-    ...cat,
-    color: cat.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+  // Determine which data to display based on current tab
+  const getCurrentData = (): CategoryData[] => {
+    switch (currentTab) {
+      case "intentions":
+        if (intentions && intentions.length > 0) {
+          return intentions.map((item, index) => ({
+            name: item.name,
+            percentage: item.percentage,
+            engagementRate: item.engagementRate,
+            color: INTENTION_COLORS[item.name] || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+          }));
+        }
+        return categories;
+      case "format":
+        if (formats && formats.length > 0) {
+          return formats;
+        }
+        return categories;
+      case "category":
+      default:
+        return categories;
+    }
+  };
+
+  const displayData = getCurrentData();
+
+  // Ensure data has colors
+  const dataWithColors = displayData.map((item, index) => ({
+    ...item,
+    color: item.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length],
   }));
 
   // Calculate total for bar segments
-  const total = categoriesWithColors.reduce(
-    (sum, cat) => sum + cat.percentage,
+  const total = dataWithColors.reduce(
+    (sum, item) => sum + item.percentage,
     0
   );
 
@@ -146,22 +201,22 @@ export default function ContentBreakdown({
 
       {/* Segmented bar */}
       <div className="h-3 rounded-full overflow-hidden flex mb-5">
-        {categoriesWithColors.map((category, index) => (
+        {dataWithColors.map((item, index) => (
           <div
             key={index}
             className="h-full transition-all duration-300"
             style={{
-              width: `${(category.percentage / total) * 100}%`,
-              backgroundColor: category.color,
+              width: `${(item.percentage / total) * 100}%`,
+              backgroundColor: item.color,
             }}
-            title={`${category.name}: ${category.percentage}%`}
+            title={`${item.name}: ${item.percentage}%`}
           />
         ))}
       </div>
 
-      {/* Category cards - 2x2 grid */}
+      {/* Data cards - 2x2 grid */}
       <div className="grid grid-cols-2 gap-3">
-        {categoriesWithColors.slice(0, 4).map((category, index) => (
+        {dataWithColors.slice(0, 4).map((item, index) => (
           <div
             key={index}
             className="p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
@@ -169,26 +224,26 @@ export default function ContentBreakdown({
             <div className="flex items-center gap-2 mb-2">
               <span
                 className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: category.color }}
+                style={{ backgroundColor: item.color }}
               />
               <span className="text-sm text-gray-700 truncate">
-                {category.name}
+                {item.name}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-xl font-bold text-gray-900">
-                {category.percentage}%
+                {item.percentage}%
               </span>
-              <EngagementIndicator rate={category.engagementRate} />
+              <EngagementIndicator rate={item.engagementRate} />
             </div>
           </div>
         ))}
       </div>
 
-      {/* Show more if more than 4 categories */}
-      {categoriesWithColors.length > 4 && (
+      {/* Show more if more than 4 items */}
+      {dataWithColors.length > 4 && (
         <button className="mt-3 w-full text-center text-xs text-blue-600 hover:text-blue-700 font-medium">
-          +{categoriesWithColors.length - 4} more categories
+          +{dataWithColors.length - 4} more items
         </button>
       )}
     </div>
@@ -212,4 +267,58 @@ export function generateCategoryData(themes: string[]): CategoryData[] {
       color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
     };
   });
+}
+
+// Helper to determine content format from post data
+function deriveFormatFromPost(post: Post): string {
+  switch (post.platform) {
+    case "youtube":
+      return "Video";
+    case "tiktok":
+      return "Short-form Video";
+    case "x":
+      // Thread detection: if text > 280 chars, likely a thread
+      return post.text.length > 280 ? "Thread" : "Text Post";
+    case "reddit":
+    case "bluesky":
+    case "truthsocial":
+      if (post.thumbnail) {
+        return "Image";
+      }
+      return "Text Post";
+    case "instagram":
+      return post.thumbnail ? "Image" : "Text Post";
+    default:
+      return "Text Post";
+  }
+}
+
+// Helper function to generate format breakdown from posts
+export function generateFormatData(posts: Post[]): FormatData[] {
+  if (!posts || posts.length === 0) {
+    return [];
+  }
+
+  const formatCounts: Record<string, { count: number; totalEngagement: number }> = {};
+
+  posts.forEach((post) => {
+    const format = deriveFormatFromPost(post);
+    if (!formatCounts[format]) {
+      formatCounts[format] = { count: 0, totalEngagement: 0 };
+    }
+    formatCounts[format].count += 1;
+    formatCounts[format].totalEngagement +=
+      post.engagement.likes + post.engagement.comments + post.engagement.shares;
+  });
+
+  const total = posts.length;
+
+  return Object.entries(formatCounts)
+    .map(([name, data]) => ({
+      name,
+      percentage: Math.round((data.count / total) * 100),
+      engagementRate: Math.round((data.totalEngagement / data.count / 100) * 10) / 10,
+      color: FORMAT_COLORS[name] || DEFAULT_COLORS[0],
+    }))
+    .sort((a, b) => b.percentage - a.percentage);
 }

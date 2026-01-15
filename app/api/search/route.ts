@@ -101,6 +101,65 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Pr
   return Promise.race([promise, timeout]);
 }
 
+// Retry wrapper for flaky API calls (X and TikTok)
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: {
+    retries?: number;
+    delay?: number;
+    backoff?: number;
+    name?: string;
+    shouldRetry?: (error: unknown) => boolean;
+  } = {}
+): Promise<T> {
+  const {
+    retries = 2,
+    delay = 1000,
+    backoff = 2,
+    name = "API",
+    shouldRetry = (error) => {
+      // Retry on 400, 429, 500, 502, 503, 504 errors or network issues
+      if (error instanceof Error) {
+        const message = error.message.toLowerCase();
+        return (
+          message.includes("400") ||
+          message.includes("429") ||
+          message.includes("500") ||
+          message.includes("502") ||
+          message.includes("503") ||
+          message.includes("504") ||
+          message.includes("timeout") ||
+          message.includes("network") ||
+          message.includes("econnreset") ||
+          message.includes("fetch failed")
+        );
+      }
+      return false;
+    },
+  } = options;
+
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < retries && shouldRetry(error)) {
+        const waitTime = delay * Math.pow(backoff, attempt);
+        console.log(`[${name}] Attempt ${attempt + 1} failed, retrying in ${waitTime}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      } else if (attempt < retries) {
+        // Non-retryable error, throw immediately
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: SearchParams = await request.json();
@@ -139,12 +198,15 @@ export async function POST(request: NextRequest) {
               apiKey: config.x.rapidApiKey,
             });
 
-            const xResult = await withTimeout(
-              rapidApiProvider.searchLatest(query, {
-                maxResults: 100,
-              }),
-              30000,
-              "X RapidAPI"
+            const xResult = await withRetry(
+              () => withTimeout(
+                rapidApiProvider.searchLatest(query, {
+                  maxResults: 100,
+                }),
+                30000,
+                "X RapidAPI"
+              ),
+              { retries: 2, delay: 1500, name: "X RapidAPI" }
             );
 
             // Filter by time range (client-side for RapidAPI)
@@ -177,15 +239,18 @@ export async function POST(request: NextRequest) {
           });
 
           const timeRange = XProvider.getTimeRange(timeFilter);
-          const xResult = await withTimeout(
-            xProvider.searchWithWarning(query, {
-              maxResults: 100,
-              startTime: timeRange.startTime,
-              endTime: timeRange.endTime,
-              language: language,
-            }),
-            30000, // 30 second timeout for more data
-            "X API"
+          const xResult = await withRetry(
+            () => withTimeout(
+              xProvider.searchWithWarning(query, {
+                maxResults: 100,
+                startTime: timeRange.startTime,
+                endTime: timeRange.endTime,
+                language: language,
+              }),
+              30000,
+              "X API"
+            ),
+            { retries: 2, delay: 1500, name: "X Official API" }
           );
 
           allPosts.push(...xResult.posts);
@@ -214,10 +279,13 @@ export async function POST(request: NextRequest) {
           );
 
           const tiktokQuery = TikTokApiService.getBaseQuery(query);
-          const tiktokResults = await withTimeout(
-            tiktokService.searchVideos(tiktokQuery, { count: 50 }),
-            30000, // 30 second timeout for more data
-            "TikTok API"
+          const tiktokResults = await withRetry(
+            () => withTimeout(
+              tiktokService.searchVideos(tiktokQuery, { count: 50 }),
+              30000,
+              "TikTok API"
+            ),
+            { retries: 2, delay: 1500, name: "TikTok API" }
           );
 
           let tiktokPosts = tiktokService.transformToPosts(tiktokResults);

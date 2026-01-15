@@ -1,4 +1,12 @@
-import type { YouTubeSearchResponse, YouTubeVideosResponse, YouTubeVideo, Post, AuthorMetadata } from "../types/api";
+import type {
+  YouTubeSearchResponse,
+  YouTubeVideosResponse,
+  YouTubeVideo,
+  YouTubeCommentThread,
+  YouTubeCommentThreadsResponse,
+  Post,
+  AuthorMetadata,
+} from "../types/api";
 
 const YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3";
 const DEFAULT_MAX_RETRIES = 3;
@@ -157,6 +165,77 @@ export class YouTubeProvider {
       posts,
       nextPageToken: searchResponse.nextPageToken,
       totalResults: searchResponse.pageInfo?.totalResults,
+    };
+  }
+
+  /**
+   * Get comments for a YouTube video
+   * Uses commentThreads API (1 quota unit per request)
+   */
+  async getVideoComments(videoId: string, maxResults: number = 20): Promise<Post[]> {
+    const params = new URLSearchParams({
+      part: "snippet",
+      videoId: videoId,
+      maxResults: String(Math.min(maxResults, 100)),
+      order: "relevance",
+      textFormat: "plainText",
+      key: this.apiKey,
+    });
+
+    const url = `${YOUTUBE_API_BASE}/commentThreads?${params.toString()}`;
+
+    try {
+      const response = await this.fetchWithRetry<YouTubeCommentThreadsResponse>(url);
+
+      if (!response.items || response.items.length === 0) {
+        return [];
+      }
+
+      return response.items.map((item) => this.normalizeComment(item, videoId));
+    } catch (error) {
+      // Handle videos with comments disabled (403 commentsDisabled)
+      if (error instanceof YouTubeApiError) {
+        const errorMessage = error.message.toLowerCase();
+        if (
+          errorMessage.includes("disabled") ||
+          errorMessage.includes("commentsDisabled") ||
+          error.code === "commentsDisabled"
+        ) {
+          console.log(`[YouTube] Comments disabled for video ${videoId}`);
+          return [];
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Normalize a YouTube comment to Post format
+   */
+  private normalizeComment(
+    commentThread: YouTubeCommentThread,
+    videoId: string
+  ): Post {
+    const comment = commentThread.snippet.topLevelComment;
+    const snippet = comment.snippet;
+
+    return {
+      id: comment.id,
+      text: snippet.textDisplay,
+      author: snippet.authorDisplayName,
+      authorHandle: snippet.authorChannelId?.value
+        ? `@${snippet.authorChannelId.value}`
+        : "@unknown",
+      authorAvatar: snippet.authorProfileImageUrl,
+      createdAt: snippet.publishedAt,
+      platform: "youtube",
+      engagement: {
+        likes: snippet.likeCount || 0,
+        comments: commentThread.snippet.totalReplyCount || 0,
+        shares: 0,
+        views: 0,
+      },
+      url: `https://www.youtube.com/watch?v=${videoId}&lc=${comment.id}`,
     };
   }
 

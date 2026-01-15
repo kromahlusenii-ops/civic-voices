@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
 
   // Skip middleware for public routes, API, and static assets
   if (
@@ -15,6 +15,11 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname === "/search"
   ) {
+    return NextResponse.next();
+  }
+
+  // Allow report access with share token (will be validated by API)
+  if (pathname.startsWith("/report/") && searchParams.has("token")) {
     return NextResponse.next();
   }
 
@@ -70,6 +75,5 @@ export const config = {
     "/dashboard/:path*",
     "/report/:path*",
     "/research/:path*",
-    "/onboarding/:path*",
   ],
 };

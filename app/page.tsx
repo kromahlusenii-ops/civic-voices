@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Fragment } from "react";
 
 // Company logos data - preserved from original
 const COMPANY_LOGOS = [
@@ -211,10 +211,10 @@ function PlatformStatusBoard() {
         <div className="bg-stone-800 text-stone-300 p-2 text-center text-[10px] tracking-wider">TREND</div>
         <div className="bg-stone-800 text-stone-300 p-2 text-center text-[10px] tracking-wider">STATUS</div>
         {PLATFORM_STATUS.map((p) => (
-          <>
-            <div key={`${p.name}-name`} className="bg-stone-50 p-2 text-center font-bold">{p.name}</div>
-            <div key={`${p.name}-posts`} className="bg-stone-50 p-2 text-center tabular-nums">{p.posts}</div>
-            <div key={`${p.name}-sentiment`} className="bg-stone-50 p-2 text-center">
+          <Fragment key={p.name}>
+            <div className="bg-stone-50 p-2 text-center font-bold">{p.name}</div>
+            <div className="bg-stone-50 p-2 text-center tabular-nums">{p.posts}</div>
+            <div className="bg-stone-50 p-2 text-center">
               <div className="w-full bg-stone-200 h-2 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-1000 ${
@@ -224,18 +224,18 @@ function PlatformStatusBoard() {
                 />
               </div>
             </div>
-            <div key={`${p.name}-trend`} className="bg-stone-50 p-2 text-center">
+            <div className="bg-stone-50 p-2 text-center">
               {p.trend === 'up' && <span className="text-emerald-600">▲</span>}
               {p.trend === 'down' && <span className="text-red-600">▼</span>}
               {p.trend === 'stable' && <span className="text-stone-400">●</span>}
             </div>
-            <div key={`${p.name}-status`} className="bg-stone-50 p-2 text-center">
+            <div className="bg-stone-50 p-2 text-center">
               <span className="inline-flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
                 <span className="text-emerald-700 text-[10px]">ONLINE</span>
               </span>
             </div>
-          </>
+          </Fragment>
         ))}
       </div>
     </div>
@@ -265,7 +265,6 @@ function useScrollAnimation(options: { threshold?: number } = {}) {
 }
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
   const [currentVoiceIndex, setCurrentVoiceIndex] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
   const { ref: voicesRef, isVisible: voicesVisible } = useScrollAnimation();
@@ -273,8 +272,6 @@ export default function Home() {
   const { ref: ctaRef, isVisible: ctaVisible } = useScrollAnimation();
 
   useEffect(() => {
-    setMounted(true);
-
     // Cycle through featured voice
     const interval = setInterval(() => {
       setCurrentVoiceIndex(prev => (prev + 1) % LIVE_VOICES.length);
@@ -337,6 +334,26 @@ export default function Home() {
         .font-body {
           font-family: 'Newsreader', serif;
         }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-fade-in-up {
+          animation: fadeInUp 0.7s ease-out forwards;
+        }
+
+        .animate-fade-in-up-delay {
+          animation: fadeInUp 0.7s ease-out 0.3s forwards;
+          opacity: 0;
+        }
       `}</style>
 
       {/* News Ticker - Top Bar */}
@@ -381,7 +398,7 @@ export default function Home() {
         <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
           <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-start">
             {/* Left Column - Editorial */}
-            <div className={`lg:col-span-7 transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <div className="lg:col-span-7 animate-fade-in-up">
               {/* Date stamp */}
               <div className="flex items-center gap-4 mb-6">
                 <span className="text-[10px] font-mono text-stone-500 tracking-wider">
@@ -437,7 +454,7 @@ export default function Home() {
             </div>
 
             {/* Right Column - Live Feed Preview */}
-            <div className={`lg:col-span-5 transition-all duration-700 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <div className="lg:col-span-5 animate-fade-in-up-delay">
               <div className="bg-white border-2 border-stone-900 shadow-[8px_8px_0px_0px_rgba(28,25,23,1)]">
                 {/* Feed Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b-2 border-stone-900 bg-stone-50">

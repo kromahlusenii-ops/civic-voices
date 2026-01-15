@@ -14,8 +14,13 @@ import SourceFilter from "../../components/SourceFilter";
 import FilterDropdown from "../../components/FilterDropdown";
 import VerificationBadge from "../../components/VerificationBadge";
 import SettingsModal from "../../components/SettingsModal";
+import ReportProgressModal from "../components/ReportProgressModal";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
 import { supabase } from "@/lib/supabase";
+import { useToast } from "../contexts/ToastContext";
+// Streaming search is available but disabled by default - enable with NEXT_PUBLIC_FEATURE_STREAMING_SEARCH=true
+// import { useStreamingSearch } from "@/lib/hooks/useStreamingSearch";
+// import { PlatformStatusList } from "../components/PlatformStatusBadge";
 import {
   formatMentions,
   calculateTotalMentions,
@@ -121,6 +126,7 @@ function SearchPageContent() {
   const { isAuthenticated, loading, user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { showToast } = useToast();
 
   // Initialize state from URL params
   const [searchQuery, setSearchQuery] = useState(searchParams.get("message") || "");
@@ -151,9 +157,12 @@ function SearchPageContent() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [followUpQuery, setFollowUpQuery] = useState("");
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [showReportProgress, setShowReportProgress] = useState(false);
+  const [reportAccessToken, setReportAccessToken] = useState<string | null>(null);
+  const [isSavingReportSearch, setIsSavingReportSearch] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
+  const [clickedPostCount, setClickedPostCount] = useState(0);
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -367,55 +376,112 @@ function SearchPageContent() {
     setSearchQuery("");
     setFollowUpQuery("");
     setReportError(null);
+    setClickedPostCount(0);
   };
+
+  // Handle post card click - prompt to generate report instead of navigating away
+  const handlePostClick = useCallback(() => {
+    const newCount = clickedPostCount + 1;
+    setClickedPostCount(newCount);
+
+    const message = clickedPostCount === 0
+      ? "Generate a report to view full post details and analysis"
+      : `${newCount} posts viewed. Generate report for comprehensive analysis.`;
+
+    showToast({
+      message,
+      action: searchResults?.searchId
+        ? {
+            label: "Generate Report",
+            onClick: () => {
+              // Navigate to report generation
+              if (searchResults?.searchId) {
+                window.location.href = `/report/${searchResults.searchId}`;
+              }
+            },
+          }
+        : undefined,
+      duration: 4000,
+    });
+  }, [clickedPostCount, searchResults?.searchId, showToast]);
 
   // Start report generation from saved search
   const handleStartReportGeneration = async () => {
-    if (!searchResults?.searchId) {
-      setReportError("Please wait for search to be saved before generating report");
-      return;
-    }
-
     if (!isAuthenticated) {
       setShowAuthModal(true);
       return;
     }
 
-    setIsGeneratingReport(true);
     setReportError(null);
 
     try {
+      let searchId = searchResults?.searchId;
+      if (!searchId && searchResults) {
+        setIsSavingReportSearch(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error("No active session");
+        }
+
+        const saveResponse = await fetch("/api/search/save", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            queryText: searchResults.query,
+            sources: selectedSources,
+            filters: { timeFilter: timeRange, language },
+            posts: searchResults.posts.map((post) => ({
+              id: post.id,
+              text: post.text,
+              author: post.author,
+              platform: post.platform,
+              url: post.url,
+              createdAt: post.createdAt,
+              engagement: post.engagement,
+            })),
+          }),
+        });
+
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to save search: ${saveResponse.status}`);
+        }
+
+        const saveData = await saveResponse.json();
+        searchId = saveData.searchId;
+        setSearchResults((prev) => prev ? { ...prev, searchId } : prev);
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("No active session");
       }
 
-      const response = await fetch("/api/report/start", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          searchId: searchResults.searchId,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to generate report");
-      }
-
-      const data = await response.json();
-
-      // Redirect to the report page
-      router.push(`/report/${data.reportId}`);
+      // Store the access token and show the progress modal
+      setReportAccessToken(session.access_token);
+      setShowReportProgress(true);
     } catch (error) {
       console.error("Report generation error:", error);
       setReportError(error instanceof Error ? error.message : "Failed to generate report");
     } finally {
-      setIsGeneratingReport(false);
+      setIsSavingReportSearch(false);
     }
+  };
+
+  // Handle report progress modal close
+  const handleReportProgressClose = () => {
+    setShowReportProgress(false);
+    setReportAccessToken(null);
+  };
+
+  // Handle report generation error
+  const handleReportError = (message: string) => {
+    setReportError(message);
+    setShowReportProgress(false);
+    setReportAccessToken(null);
   };
 
   const formatRelativeTime = (dateString: string): string => {
@@ -504,6 +570,17 @@ function SearchPageContent() {
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
       />
+
+      {/* Report Progress Modal */}
+      {searchResults?.searchId && reportAccessToken && (
+        <ReportProgressModal
+          isOpen={showReportProgress}
+          searchId={searchResults.searchId}
+          accessToken={reportAccessToken}
+          onClose={handleReportProgressClose}
+          onError={handleReportError}
+        />
+      )}
 
       {/* Click outside to close user menu */}
       {showUserMenu && (
@@ -933,18 +1010,11 @@ function SearchPageContent() {
 
                   <button
                     onClick={handleStartReportGeneration}
-                    disabled={isGeneratingReport || !searchResults.searchId}
+                    disabled={showReportProgress || isSavingReportSearch}
                     className="ml-auto rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     data-testid="generate-report-btn"
                   >
-                    {isGeneratingReport ? (
-                      <>
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        Generating...
-                      </>
-                    ) : (
-                      "Generate Report"
-                    )}
+                    {isSavingReportSearch ? "Saving..." : "Generate Report"}
                   </button>
                 </div>
 
@@ -997,12 +1067,18 @@ function SearchPageContent() {
                   {searchResults.posts
                     .filter((post) => !verifiedOnly || post.verificationBadge || (post.credibilityScore && post.credibilityScore >= 0.7))
                     .map((post) => (
-                    <a
+                    <div
                       key={post.id}
-                      href={post.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-lg border border-gray-200 bg-white p-4 transition hover:border-gray-300 hover:shadow-sm"
+                      role="button"
+                      tabIndex={0}
+                      onClick={handlePostClick}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handlePostClick();
+                        }
+                      }}
+                      className="block cursor-pointer rounded-lg border border-gray-200 bg-white p-4 transition hover:border-gray-300 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                       data-testid="post-card"
                     >
                       <div className="flex gap-3">
@@ -1033,7 +1109,7 @@ function SearchPageContent() {
                           )}
                         </div>
                       </div>
-                    </a>
+                    </div>
                   ))}
                 </div>
               </div>

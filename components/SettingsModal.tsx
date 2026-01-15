@@ -1,10 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 
-type SettingsTab = "credit_usage" | "plan_billing" | "team_members" | "integrations";
+type SettingsTab = "preferences" | "credit_usage" | "plan_billing" | "team_members" | "integrations";
+
+// Suggested topics from onboarding
+const SUGGESTED_TOPICS = [
+  { query: "immigration", label: "Immigration" },
+  { query: "AI regulation", label: "AI" },
+  { query: "climate policy", label: "Climate" },
+  { query: "cryptocurrency", label: "Crypto" },
+  { query: "2026 elections", label: "2026 Elections" },
+  { query: "tech layoffs", label: "Tech Layoffs" },
+  { query: "healthcare policy", label: "Healthcare" },
+  { query: "housing crisis", label: "Housing" },
+];
+
+interface TrackedTopic {
+  id: string;
+  query: string;
+  name: string | null;
+  createdAt: string;
+}
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -71,11 +90,25 @@ const CheckIcon = () => (
   </svg>
 );
 
+const PreferencesIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <circle cx="12" cy="12" r="3" strokeWidth="2" />
+  </svg>
+);
+
+const SpinnerIcon = () => (
+  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+  </svg>
+);
+
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("credit_usage");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const { signOut: supabaseSignOut } = useAuth();
+  const { signOut: supabaseSignOut, getAccessToken } = useAuth();
   const router = useRouter();
 
   if (!isOpen) return null;
@@ -100,6 +133,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const navItems = [
+    { id: "preferences" as const, label: "Preferences", icon: PreferencesIcon },
     { id: "credit_usage" as const, label: "Credit usage", icon: CreditIcon },
     { id: "plan_billing" as const, label: "Plan & Billing", icon: BillingIcon },
     { id: "team_members" as const, label: "Team & Members", icon: TeamIcon },
@@ -192,11 +226,247 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
+          {activeTab === "preferences" && <PreferencesTab getAccessToken={getAccessToken} />}
           {activeTab === "credit_usage" && <CreditUsageTab />}
           {activeTab === "plan_billing" && <PlanBillingTab />}
           {activeTab === "team_members" && <TeamMembersTab />}
           {activeTab === "integrations" && <IntegrationsTab />}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Preferences Tab
+function PreferencesTab({ getAccessToken }: { getAccessToken: () => Promise<string | null> }) {
+  const [topics, setTopics] = useState<TrackedTopic[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [customTopic, setCustomTopic] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const fetchTopics = useCallback(async () => {
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        setIsLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/topics", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch topics");
+      }
+
+      const data = await response.json();
+      setTopics(data.topics || []);
+    } catch (err) {
+      console.error("Error fetching topics:", err);
+      setError("Failed to load topics");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    fetchTopics();
+  }, [fetchTopics]);
+
+  const addTopic = async (query: string) => {
+    if (!query.trim()) return;
+
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+
+    setIsAdding(true);
+    try {
+      const response = await fetch("/api/topics", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ query: query.trim() }),
+      });
+
+      if (response.status === 409) {
+        setError("Topic already tracked");
+        setTimeout(() => setError(null), 3000);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("Failed to add topic");
+      }
+
+      const data = await response.json();
+      setTopics((prev) => [data.topic, ...prev]);
+      setCustomTopic("");
+    } catch (err) {
+      console.error("Error adding topic:", err);
+      setError("Failed to add topic");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const deleteTopic = async (topicId: string) => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) return;
+
+    setDeletingId(topicId);
+    try {
+      const response = await fetch(`/api/topics?id=${topicId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete topic");
+      }
+
+      setTopics((prev) => prev.filter((t) => t.id !== topicId));
+    } catch (err) {
+      console.error("Error deleting topic:", err);
+      setError("Failed to delete topic");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addTopic(customTopic);
+    }
+  };
+
+  const isTopicTracked = (query: string) => {
+    const normalized = query.toLowerCase().trim();
+    return topics.some((t) => t.query === normalized);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[300px]">
+        <SpinnerIcon />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <h3 className="text-xl font-semibold text-gray-900 mb-2">Preferences</h3>
+      <p className="text-gray-600 mb-6">Manage the topics you want to track across social platforms.</p>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Suggested Topics */}
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-gray-700 mb-3">Suggested topics</h4>
+        <div className="flex flex-wrap gap-2">
+          {SUGGESTED_TOPICS.map((topic) => {
+            const isTracked = isTopicTracked(topic.query);
+            return (
+              <button
+                key={topic.query}
+                onClick={() => !isTracked && addTopic(topic.query)}
+                disabled={isTracked || isAdding}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  isTracked
+                    ? "bg-blue-100 text-blue-700 cursor-default"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                } disabled:opacity-50`}
+              >
+                {isTracked && (
+                  <span className="inline-flex items-center gap-1">
+                    <CheckIcon />
+                  </span>
+                )}
+                {topic.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Custom Topic Input */}
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-gray-700 mb-3">Add custom topic</h4>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={customTopic}
+            onChange={(e) => setCustomTopic(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Enter a topic to track..."
+            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm"
+          />
+          <button
+            onClick={() => addTopic(customTopic)}
+            disabled={!customTopic.trim() || isAdding}
+            className="px-4 py-2.5 bg-gray-900 text-white rounded-lg font-medium text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isAdding ? <SpinnerIcon /> : "Add"}
+          </button>
+        </div>
+      </div>
+
+      {/* Current Topics */}
+      <div>
+        <h4 className="text-sm font-medium text-gray-700 mb-3">
+          Your tracked topics ({topics.length})
+        </h4>
+        {topics.length === 0 ? (
+          <div className="text-center py-8 bg-gray-50 rounded-xl">
+            <p className="text-gray-500">No topics tracked yet.</p>
+            <p className="text-gray-400 text-sm mt-1">Add topics above to start tracking.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {topics.map((topic) => (
+              <div
+                key={topic.id}
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors"
+              >
+                <div>
+                  <span className="font-medium text-gray-900">{topic.name || topic.query}</span>
+                  {topic.name && topic.name !== topic.query && (
+                    <span className="text-gray-500 text-sm ml-2">({topic.query})</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => deleteTopic(topic.id)}
+                  disabled={deletingId === topic.id}
+                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                  aria-label={`Remove ${topic.name || topic.query}`}
+                >
+                  {deletingId === topic.id ? (
+                    <SpinnerIcon />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
