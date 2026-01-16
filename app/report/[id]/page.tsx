@@ -122,14 +122,14 @@ function PlatformSentiment({
           const neutralPercent = total > 0 ? Math.round((neutral / total) * 100) : 0;
 
           return (
-            <div key={platform} className="space-y-2">
+            <div key={platform} className="space-y-2 w-full min-w-0">
               <div className="text-sm">
                 <span className="font-medium text-gray-800">
                   {PLATFORM_LABELS[platform] || platform}
                 </span>
               </div>
               {/* Sentiment bar */}
-              <div className="flex h-2.5 overflow-hidden rounded-full bg-gray-100">
+              <div className="flex h-2.5 overflow-hidden rounded-full bg-gray-100 w-full min-w-0">
                 {positivePercent > 0 && (
                   <div
                     className="bg-green-500 transition-all"
@@ -688,7 +688,7 @@ export default function ReportPage() {
           </div>
 
           {/* Dashboard Content - extra bottom padding on mobile for bottom nav */}
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-6 space-y-4 sm:space-y-6">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-6 space-y-4 sm:space-y-6 w-full min-w-0 overflow-x-hidden">
             {/* Overview Tab Content */}
             {activeTab === "overview" && (
               <>
@@ -732,7 +732,7 @@ export default function ReportPage() {
                 <ActivityChart data={reportData.activityOverTime} />
 
                 {/* Two Column: Emotions + Content Breakdown */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full min-w-0">
                   {/* Emotions Breakdown */}
                   <EmotionsBreakdown
                     emotions={convertSentimentToEmotions(reportData.metrics.sentimentBreakdown)}

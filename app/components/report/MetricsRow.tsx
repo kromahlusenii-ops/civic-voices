@@ -61,10 +61,10 @@ export default function MetricsRow({
   return (
     <>
       {/* Mobile: horizontal scroll, Desktop: grid */}
-      <div className="relative -mx-4 sm:mx-0">
+      <div className="relative -mx-4 sm:mx-0 w-full min-w-0">
         <div
           className="flex gap-3 overflow-x-auto px-4 sm:px-0 pb-2 sm:pb-0 snap-x scrollbar-hide
-                     sm:grid sm:grid-cols-3 sm:overflow-visible sm:snap-none"
+                     sm:grid sm:grid-cols-3 sm:overflow-visible sm:snap-none w-full min-w-0"
           data-testid="metrics-row"
         >
           {metrics.map((metric, index) => (

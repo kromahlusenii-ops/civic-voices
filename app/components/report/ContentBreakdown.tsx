@@ -200,7 +200,7 @@ export default function ContentBreakdown({
       </div>
 
       {/* Segmented bar */}
-      <div className="h-3 rounded-full overflow-hidden flex mb-4 sm:mb-5">
+      <div className="h-3 rounded-full overflow-hidden flex w-full min-w-0 mb-4 sm:mb-5">
         {dataWithColors.map((item, index) => (
           <div
             key={index}

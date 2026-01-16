@@ -120,9 +120,9 @@ export default function TopPosts({ posts, limit = 5 }: TopPostsProps) {
       </h3>
 
       {/* Mobile: horizontal scroll carousel, Desktop: vertical list */}
-      <div className="relative -mx-4 sm:mx-0">
+      <div className="relative -mx-4 sm:mx-0 w-full min-w-0">
         <div className="flex gap-3 overflow-x-auto px-4 sm:px-0 pb-2 sm:pb-0 snap-x scrollbar-hide
-                        sm:flex-col sm:overflow-visible sm:snap-none sm:space-y-4 sm:gap-0">
+                        sm:flex-col sm:overflow-visible sm:snap-none sm:space-y-4 sm:gap-0 w-full min-w-0">
           {topPosts.map((post) => {
             const sentimentConfig = post.sentiment
               ? SENTIMENT_CONFIG[post.sentiment]

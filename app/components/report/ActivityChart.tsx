@@ -356,12 +356,14 @@ export default function ActivityChart({
       </div>
 
       {/* Chart */}
-      <div ref={containerRef} className="relative w-full overflow-hidden">
+      <div ref={containerRef} className="relative w-full min-w-0 overflow-hidden">
         <svg
           ref={svgRef}
-          width={dimensions.width}
+          width="100%"
           height={dimensions.height}
-          style={{ maxWidth: '100%' }}
+          viewBox={dimensions.width > 0 ? `0 0 ${dimensions.width} ${dimensions.height}` : undefined}
+          preserveAspectRatio="xMidYMid meet"
+          style={{ maxWidth: '100%', display: 'block' }}
         />
         {tooltip?.show && (
           <div
