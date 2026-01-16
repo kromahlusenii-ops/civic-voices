@@ -174,20 +174,20 @@ export default function ContentBreakdown({
       className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm"
       data-testid="content-breakdown"
     >
-      {/* Header with tabs */}
-      <div className="flex items-center justify-between mb-5">
+      {/* Header with tabs - stacked on mobile */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
         <div className="flex items-center">
           <h3 className="text-sm font-semibold text-gray-800">
             Content breakdown
           </h3>
           <InfoIcon tooltip="Distribution of content by type and category" />
         </div>
-        <div className="flex bg-gray-100 rounded-lg p-0.5">
+        <div className="flex bg-gray-100 rounded-lg p-0.5 self-start sm:self-auto">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => handleTabChange(tab.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              className={`px-3 py-2 sm:py-1.5 text-xs font-medium rounded-md transition-colors ${
                 currentTab === tab.key
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-600 hover:text-gray-900"
@@ -214,8 +214,8 @@ export default function ContentBreakdown({
         ))}
       </div>
 
-      {/* Data cards - 2x2 grid */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Data cards - stacked on mobile, 2x2 grid on desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {dataWithColors.slice(0, 4).map((item, index) => (
           <div
             key={index}

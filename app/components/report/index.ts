@@ -15,3 +15,4 @@ export { default as DashboardTabs } from "./DashboardTabs";
 export type { DashboardTab } from "./DashboardTabs";
 export { default as SocialPostCard } from "./SocialPostCard";
 export { default as SocialPostGrid } from "./SocialPostGrid";
+export { default as MobileBottomNav } from "./MobileBottomNav";

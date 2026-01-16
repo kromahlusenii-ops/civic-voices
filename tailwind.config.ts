@@ -8,6 +8,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      screens: {
+        'xs': '375px', // iPhone SE and similar small devices
+      },
       fontFamily: {
         display: ['var(--font-playfair)', 'Georgia', 'serif'],
         body: ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],

@@ -135,19 +135,19 @@ export default function EmotionsBreakdown({
           const barWidth = maxPercentage > 0 ? (percentage / maxPercentage) * 100 : 0;
 
           return (
-            <div key={emotion.key} className="flex items-center gap-3">
+            <div key={emotion.key} className="flex items-center gap-2 sm:gap-3">
               {/* Emoji icon */}
-              <span className="text-lg w-6 text-center flex-shrink-0">
+              <span className="text-base sm:text-lg w-5 sm:w-6 text-center flex-shrink-0">
                 {emotion.icon}
               </span>
 
-              {/* Label */}
-              <span className="text-sm text-gray-700 w-20 flex-shrink-0">
+              {/* Label - narrower on mobile */}
+              <span className="text-xs sm:text-sm text-gray-700 w-16 sm:w-20 flex-shrink-0 truncate">
                 {emotion.label}
               </span>
 
               {/* Progress bar container */}
-              <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="flex-1 h-2 sm:h-2.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
                   className={`h-full ${emotion.color} rounded-full transition-all duration-500`}
                   style={{ width: `${barWidth}%` }}
@@ -155,7 +155,7 @@ export default function EmotionsBreakdown({
               </div>
 
               {/* Percentage */}
-              <span className="text-sm font-medium text-gray-900 w-12 text-right flex-shrink-0">
+              <span className="text-xs sm:text-sm font-medium text-gray-900 w-10 sm:w-12 text-right flex-shrink-0">
                 {percentage}%
               </span>
             </div>

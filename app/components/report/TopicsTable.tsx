@@ -382,31 +382,34 @@ export default function TopicsTable({
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/50">
-              <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="text-left px-3 sm:px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Topic
               </th>
+              {/* Hide views on mobile */}
               <th
-                className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                className="hidden sm:table-cell text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
                 onClick={() => handleSort("views")}
               >
                 Est. views
                 <SortIndicator field="views" />
               </th>
+              {/* Hide likes on mobile */}
               <th
-                className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                className="hidden sm:table-cell text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
                 onClick={() => handleSort("likes")}
               >
                 Est. likes
                 <SortIndicator field="likes" />
               </th>
-              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="text-center px-2 sm:px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Resonance
               </th>
-              <th className="text-center px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+              <th className="text-center px-2 sm:px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sm:w-32">
                 Sentiment
               </th>
+              {/* Hide date on mobile */}
               <th
-                className="text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
+                className="hidden sm:table-cell text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
                 onClick={() => handleSort("date")}
               >
                 Date
@@ -422,14 +425,14 @@ export default function TopicsTable({
                   className="border-b border-gray-50 hover:bg-gray-50/50 cursor-pointer transition-colors"
                   onClick={() => toggleExpand(topic.id)}
                 >
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-lg">{topic.icon}</span>
-                      <span className="text-sm font-medium text-gray-900">
+                  <td className="px-3 sm:px-5 py-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <span className="text-base sm:text-lg">{topic.icon}</span>
+                      <span className="text-sm font-medium text-gray-900 truncate max-w-[120px] sm:max-w-none">
                         {topic.name}
                       </span>
                       <svg
-                        className={`w-4 h-4 text-gray-400 transition-transform ${
+                        className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${
                           expandedId === topic.id ? "rotate-180" : ""
                         }`}
                         fill="none"
@@ -445,26 +448,29 @@ export default function TopicsTable({
                       </svg>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  {/* Hidden on mobile */}
+                  <td className="hidden sm:table-cell px-4 py-3 text-right">
                     <span className="text-sm text-gray-900">
                       {formatNumber(topic.views)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  {/* Hidden on mobile */}
+                  <td className="hidden sm:table-cell px-4 py-3 text-right">
                     <span className="text-sm text-gray-900">
                       {formatNumber(topic.likes)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-2 sm:px-4 py-3 text-center">
                     <ResonanceBadge level={topic.resonance} />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-2 sm:px-4 py-3">
                     <SentimentBar
                       positive={topic.sentimentPositive}
                       negative={topic.sentimentNegative}
                     />
                   </td>
-                  <td className="px-5 py-3 text-right">
+                  {/* Hidden on mobile */}
+                  <td className="hidden sm:table-cell px-5 py-3 text-right">
                     <span className="text-sm text-gray-500">
                       {formatRelativeTime(topic.date)}
                     </span>
@@ -473,10 +479,10 @@ export default function TopicsTable({
                 {/* Expanded details row */}
                 {expandedId === topic.id && (
                   <tr key={`${topic.id}-details`} className="bg-gray-50/30">
-                    <td colSpan={6} className="px-5 py-5">
-                      <div className="space-y-5 animate-accordion-open">
-                        {/* Posts overview and Comments overview - two columns */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <td colSpan={6} className="px-3 sm:px-5 py-4 sm:py-5">
+                      <div className="space-y-4 sm:space-y-5 animate-accordion-open">
+                        {/* Posts overview and Comments overview - two columns on desktop */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                           {/* Posts overview */}
                           {topic.postsOverview && (
                             <div

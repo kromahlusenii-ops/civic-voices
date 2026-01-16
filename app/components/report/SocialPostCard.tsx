@@ -178,12 +178,12 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
           </p>
 
           {/* Footer: Engagement + Sentiment */}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-            {/* Engagement Metrics */}
-            <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-50">
+            {/* Engagement Metrics - wrap on mobile */}
+            <div className="flex items-center gap-2 sm:gap-4 text-xs text-gray-500 flex-wrap">
               {/* Likes */}
               <span className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -196,7 +196,7 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
 
               {/* Comments */}
               <span className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -207,9 +207,9 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
                 {formatNumber(post.engagement.comments)}
               </span>
 
-              {/* Shares */}
-              <span className="flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Shares - hide on very small screens */}
+              <span className="hidden xs:flex items-center gap-1">
+                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -220,10 +220,10 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
                 {formatNumber(post.engagement.shares)}
               </span>
 
-              {/* Views (if available) */}
+              {/* Views (if available) - hide on very small screens */}
               {post.engagement.views && (
-                <span className="flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="hidden xs:flex items-center gap-1">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"

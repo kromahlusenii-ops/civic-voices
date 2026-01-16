@@ -119,17 +119,21 @@ export default function TopPosts({ posts, limit = 5 }: TopPostsProps) {
         Top Performing Posts
       </h3>
 
-      <div className="space-y-4">
-        {topPosts.map((post) => {
-          const sentimentConfig = post.sentiment
-            ? SENTIMENT_CONFIG[post.sentiment]
-            : null;
+      {/* Mobile: horizontal scroll carousel, Desktop: vertical list */}
+      <div className="relative -mx-4 sm:mx-0">
+        <div className="flex gap-3 overflow-x-auto px-4 sm:px-0 pb-2 sm:pb-0 snap-x scrollbar-hide
+                        sm:flex-col sm:overflow-visible sm:snap-none sm:space-y-4 sm:gap-0">
+          {topPosts.map((post) => {
+            const sentimentConfig = post.sentiment
+              ? SENTIMENT_CONFIG[post.sentiment]
+              : null;
 
-          return (
-            <div
-              key={post.id}
-              className="border border-gray-100 rounded-lg p-3 hover:bg-gray-50 transition-colors"
-            >
+            return (
+              <div
+                key={post.id}
+                className="flex-shrink-0 w-[280px] sm:w-auto snap-start
+                           border border-gray-100 rounded-lg p-3 hover:bg-gray-50 transition-colors"
+              >
               {/* Header: Platform icon, author, sentiment badge */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -236,6 +240,9 @@ export default function TopPosts({ posts, limit = 5 }: TopPostsProps) {
             </div>
           );
         })}
+        </div>
+        {/* Fade indicator on mobile */}
+        <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white pointer-events-none sm:hidden" />
       </div>
     </div>
   );

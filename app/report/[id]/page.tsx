@@ -19,6 +19,7 @@ import {
   ShareModal,
   DashboardTabs,
   SocialPostGrid,
+  MobileBottomNav,
 } from "@/app/components/report";
 import type { DashboardTab } from "@/app/components/report";
 import type { Post, AIAnalysis } from "@/lib/types/api";
@@ -576,113 +577,118 @@ export default function ReportPage() {
         <div className="flex flex-col">
           {/* Header */}
           <header className="bg-white border-b border-gray-200">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-                    <button
-                      onClick={() => router.push("/search")}
-                      className="hover:text-gray-700 flex items-center gap-1"
-                    >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                      </svg>
-                      Back to Search
-                    </button>
-                    <span>•</span>
-                    <span>Report</span>
-                  </div>
-                  <h1 className="text-2xl font-semibold text-gray-900" data-testid="report-query">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+              {/* Mobile: Stack vertically, Desktop: Row */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                {/* Left side: Back + Title */}
+                <div className="flex-1 min-w-0">
+                  <button
+                    onClick={() => router.push("/search")}
+                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-1"
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                    <span className="hidden sm:inline">Back to Search</span>
+                    <span className="sm:hidden">Back</span>
+                  </button>
+                  <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 line-clamp-2" data-testid="report-query">
                     {reportData.report.query}
                   </h1>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Generated on {formatDate(reportData.report.createdAt)}
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  {/* Sources */}
-                  <div className="flex items-center gap-2">
+
+                {/* Right side: Sources + Actions */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  {/* Sources - horizontal scroll on mobile */}
+                  <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 sm:pb-0">
                     {reportData.report.sources.map((source) => (
                       <span
                         key={source}
-                        className="flex items-center gap-1 text-gray-600 bg-gray-100 rounded-full px-3 py-1 text-sm"
+                        className="flex-shrink-0 flex items-center gap-1 text-gray-600 bg-gray-100 rounded-full px-3 py-1 text-sm"
                       >
                         {SOURCE_ICONS[source]}
                         <span className="capitalize">{source === "x" ? "X" : source}</span>
                       </span>
                     ))}
-                  </div>
-                  {/* Download PDF Button */}
-                  {reportData.report.status === "COMPLETED" && (
-                    <button
-                      onClick={handleDownloadPDF}
-                      disabled={isDownloadingPDF}
-                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Download PDF report"
-                      title="Download PDF report"
+                    {/* Status Badge - inline with sources on mobile */}
+                    <span
+                      className={`flex-shrink-0 px-3 py-1 rounded-full text-sm font-medium ${
+                        reportData.report.status === "COMPLETED"
+                          ? "bg-green-100 text-green-700"
+                          : reportData.report.status === "RUNNING"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
                     >
-                      {isDownloadingPDF ? (
-                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      ) : (
+                      {reportData.report.status}
+                    </span>
+                  </div>
+
+                  {/* Desktop-only action buttons (moved to bottom nav on mobile) */}
+                  <div className="hidden sm:flex items-center gap-2">
+                    {/* Download PDF Button */}
+                    {reportData.report.status === "COMPLETED" && (
+                      <button
+                        onClick={handleDownloadPDF}
+                        disabled={isDownloadingPDF}
+                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        aria-label="Download PDF report"
+                        title="Download PDF report"
+                      >
+                        {isDownloadingPDF ? (
+                          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                    {/* Share Button - only show for owner */}
+                    {isOwner && (
+                      <button
+                        onClick={() => setShowShareModal(true)}
+                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                        aria-label="Share report"
+                        title="Share report"
+                      >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
                           />
                         </svg>
-                      )}
-                    </button>
-                  )}
-                  {/* Share Button - only show for owner */}
-                  {isOwner && (
-                    <button
-                      onClick={() => setShowShareModal(true)}
-                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                      aria-label="Share report"
-                      title="Share report"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-                        />
-                      </svg>
-                    </button>
-                  )}
-                  {/* Status Badge */}
-                  <span
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      reportData.report.status === "COMPLETED"
-                        ? "bg-green-100 text-green-700"
-                        : reportData.report.status === "RUNNING"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {reportData.report.status}
-                  </span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-              <p className="text-sm text-gray-500 mt-2">
-                Generated on {formatDate(reportData.report.createdAt)}
-              </p>
             </div>
           </header>
 
-          {/* Tab Bar */}
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          {/* Tab Bar - hidden on mobile (moved to bottom nav) */}
+          <div className="hidden sm:block max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
             <DashboardTabs
               activeTab={activeTab}
               onTabChange={handleTabChange}
             />
           </div>
 
-          {/* Dashboard Content */}
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {/* Dashboard Content - extra bottom padding on mobile for bottom nav */}
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-6 space-y-6">
             {/* Overview Tab Content */}
             {activeTab === "overview" && (
               <>
@@ -790,6 +796,19 @@ export default function ReportPage() {
           reportQuery={reportData.report.query}
           onClose={() => setShowShareModal(false)}
           getAccessToken={getAccessToken}
+        />
+      )}
+
+      {/* Mobile Bottom Navigation */}
+      {reportData && (
+        <MobileBottomNav
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onShare={() => setShowShareModal(true)}
+          onDownloadPDF={handleDownloadPDF}
+          isOwner={isOwner}
+          canDownload={reportData.report.status === "COMPLETED"}
+          isDownloading={isDownloadingPDF}
         />
       )}
     </div>

@@ -60,29 +60,36 @@ export default function MetricsRow({
 
   return (
     <>
-      <div
-        className="grid grid-cols-3 gap-3"
-        data-testid="metrics-row"
-      >
-        {metrics.map((metric, index) => (
-          <div
-            key={index}
-            className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center mb-2">
-              <p className="text-xs text-gray-500 font-medium">
-                {metric.label}
+      {/* Mobile: horizontal scroll, Desktop: grid */}
+      <div className="relative -mx-4 sm:mx-0">
+        <div
+          className="flex gap-3 overflow-x-auto px-4 sm:px-0 pb-2 sm:pb-0 snap-x scrollbar-hide
+                     sm:grid sm:grid-cols-3 sm:overflow-visible sm:snap-none"
+          data-testid="metrics-row"
+        >
+          {metrics.map((metric, index) => (
+            <div
+              key={index}
+              className="flex-shrink-0 w-[140px] sm:w-auto snap-start
+                         bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center mb-2">
+                <p className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                  {metric.label}
+                </p>
+                <InfoButton
+                  explanation={getExplanation(metric.explanationKey)}
+                  onOpenModal={setModalExplanation}
+                />
+              </div>
+              <p className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
+                {metric.value}
               </p>
-              <InfoButton
-                explanation={getExplanation(metric.explanationKey)}
-                onOpenModal={setModalExplanation}
-              />
             </div>
-            <p className="text-2xl font-bold tracking-tight text-gray-900">
-              {metric.value}
-            </p>
-          </div>
-        ))}
+          ))}
+        </div>
+        {/* Fade indicator on mobile */}
+        <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-gray-50 pointer-events-none sm:hidden" />
       </div>
 
       {/* Info Modal */}

@@ -67,9 +67,21 @@ export default function ActivityChart({
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    const margin = { top: 20, right: 60, bottom: 50, left: 60 };
+    // Responsive margins - smaller on mobile
+    const isMobile = dimensions.width < 400;
+    const margin = {
+      top: 20,
+      right: isMobile ? 45 : 60,
+      bottom: isMobile ? 40 : 50,
+      left: isMobile ? 45 : 60,
+    };
     const innerWidth = dimensions.width - margin.left - margin.right;
     const innerHeight = dimensions.height - margin.top - margin.bottom;
+
+    // Responsive sizes for touch targets and fonts
+    const dotRadius = isMobile ? 5 : 4;
+    const dotRadiusHover = isMobile ? 8 : 6;
+    const axisFontSize = isMobile ? "10px" : "11px";
 
     // Parse dates
     const parseDate = d3.timeParse("%Y-%m-%d");
@@ -167,11 +179,11 @@ export default function ActivityChart({
       .attr("stroke", "#f3f4f6")
       .attr("stroke-dasharray", "3,3");
 
-    // Add X axis
+    // Add X axis - fewer ticks on mobile
     const xAxis = d3
       .axisBottom(xScale)
-      .ticks(Math.min(chartData.length, 7))
-      .tickFormat(d3.timeFormat("%b %d") as (d: Date | d3.NumberValue) => string);
+      .ticks(isMobile ? Math.min(chartData.length, 4) : Math.min(chartData.length, 7))
+      .tickFormat(d3.timeFormat(isMobile ? "%m/%d" : "%b %d") as (d: Date | d3.NumberValue) => string);
 
     g.append("g")
       .attr("class", "x-axis")
@@ -179,19 +191,19 @@ export default function ActivityChart({
       .call(xAxis)
       .selectAll("text")
       .attr("fill", "#6b7280")
-      .attr("font-size", "11px");
+      .attr("font-size", axisFontSize);
 
     // Left Y axis (Views) - Blue
     g.append("g")
       .attr("class", "y-axis-left")
       .call(
         d3.axisLeft(yScaleViews)
-          .ticks(5)
+          .ticks(isMobile ? 4 : 5)
           .tickFormat((d) => formatNumber(d as number))
       )
       .selectAll("text")
       .attr("fill", "#3b82f6")
-      .attr("font-size", "11px");
+      .attr("font-size", axisFontSize);
 
     // Right Y axis (Mentions) - Orange
     g.append("g")
@@ -199,12 +211,12 @@ export default function ActivityChart({
       .attr("transform", `translate(${innerWidth}, 0)`)
       .call(
         d3.axisRight(yScaleMentions)
-          .ticks(5)
+          .ticks(isMobile ? 4 : 5)
           .tickFormat((d) => formatNumber(d as number))
       )
       .selectAll("text")
       .attr("fill", "#f97316")
-      .attr("font-size", "11px");
+      .attr("font-size", axisFontSize);
 
     // Style axis lines
     g.selectAll(".domain").attr("stroke", "#e5e7eb");
@@ -226,20 +238,20 @@ export default function ActivityChart({
       .attr("stroke-width", 2.5)
       .attr("d", lineMentions);
 
-    // Add dots for Views data points
+    // Add dots for Views data points - larger on mobile for touch
     g.selectAll(".dot-views")
       .data(chartData)
       .join("circle")
       .attr("class", "dot-views")
       .attr("cx", (d) => xScale(d.parsedDate))
       .attr("cy", (d) => yScaleViews(d.views))
-      .attr("r", 4)
+      .attr("r", dotRadius)
       .attr("fill", "#3b82f6")
       .attr("stroke", "white")
       .attr("stroke-width", 2)
       .style("cursor", "pointer")
       .on("mouseenter", function (event, d) {
-        d3.select(this).transition().duration(100).attr("r", 6);
+        d3.select(this).transition().duration(100).attr("r", dotRadiusHover);
         const [x, y] = d3.pointer(event, containerRef.current);
         setTooltip({
           show: true,
@@ -252,24 +264,24 @@ export default function ActivityChart({
         });
       })
       .on("mouseleave", function () {
-        d3.select(this).transition().duration(100).attr("r", 4);
+        d3.select(this).transition().duration(100).attr("r", dotRadius);
         setTooltip(null);
       });
 
-    // Add dots for Mentions data points
+    // Add dots for Mentions data points - larger on mobile for touch
     g.selectAll(".dot-mentions")
       .data(chartData)
       .join("circle")
       .attr("class", "dot-mentions")
       .attr("cx", (d) => xScale(d.parsedDate))
       .attr("cy", (d) => yScaleMentions(d.count))
-      .attr("r", 4)
+      .attr("r", dotRadius)
       .attr("fill", "#f97316")
       .attr("stroke", "white")
       .attr("stroke-width", 2)
       .style("cursor", "pointer")
       .on("mouseenter", function (event, d) {
-        d3.select(this).transition().duration(100).attr("r", 6);
+        d3.select(this).transition().duration(100).attr("r", dotRadiusHover);
         const [x, y] = d3.pointer(event, containerRef.current);
         setTooltip({
           show: true,
@@ -282,7 +294,7 @@ export default function ActivityChart({
         });
       })
       .on("mouseleave", function () {
-        d3.select(this).transition().duration(100).attr("r", 4);
+        d3.select(this).transition().duration(100).attr("r", dotRadius);
         setTooltip(null);
       });
 
