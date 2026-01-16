@@ -70,12 +70,19 @@ const REPORT_AI_MAX_COMMENTS_PER_POST = Number(
 
 /**
  * Get the base URL for share links
- * Priority: NEXT_PUBLIC_APP_URL > VERCEL_URL > localhost
+ * Priority: NEXT_PUBLIC_APP_URL > production default > localhost
+ * Note: We avoid VERCEL_URL as it returns deployment-specific URLs that may redirect
+ * and lose query parameters like the share token
  */
 function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
   }
+  // Production default - ensures share links always use the canonical domain
+  if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
+    return "https://civicvoices.app";
+  }
+  // For preview deployments, use VERCEL_URL
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
