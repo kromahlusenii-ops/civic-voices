@@ -113,9 +113,9 @@ function PlatformSentiment({
   if (platformData.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-      <h3 className="text-sm font-semibold text-gray-800 mb-4">Platform Sentiment</h3>
-      <div className="space-y-4">
+    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+      <h3 className="text-sm font-semibold text-gray-800 mb-3 sm:mb-4">Platform Sentiment</h3>
+      <div className="space-y-3 sm:space-y-4">
         {platformData.map(({ platform, positive, negative, neutral, total }) => {
           const positivePercent = total > 0 ? Math.round((positive / total) * 100) : 0;
           const negativePercent = total > 0 ? Math.round((negative / total) * 100) : 0;
@@ -152,19 +152,19 @@ function PlatformSentiment({
                   />
                 )}
               </div>
-              {/* Percentages */}
-              <div className="flex gap-4 text-xs text-gray-600">
-                <span className="flex items-center gap-1.5">
+              {/* Percentages - wrap on mobile */}
+              <div className="flex flex-wrap gap-x-3 gap-y-1 sm:gap-4 text-[10px] sm:text-xs text-gray-600">
+                <span className="flex items-center gap-1">
                   <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                  {positivePercent}% positive
+                  {positivePercent}% pos
                 </span>
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1">
                   <span className="inline-block h-2 w-2 rounded-full bg-gray-400" />
-                  {neutralPercent}% neutral
+                  {neutralPercent}% neu
                 </span>
-                <span className="flex items-center gap-1.5">
+                <span className="flex items-center gap-1">
                   <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
-                  {negativePercent}% negative
+                  {negativePercent}% neg
                 </span>
               </div>
             </div>
@@ -688,21 +688,21 @@ export default function ReportPage() {
           </div>
 
           {/* Dashboard Content - extra bottom padding on mobile for bottom nav */}
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 sm:pb-6 space-y-6">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 sm:pb-6 space-y-4 sm:space-y-6">
             {/* Overview Tab Content */}
             {activeTab === "overview" && (
               <>
                 {/* AI Summary - Full Width */}
                 {reportData.aiAnalysis && (
-                  <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-3">Summary</h3>
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2 sm:mb-3">Summary</h3>
                     <p className="text-sm text-gray-600 leading-relaxed">
                       {renderSummaryWithHighlights(reportData.aiAnalysis.interpretation)}
                     </p>
 
                     {/* Sentiment Commentary */}
                     {reportData.aiAnalysis.sentimentBreakdown && (
-                      <div className="mt-4 rounded-lg bg-gray-50 p-3">
+                      <div className="mt-3 sm:mt-4 rounded-lg bg-gray-50 p-3">
                         <p className="text-sm text-gray-600">
                           <span className="font-medium">Sentiment: </span>
                           <span className={`capitalize ${
@@ -732,7 +732,7 @@ export default function ReportPage() {
                 <ActivityChart data={reportData.activityOverTime} />
 
                 {/* Two Column: Emotions + Content Breakdown */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   {/* Emotions Breakdown */}
                   <EmotionsBreakdown
                     emotions={convertSentimentToEmotions(reportData.metrics.sentimentBreakdown)}
@@ -805,10 +805,7 @@ export default function ReportPage() {
           activeTab={activeTab}
           onTabChange={handleTabChange}
           onShare={() => setShowShareModal(true)}
-          onDownloadPDF={handleDownloadPDF}
           isOwner={isOwner}
-          canDownload={reportData.report.status === "COMPLETED"}
-          isDownloading={isDownloadingPDF}
         />
       )}
     </div>
