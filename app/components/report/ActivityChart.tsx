@@ -327,11 +327,11 @@ export default function ActivityChart({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
       {/* Header with tabs */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
         <h3 className="text-sm font-semibold text-gray-800">Activity over time</h3>
-        <div className="flex bg-gray-100 rounded-lg p-0.5">
+        <div className="flex bg-gray-100 rounded-lg p-0.5 self-start sm:self-auto">
           <button
             onClick={() => handleModeChange("volume")}
             className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
@@ -356,12 +356,12 @@ export default function ActivityChart({
       </div>
 
       {/* Chart */}
-      <div ref={containerRef} className="relative w-full">
+      <div ref={containerRef} className="relative w-full overflow-hidden">
         <svg
           ref={svgRef}
           width={dimensions.width}
           height={dimensions.height}
-          className="overflow-visible"
+          style={{ maxWidth: '100%' }}
         />
         {tooltip?.show && (
           <div
@@ -386,14 +386,14 @@ export default function ActivityChart({
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-6 mt-4 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-blue-500"></span>
-          <span className="text-xs text-gray-600">Views</span>
+      <div className="flex items-center justify-center gap-4 sm:gap-6 mt-3 sm:mt-4 pt-3 border-t border-gray-100">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500"></span>
+          <span className="text-[10px] sm:text-xs text-gray-600">Views</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-orange-500"></span>
-          <span className="text-xs text-gray-600">Mentions</span>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-500"></span>
+          <span className="text-[10px] sm:text-xs text-gray-600">Mentions</span>
         </div>
       </div>
     </div>
