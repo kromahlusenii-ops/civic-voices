@@ -161,7 +161,27 @@ export default function SearchHistorySidebar({ isOpen, onClose, onMouseEnter, on
                 className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 rounded-lg flex items-center justify-between group"
                 data-testid={`sidebar-search-item-${search.id}`}
               >
-                <span className="truncate flex-1 pr-2">{search.name}</span>
+                <span className="truncate flex-1 pr-2 flex items-center gap-1.5">
+                  {search.name}
+                  {/* Report indicator */}
+                  {search.reportId && (
+                    <svg
+                      className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                      aria-label="Report generated"
+                      data-testid={`report-indicator-${search.id}`}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  )}
+                </span>
 
                 {/* Kebab menu button */}
                 {(hoveredId === search.id || menuOpenId === search.id) && (

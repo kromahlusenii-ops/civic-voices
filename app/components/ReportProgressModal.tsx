@@ -131,53 +131,58 @@ export default function ReportProgressModal({
         const decoder = new TextDecoder();
         let buffer = "";
 
+        // Helper to process SSE data
+        const processData = (data: { type: string; step?: string; reportId?: string; message?: string }) => {
+          if (data.type === "progress" && data.step) {
+            // Use functional setState to get previous step without dependency
+            setCurrentStep((prevStep) => {
+              if (prevStep) {
+                setCompletedSteps((prev) => new Set([...prev, prevStep]));
+              }
+              return data.step as ReportProgressStep;
+            });
+          }
+
+          if (data.type === "complete" && data.reportId) {
+            // Mark all steps as completed
+            setCompletedSteps(new Set(PROGRESS_STEPS.map((s) => s.id)));
+            setCurrentStep(null);
+            setIsComplete(true);
+            setReportId(data.reportId);
+
+            // Navigate immediately to the report
+            router.push(`/report/${data.reportId}`);
+          }
+
+          if (data.type === "error") {
+            onError(data.message || "An error occurred");
+            onClose();
+          }
+        };
+
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          if (value) {
+            buffer += decoder.decode(value, { stream: !done });
+          }
 
           // Process complete SSE messages
           const lines = buffer.split("\n\n");
-          buffer = lines.pop() || "";
+          buffer = done ? "" : (lines.pop() || "");
 
           for (const line of lines) {
             if (line.startsWith("data: ")) {
               try {
                 const data = JSON.parse(line.slice(6));
-
-                if (data.type === "progress" && data.step) {
-                  // Use functional setState to get previous step without dependency
-                  setCurrentStep((prevStep) => {
-                    if (prevStep) {
-                      setCompletedSteps((prev) => new Set([...prev, prevStep]));
-                    }
-                    return data.step;
-                  });
-                }
-
-                if (data.type === "complete") {
-                  // Mark all steps as completed
-                  setCompletedSteps(new Set(PROGRESS_STEPS.map((s) => s.id)));
-                  setCurrentStep(null);
-                  setIsComplete(true);
-                  setReportId(data.reportId);
-
-                  // Redirect after a short delay
-                  setTimeout(() => {
-                    router.push(`/report/${data.reportId}`);
-                  }, 1000);
-                }
-
-                if (data.type === "error") {
-                  onError(data.message);
-                  onClose();
-                }
+                processData(data);
               } catch {
                 // Ignore JSON parse errors for incomplete data
               }
             }
           }
+
+          if (done) break;
         }
       })
       .catch((error) => {

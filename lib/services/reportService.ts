@@ -60,13 +60,27 @@ const SENTIMENT_MAX_POSTS = Number(
 );
 // Default to NOT deferring insights - AI analysis runs during report generation
 const DEFER_REPORT_INSIGHTS = process.env.REPORT_DEFER_INSIGHTS === "true";
-const REPORT_AI_MAX_POSTS = Number(process.env.REPORT_AI_MAX_POSTS ?? 60);
+const REPORT_AI_MAX_POSTS = Number(process.env.REPORT_AI_MAX_POSTS ?? 100);
 const REPORT_AI_MAX_COMMENT_POSTS = Number(
-  process.env.REPORT_AI_MAX_COMMENT_POSTS ?? 5
+  process.env.REPORT_AI_MAX_COMMENT_POSTS ?? 8
 );
 const REPORT_AI_MAX_COMMENTS_PER_POST = Number(
-  process.env.REPORT_AI_MAX_COMMENTS_PER_POST ?? 10
+  process.env.REPORT_AI_MAX_COMMENTS_PER_POST ?? 20
 );
+
+/**
+ * Get the base URL for share links
+ * Priority: NEXT_PUBLIC_APP_URL > VERCEL_URL > localhost
+ */
+function getBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return "http://localhost:3000";
+}
 
 type PrismaClientLike = Prisma.TransactionClient | PrismaClient;
 
@@ -169,17 +183,13 @@ export interface ReportData {
 }
 
 export interface ShareSettings {
-  isPublic: boolean;
   shareToken: string | null;
-  shareTokenExpiresAt: string | null;
   shareUrl: string | null;
 }
 
 export interface UpdateShareSettingsInput {
-  isPublic?: boolean;
   generateToken?: boolean;
   revokeToken?: boolean;
-  tokenExpiresInDays?: number;
 }
 
 /**
@@ -192,8 +202,8 @@ async function fetchTopPostComments(
   maxCommentsPerPost: number = 20
 ): Promise<PostComments[]> {
   const results: PostComments[] = [];
-  const xMaxPosts = Math.min(maxPostsPerPlatform, 3);
-  const xMaxComments = Math.min(maxCommentsPerPost, 10);
+  const xMaxPosts = Math.min(maxPostsPerPlatform, 5);
+  const xMaxComments = Math.min(maxCommentsPerPost, 15);
 
   // Sort posts by engagement helper
   const sortByEngagement = (a: Post, b: Post) => {
@@ -1141,8 +1151,8 @@ export async function getReportStatus(
 }
 
 /**
- * Get report data for shared/public access (no auth required)
- * Validates either public flag or share token
+ * Get report data for shared access (no auth required)
+ * Validates share token
  */
 export async function getReportForSharing(
   reportId: string,
@@ -1171,14 +1181,10 @@ export async function getReportForSharing(
     return null;
   }
 
-  // Validate access - must be public OR have valid token
-  const isPublicAccess = job.isPublic;
-  const isTokenAccess =
-    shareToken &&
-    job.shareToken === shareToken &&
-    (!job.shareTokenExpiresAt || new Date(job.shareTokenExpiresAt) > new Date());
+  // Validate access - must have valid share token
+  const hasValidToken = shareToken && job.shareToken === shareToken;
 
-  if (!isPublicAccess && !isTokenAccess) {
+  if (!hasValidToken) {
     return null;
   }
 
@@ -1247,20 +1253,16 @@ export async function getShareSettings(
     where: { id: reportId, userId },
     select: {
       id: true,
-      isPublic: true,
       shareToken: true,
-      shareTokenExpiresAt: true,
     },
   });
 
   if (!job) return null;
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = getBaseUrl();
 
   return {
-    isPublic: job.isPublic,
     shareToken: job.shareToken,
-    shareTokenExpiresAt: job.shareTokenExpiresAt?.toISOString() || null,
     shareUrl: job.shareToken
       ? `${baseUrl}/report/${job.id}?token=${job.shareToken}`
       : null,
@@ -1282,9 +1284,7 @@ export async function updateShareSettings(
     where: { id: reportId, userId },
     select: {
       id: true,
-      isPublic: true,
       shareToken: true,
-      shareTokenExpiresAt: true,
     },
   });
 
@@ -1294,18 +1294,11 @@ export async function updateShareSettings(
 
   const updateData: Prisma.ResearchJobUpdateInput = {};
 
-  // Handle public toggle
-  if (settings.isPublic !== undefined) {
-    updateData.isPublic = settings.isPublic;
-  }
-
   // Handle token generation
   if (settings.generateToken) {
     updateData.shareToken = crypto.randomUUID();
     updateData.shareTokenCreatedAt = new Date();
-    updateData.shareTokenExpiresAt = settings.tokenExpiresInDays
-      ? new Date(Date.now() + settings.tokenExpiresInDays * 24 * 60 * 60 * 1000)
-      : null;
+    updateData.shareTokenExpiresAt = null; // No expiration
   }
 
   // Handle token revocation
@@ -1320,18 +1313,14 @@ export async function updateShareSettings(
     data: updateData,
     select: {
       id: true,
-      isPublic: true,
       shareToken: true,
-      shareTokenExpiresAt: true,
     },
   });
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = getBaseUrl();
 
   return {
-    isPublic: updated.isPublic,
     shareToken: updated.shareToken,
-    shareTokenExpiresAt: updated.shareTokenExpiresAt?.toISOString() || null,
     shareUrl: updated.shareToken
       ? `${baseUrl}/report/${updated.id}?token=${updated.shareToken}`
       : null,

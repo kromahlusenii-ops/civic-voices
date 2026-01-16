@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { useToast } from "@/app/contexts/ToastContext";
 import AuthModal from "@/app/components/AuthModal";
 import {
   ActivityChart,
@@ -57,6 +58,122 @@ interface ReportData {
   topPosts: Array<Post & { sentiment: "positive" | "negative" | "neutral" | null }>;
 }
 
+// Platform display names for sentiment component
+const PLATFORM_LABELS: Record<string, string> = {
+  x: "X",
+  tiktok: "TikTok",
+  youtube: "YouTube",
+  instagram: "Instagram",
+  bluesky: "Bluesky",
+  truthsocial: "Truth Social",
+  reddit: "Reddit",
+  linkedin: "LinkedIn",
+};
+
+// Platform sentiment type
+interface PlatformSentimentData {
+  platform: string;
+  positive: number;
+  negative: number;
+  neutral: number;
+  total: number;
+}
+
+// Calculate sentiment breakdown per platform
+function calculatePlatformSentiment(
+  posts: Array<Post & { sentiment: "positive" | "negative" | "neutral" | null }>
+): PlatformSentimentData[] {
+  const platformMap = new Map<string, { positive: number; negative: number; neutral: number; total: number }>();
+
+  posts.forEach((post) => {
+    if (!platformMap.has(post.platform)) {
+      platformMap.set(post.platform, { positive: 0, negative: 0, neutral: 0, total: 0 });
+    }
+    const data = platformMap.get(post.platform)!;
+    data.total++;
+    if (post.sentiment === "positive") data.positive++;
+    else if (post.sentiment === "negative") data.negative++;
+    else data.neutral++;
+  });
+
+  return Array.from(platformMap.entries())
+    .map(([platform, data]) => ({ platform, ...data }))
+    .sort((a, b) => b.total - a.total);
+}
+
+// Platform Sentiment component
+function PlatformSentiment({
+  posts,
+}: {
+  posts: Array<Post & { sentiment: "positive" | "negative" | "neutral" | null }>;
+}) {
+  const platformData = calculatePlatformSentiment(posts);
+
+  if (platformData.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+      <h3 className="text-sm font-semibold text-gray-800 mb-4">Platform Sentiment</h3>
+      <div className="space-y-4">
+        {platformData.map(({ platform, positive, negative, neutral, total }) => {
+          const positivePercent = total > 0 ? Math.round((positive / total) * 100) : 0;
+          const negativePercent = total > 0 ? Math.round((negative / total) * 100) : 0;
+          const neutralPercent = total > 0 ? Math.round((neutral / total) * 100) : 0;
+
+          return (
+            <div key={platform} className="space-y-2">
+              <div className="text-sm">
+                <span className="font-medium text-gray-800">
+                  {PLATFORM_LABELS[platform] || platform}
+                </span>
+              </div>
+              {/* Sentiment bar */}
+              <div className="flex h-2.5 overflow-hidden rounded-full bg-gray-100">
+                {positivePercent > 0 && (
+                  <div
+                    className="bg-green-500 transition-all"
+                    style={{ width: `${positivePercent}%` }}
+                    title={`Positive: ${positivePercent}%`}
+                  />
+                )}
+                {neutralPercent > 0 && (
+                  <div
+                    className="bg-gray-400 transition-all"
+                    style={{ width: `${neutralPercent}%` }}
+                    title={`Neutral: ${neutralPercent}%`}
+                  />
+                )}
+                {negativePercent > 0 && (
+                  <div
+                    className="bg-red-500 transition-all"
+                    style={{ width: `${negativePercent}%` }}
+                    title={`Negative: ${negativePercent}%`}
+                  />
+                )}
+              </div>
+              {/* Percentages */}
+              <div className="flex gap-4 text-xs text-gray-600">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+                  {positivePercent}% positive
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-gray-400" />
+                  {neutralPercent}% neutral
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+                  {negativePercent}% negative
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const SOURCE_ICONS: Record<string, React.ReactNode> = {
   x: (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -84,9 +201,11 @@ export default function ReportPage() {
   const router = useRouter();
   const params = useParams();
   const { isAuthenticated, loading: authLoading, getAccessToken } = useAuth();
+  const { showToast } = useToast();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -136,12 +255,12 @@ export default function ReportPage() {
             setIsLoading(false);
             return;
           }
-          setError("Share link is invalid or expired");
+          setError("Share link is invalid or has been revoked");
           setIsLoading(false);
           return;
         }
         if (response.status === 404) {
-          setError(shareToken ? "Share link is invalid or expired" : "Report not found");
+          setError(shareToken ? "Share link is invalid or has been revoked" : "Report not found");
           setIsLoading(false);
           return;
         }
@@ -197,6 +316,72 @@ export default function ReportPage() {
     setShowAuthModal(false);
     hasLoadedRef.current = true;
     fetchReportData();
+  };
+
+  // Handle PDF download
+  const handleDownloadPDF = async () => {
+    if (isDownloadingPDF || !reportData) return;
+
+    setIsDownloadingPDF(true);
+    showToast({ message: "Generating PDF report...", duration: 30000 });
+
+    try {
+      const token = await getAccessToken();
+      const searchParams = new URLSearchParams(window.location.search);
+      const shareToken = searchParams.get("token");
+
+      console.log("[PDF Download] Starting download:", {
+        reportId: params.id,
+        hasToken: !!token,
+        hasShareToken: !!shareToken,
+        isOwner,
+      });
+
+      let url = `/api/report/${params.id}/pdf`;
+      if (shareToken) {
+        url += `?token=${shareToken}`;
+      }
+
+      const headers: HeadersInit = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(url, { headers });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("[PDF Download] Error response:", errorData);
+        const debugInfo = errorData.debug ? ` (auth: ${errorData.debug.hasAuth}, token: ${errorData.debug.hasShareToken})` : "";
+        throw new Error((errorData.error || "Failed to generate PDF") + debugInfo);
+      }
+
+      // Get filename from Content-Disposition header or generate one
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+      const filename = filenameMatch?.[1] || `${reportData.report.query.replace(/[^a-z0-9]/gi, "_")}_report.pdf`;
+
+      // Download the PDF
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      showToast({ message: "PDF downloaded successfully!", duration: 3000 });
+    } catch (err) {
+      console.error("PDF download failed:", err);
+      showToast({
+        message: err instanceof Error ? err.message : "Failed to download PDF",
+        duration: 5000,
+      });
+    } finally {
+      setIsDownloadingPDF(false);
+    }
   };
 
   const triggerInsights = useCallback(async (): Promise<boolean> => {
@@ -424,6 +609,32 @@ export default function ReportPage() {
                       </span>
                     ))}
                   </div>
+                  {/* Download PDF Button */}
+                  {reportData.report.status === "COMPLETED" && (
+                    <button
+                      onClick={handleDownloadPDF}
+                      disabled={isDownloadingPDF}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Download PDF report"
+                      title="Download PDF report"
+                    >
+                      {isDownloadingPDF ? (
+                        <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  )}
                   {/* Share Button - only show for owner */}
                   {isOwner && (
                     <button
@@ -536,6 +747,11 @@ export default function ReportPage() {
                   )}
                 </div>
 
+                {/* Platform Sentiment - Full Width */}
+                {reportData.posts.length > 0 && (
+                  <PlatformSentiment posts={reportData.posts} />
+                )}
+
                 {/* Topics Table - Full Width */}
                 {reportData.aiAnalysis?.keyThemes && (
                   <TopicsTable
@@ -546,6 +762,7 @@ export default function ReportPage() {
                       reportData.aiAnalysis.topicAnalysis,
                       reportData.posts
                     )}
+                    onViewMore={() => handleTabChange("social-posts")}
                   />
                 )}
 

@@ -266,12 +266,20 @@ function useScrollAnimation(options: { threshold?: number } = {}) {
 
 export default function Home() {
   const [currentVoiceIndex, setCurrentVoiceIndex] = useState(0);
+  const [currentDate, setCurrentDate] = useState<string>("");
+  const [currentTime, setCurrentTime] = useState<string>("");
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const { ref: voicesRef, isVisible: voicesVisible } = useScrollAnimation();
   const { ref: statusRef, isVisible: statusVisible } = useScrollAnimation();
   const { ref: ctaRef, isVisible: ctaVisible } = useScrollAnimation();
 
   useEffect(() => {
+    // Set date/time values on client only to avoid hydration mismatch
+    setCurrentDate(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase());
+    setCurrentTime(new Date().toLocaleTimeString());
+    setCurrentYear(new Date().getFullYear());
+
     // Cycle through featured voice
     const interval = setInterval(() => {
       setCurrentVoiceIndex(prev => (prev + 1) % LIVE_VOICES.length);
@@ -281,7 +289,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-stone-100 selection:bg-red-600 selection:text-white">
+    <main className="min-h-screen bg-stone-100 selection:bg-red-600 selection:text-white overflow-x-hidden">
       {/* Custom styles */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;0,600;1,400&display=swap');
@@ -402,7 +410,7 @@ export default function Home() {
               {/* Date stamp */}
               <div className="flex items-center gap-4 mb-6">
                 <span className="text-[10px] font-mono text-stone-500 tracking-wider">
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}
+                  {currentDate || "LOADING..."}
                 </span>
                 <span className="flex items-center gap-1.5 text-[10px] font-mono text-red-600">
                   <span className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse" />
@@ -611,7 +619,7 @@ export default function Home() {
               </div>
               <div className="px-4 py-3 border-t border-stone-200 bg-stone-50">
                 <div className="text-[10px] font-mono text-stone-500 text-center">
-                  Last updated: {new Date().toLocaleTimeString()} • Auto-refresh: 30s
+                  Last updated: {currentTime || "--:--:--"} • Auto-refresh: 30s
                 </div>
               </div>
             </div>
@@ -754,7 +762,7 @@ export default function Home() {
           {/* Bottom Bar */}
           <div className="pt-8 border-t border-stone-300 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-[10px] font-mono text-stone-500">
-              © {new Date().getFullYear()} CIVIC VOICES. ALL RIGHTS RESERVED.
+              © {currentYear || "2025"} CIVIC VOICES. ALL RIGHTS RESERVED.
             </p>
             <p className="text-[10px] font-mono text-stone-400">
               TRACKING THE PULSE OF AMERICA

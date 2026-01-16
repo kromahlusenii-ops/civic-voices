@@ -4,9 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/app/contexts/ToastContext";
 
 interface ShareSettings {
-  isPublic: boolean;
   shareToken: string | null;
-  shareTokenExpiresAt: string | null;
   shareUrl: string | null;
 }
 
@@ -74,7 +72,7 @@ export default function ShareModal({
     }
   };
 
-  const updateSettings = async (update: Record<string, unknown>) => {
+  const createShareLink = async () => {
     setIsSaving(true);
     try {
       const token = await getAccessToken();
@@ -86,21 +84,43 @@ export default function ShareModal({
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(update),
+        body: JSON.stringify({ generateToken: true }),
       });
       if (res.ok) {
         const newSettings = await res.json();
         setSettings(newSettings);
-
-        if (update.generateToken) {
-          showToast({ message: "Share link created" });
-        } else if (update.revokeToken) {
-          showToast({ message: "Share link revoked" });
-        }
+        showToast({ message: "Share link created" });
       }
     } catch (error) {
-      console.error("Failed to update share settings:", error);
-      showToast({ message: "Failed to update settings" });
+      console.error("Failed to create share link:", error);
+      showToast({ message: "Failed to create link" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const revokeShareLink = async () => {
+    setIsSaving(true);
+    try {
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const res = await fetch(`/api/report/${reportId}/share`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ revokeToken: true }),
+      });
+      if (res.ok) {
+        const newSettings = await res.json();
+        setSettings(newSettings);
+        showToast({ message: "Share link revoked" });
+      }
+    } catch (error) {
+      console.error("Failed to revoke share link:", error);
+      showToast({ message: "Failed to revoke link" });
     } finally {
       setIsSaving(false);
     }
@@ -122,10 +142,6 @@ export default function ShareModal({
   };
 
   if (!isOpen) return null;
-
-  const publicUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/report/${reportId}`
-    : "";
 
   return (
     <div
@@ -190,143 +206,54 @@ export default function ShareModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6">
           {isLoading ? (
             <div className="flex justify-center py-8">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-900" />
             </div>
-          ) : (
-            <>
-              {/* Public Toggle */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-gray-900">Make Public</h3>
-                  <p className="text-sm text-gray-500">
-                    Anyone with the link can view
-                  </p>
-                </div>
+          ) : settings?.shareToken ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Anyone with this link can view the report.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={settings.shareUrl || ""}
+                  readOnly
+                  className="flex-1 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none truncate"
+                />
                 <button
                   onClick={() =>
-                    updateSettings({ isPublic: !settings?.isPublic })
+                    settings.shareUrl && copyToClipboard(settings.shareUrl)
                   }
-                  disabled={isSaving}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                    settings?.isPublic ? "bg-blue-600" : "bg-gray-200"
-                  } disabled:opacity-50`}
-                  role="switch"
-                  aria-checked={settings?.isPublic}
+                  className="px-4 py-2.5 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-lg transition-colors shrink-0"
                 >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                      settings?.isPublic ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
+                  Copy
                 </button>
               </div>
-
-              {/* Public Link (shown when public) */}
-              {settings?.isPublic && (
-                <div className="p-3 bg-green-50 border border-green-100 rounded-lg">
-                  <div className="flex items-center gap-2 text-green-700 text-sm mb-2">
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeWidth="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span className="font-medium">Report is public</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={publicUrl}
-                      readOnly
-                      className="flex-1 text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1.5 outline-none"
-                    />
-                    <button
-                      onClick={() => copyToClipboard(publicUrl)}
-                      className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <hr className="border-gray-100" />
-
-              {/* Token-Based Sharing */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="font-medium text-gray-900">
-                      Private Share Link
-                    </h3>
-                    <p className="text-sm text-gray-500">
-                      Create a revocable link
-                    </p>
-                  </div>
-                </div>
-
-                {settings?.shareToken ? (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={settings.shareUrl || ""}
-                          readOnly
-                          className="flex-1 text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1.5 outline-none truncate"
-                        />
-                        <button
-                          onClick={() =>
-                            settings.shareUrl &&
-                            copyToClipboard(settings.shareUrl)
-                          }
-                          className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded transition-colors shrink-0"
-                        >
-                          Copy
-                        </button>
-                      </div>
-                    </div>
-                    {settings.shareTokenExpiresAt && (
-                      <p className="text-xs text-gray-500">
-                        Expires:{" "}
-                        {new Date(settings.shareTokenExpiresAt).toLocaleDateString(
-                          "en-US",
-                          {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          }
-                        )}
-                      </p>
-                    )}
-                    <button
-                      onClick={() => updateSettings({ revokeToken: true })}
-                      disabled={isSaving}
-                      className="text-sm text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
-                    >
-                      Revoke Link
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => updateSettings({ generateToken: true })}
-                    disabled={isSaving}
-                    className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
-                  >
-                    {isSaving ? "Generating..." : "Generate Share Link"}
-                  </button>
-                )}
-              </div>
-            </>
+              <button
+                onClick={revokeShareLink}
+                disabled={isSaving}
+                className="text-sm text-red-600 hover:text-red-700 font-medium disabled:opacity-50"
+              >
+                {isSaving ? "Revoking..." : "Revoke Link"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Create a shareable link that anyone can use to view this report.
+                You can revoke it anytime.
+              </p>
+              <button
+                onClick={createShareLink}
+                disabled={isSaving}
+                className="w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+              >
+                {isSaving ? "Creating..." : "Create Share Link"}
+              </button>
+            </div>
           )}
         </div>
       </div>

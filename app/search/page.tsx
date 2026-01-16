@@ -377,6 +377,8 @@ function SearchPageContent() {
     setFollowUpQuery("");
     setReportError(null);
     setClickedPostCount(0);
+    // Clear URL query parameters for fresh search
+    router.replace("/search", { scroll: false });
   };
 
   // Handle post card click - prompt to generate report instead of navigating away

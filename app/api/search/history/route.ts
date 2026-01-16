@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       useCache: !noCache,
     });
 
-    // Transform searches for response (add reportId as search id for compatibility)
+    // Transform searches for response
     const formattedSearches = searches.map((search) => ({
       id: search.id,
       name: search.name,
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
       sources: search.sources,
       filters: search.filters,
       createdAt: search.createdAt,
-      reportId: search.id, // Use search id as report id for navigation
+      reportId: search.reportId, // Actual report ID (null if no report generated)
       totalResults: search.totalResults,
     }));
 

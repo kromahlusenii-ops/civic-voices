@@ -85,11 +85,11 @@ export class AIAnalysisService {
     filters?: FilterContext,
     commentsData?: PostCommentData[]
   ): Promise<AIAnalysis> {
-    // Prepare posts summary for context (increased limit for richer analysis)
+    // Prepare posts summary for context - use full text for richer analysis
     // Include post IDs so AI can reference them for topic association
-    const postsContext = posts.slice(0, 30).map((post, i) => {
-      return `[${i + 1}] (id: ${post.id}) @${post.authorHandle} (${post.platform}): "${post.text.slice(0, 150)}..." - ${post.engagement.likes} likes, ${post.engagement.comments} comments`;
-    }).join("\n");
+    const postsContext = posts.slice(0, 80).map((post, i) => {
+      return `[${i + 1}] (id: ${post.id}) @${post.authorHandle} (${post.platform}): "${post.text}" - ${post.engagement.likes} likes, ${post.engagement.comments} comments`;
+    }).join("\n\n");
 
     const platformBreakdown = this.getPlatformBreakdown(posts);
     const engagementStats = this.getEngagementStats(posts);
@@ -109,31 +109,39 @@ ${platformBreakdown}
 **Engagement Stats:**
 ${engagementStats}
 ${commentsContext}
-Important: When writing your interpretation, mention the filter context naturally (e.g., "Based on ${filterContext ? filterContext + " posts" : "the selected sources"}..."). If comment data is available, incorporate insights from the comments/replies to understand how people are reacting to the posts.
 
-For suggestedQueries, generate 4-5 refined Boolean search queries that help users explore specific facets of their topic. Use these patterns:
+CRITICAL INSTRUCTIONS FOR QUALITY:
+1. DO NOT write generic summaries like "users are discussing" or "audience shows mixed reactions"
+2. MUST quote or paraphrase SPECIFIC content from the posts and comments above
+3. MUST mention specific claims, specific numbers, specific events, or specific phrases from the data
+4. DO NOT mention usernames or handles - focus on WHAT is being said, not WHO said it
+5. Each postsOverview and commentsOverview should feel like it could ONLY be written about THIS specific dataset
+
+For topicAnalysis, provide SPECIFIC analysis for each keyTheme:
+- postsOverview: Summarize the ACTUAL arguments, claims, or perspectives from the posts. Quote specific phrases and reference concrete examples. Use **bold** for 2-3 key insights.
+- commentsOverview: Describe SPECIFIC reactions from comments - what exactly are people saying? Quote memorable replies. What questions are they asking? What are they agreeing/disagreeing with? Use **bold** for key reactions.
+- postIds: Array of 4 post IDs from the posts above that are most relevant to this topic.
+
+BAD example (too generic): "**Users discuss** the topic with varying opinions and **engagement patterns** show interest"
+GOOD example (specific): "**Claims of a 40% price drop** by Q2 sparked debate, while **critics point to** the failed 2023 predictions as evidence of overconfidence"
+
+For suggestedQueries, generate 4-5 refined Boolean search queries based on themes you ACTUALLY found in the data:
 - Use AND to add required context: "${query} AND policy"
 - Use OR with parentheses for alternatives: "${query} AND (support OR opposition)"
-- Focus on: emotional angles, behavioral actions, controversies, specific entities, or narrowed scope
 
-For intentionsBreakdown, analyze the primary purpose/intention of each post and estimate the distribution:
+For intentionsBreakdown, analyze the primary purpose/intention of each post:
 - Inform: Sharing news, facts, data, or educational content
 - Persuade: Advocating positions, promoting products/ideas, calls to action
 - Entertain: Humor, memes, creative content, storytelling
 - Express: Personal opinions, emotional responses, questions, discussion
 
-For topicAnalysis, provide detailed analysis for each keyTheme you identify:
-- postsOverview: A summary of what posts are saying about this topic. Use **bold** to highlight key phrases (2-3 bold terms).
-- commentsOverview: A summary of how the audience is engaging/reacting in comments. Use **bold** to highlight key phrases.
-- postIds: Array of 4 post IDs from the posts above that are most relevant to this topic.
-
 Provide a JSON response with the following structure:
 {
-  "interpretation": "A 2-3 sentence analysis of what people are saying about this topic, including the main perspectives and emotional tone",
+  "interpretation": "A 2-3 sentence analysis mentioning SPECIFIC findings from the posts - what claims are being made, what events are referenced, what opinions dominate",
   "keyThemes": ["theme1", "theme2", "theme3"],
   "sentimentBreakdown": {
     "overall": "positive|negative|neutral|mixed",
-    "summary": "Brief explanation of the overall sentiment"
+    "summary": "Brief explanation with SPECIFIC examples of why sentiment is this way"
   },
   "intentionsBreakdown": [
     {"name": "Inform", "percentage": 35, "engagementRate": 3.2},
@@ -144,23 +152,19 @@ Provide a JSON response with the following structure:
   "topicAnalysis": [
     {
       "topic": "theme1",
-      "postsOverview": "**Key trend** drives discussion as creators share content about...",
-      "commentsOverview": "**Audience reactions** show enthusiasm with many praising...",
+      "postsOverview": "**A viral claim** about X sparked debate, with **multiple posts** sharing data showing Y. The most engaged content argues that...",
+      "commentsOverview": "**Replies challenge** the claim with questions like 'what about Z?' while **supporters cite** specific examples. One popular response pushes back on...",
       "postIds": ["post-id-1", "post-id-2", "post-id-3", "post-id-4"]
     }
   ],
   "suggestedQueries": [
-    {"label": "Emotional reactions", "description": "Explore how people feel about this topic", "query": "${query} AND (hope OR fear OR concern)"},
-    {"label": "Policy & regulation", "description": "Find discussions about laws and policies", "query": "${query} AND (policy OR law OR regulation)"},
-    {"label": "Controversies", "description": "Discover debates and opposing views", "query": "${query} AND (controversy OR debate OR criticism)"},
-    {"label": "Personal impact", "description": "See how this affects individuals", "query": "${query} AND (impact OR affect OR experience)"}
+    {"label": "Label based on actual theme found", "description": "Description of what this explores", "query": "${query} AND (relevant terms from data)"}
   ],
-  "followUpQuestion": "A question to ask the user to help them explore this topic further"
+  "followUpQuestion": "A specific question based on what you found - e.g., 'Several posts mention [X event] - would you like to see reactions to that specifically?'"
 }
 
-Percentages in intentionsBreakdown must sum to 100. engagementRate is the average engagement rate for posts of that intention type (0-10 scale).
-Generate contextually relevant suggestedQueries based on the actual topic "${query}" - the examples above are just format guides.
-For topicAnalysis, create an entry for EACH theme in keyThemes with relevant postIds from the posts list above.
+Percentages in intentionsBreakdown must sum to 100. engagementRate is average engagement for that intention type (0-10 scale).
+For topicAnalysis, create an entry for EACH theme in keyThemes with relevant postIds from the posts list.
 
 Respond ONLY with valid JSON, no additional text.`;
 
@@ -174,7 +178,7 @@ Respond ONLY with valid JSON, no additional text.`;
         },
         body: JSON.stringify({
           model: "claude-3-haiku-20240307",
-          max_tokens: 2048,
+          max_tokens: 4096,
           messages: [{ role: "user", content: prompt }] as ClaudeMessage[],
         }),
       });
@@ -233,7 +237,7 @@ Respond ONLY with valid JSON, no additional text.`;
 
     const lines: string[] = [
       "",
-      `**Top Comments/Replies (${totalComments} total):**`,
+      `**Comments & Replies (${totalComments} total across ${commentsData.length} posts):**`,
     ];
 
     // Find parent post info for context
@@ -242,19 +246,19 @@ Respond ONLY with valid JSON, no additional text.`;
     for (const { parentId, platform, comments } of commentsData) {
       const parentPost = postsMap.get(parentId);
       const parentLabel = parentPost
-        ? `"${parentPost.text.slice(0, 50)}..." by @${parentPost.authorHandle}`
+        ? `"${parentPost.text.slice(0, 80)}..." by @${parentPost.authorHandle}`
         : `Post ${parentId}`;
 
       lines.push(`\n[${platform.toUpperCase()} - ${parentLabel}]`);
 
-      // Show top 5 comments per post by engagement
+      // Show top 15 comments per post by engagement - full text for better analysis
       const topComments = comments
         .sort((a, b) => (b.engagement.likes || 0) - (a.engagement.likes || 0))
-        .slice(0, 5);
+        .slice(0, 15);
 
       for (const comment of topComments) {
         const likes = comment.engagement.likes || 0;
-        lines.push(`  - "${comment.text.slice(0, 100)}..." (${likes} likes)`);
+        lines.push(`  - @${comment.authorHandle}: "${comment.text}" (${likes} likes)`);
       }
     }
 

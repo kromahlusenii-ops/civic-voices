@@ -78,7 +78,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const body = await request.json();
 
     // Validate input
-    const { isPublic, generateToken, revokeToken, tokenExpiresInDays } = body;
+    const { generateToken, revokeToken } = body;
 
     if (generateToken && revokeToken) {
       return NextResponse.json(
@@ -88,10 +88,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const settings = await updateShareSettings(reportId, user.id, {
-      isPublic,
       generateToken,
       revokeToken,
-      tokenExpiresInDays,
     });
 
     return NextResponse.json(settings);

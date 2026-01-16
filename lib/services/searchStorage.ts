@@ -32,6 +32,7 @@ export interface SavedSearch {
   };
   totalResults: number;
   posts?: SearchPost[];
+  reportId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -249,6 +250,7 @@ export async function getSearchHistory(
       sources: true,
       filtersJson: true,
       totalResults: true,
+      reportId: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -262,6 +264,7 @@ export async function getSearchHistory(
     sources: search.sources as string[],
     filters: search.filtersJson as { timeFilter: string; language?: string },
     totalResults: search.totalResults,
+    reportId: search.reportId,
     createdAt: search.createdAt.toISOString(),
     updatedAt: search.updatedAt.toISOString(),
   }));
@@ -319,6 +322,7 @@ export async function getSearchById(
       sources: true,
       filtersJson: true,
       totalResults: true,
+      reportId: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -336,6 +340,7 @@ export async function getSearchById(
     sources: search.sources as string[],
     filters: search.filtersJson as { timeFilter: string; language?: string },
     totalResults: search.totalResults,
+    reportId: search.reportId,
     createdAt: search.createdAt.toISOString(),
     updatedAt: search.updatedAt.toISOString(),
   };
