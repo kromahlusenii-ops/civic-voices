@@ -113,7 +113,7 @@ function PlatformSentiment({
   if (platformData.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
       <h3 className="text-sm font-semibold text-gray-800 mb-3 sm:mb-4">Platform Sentiment</h3>
       <div className="space-y-3 sm:space-y-4">
         {platformData.map(({ platform, positive, negative, neutral, total }) => {
@@ -694,7 +694,7 @@ export default function ReportPage() {
               <>
                 {/* AI Summary - Full Width */}
                 {reportData.aiAnalysis && (
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm">
+                  <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
                     <h3 className="text-sm font-semibold text-gray-800 mb-2 sm:mb-3">Summary</h3>
                     <p className="text-sm text-gray-600 leading-relaxed">
                       {renderSummaryWithHighlights(reportData.aiAnalysis.interpretation)}

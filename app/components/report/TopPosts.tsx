@@ -112,7 +112,7 @@ export default function TopPosts({ posts, limit = 5 }: TopPostsProps) {
 
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200 p-4"
+      className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden"
       data-testid="top-posts"
     >
       <h3 className="text-sm font-medium text-gray-700 mb-4">

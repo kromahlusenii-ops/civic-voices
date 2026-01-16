@@ -114,10 +114,10 @@ export default function EmotionsBreakdown({
 
   return (
     <div
-      className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm"
+      className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden"
       data-testid="emotions-breakdown"
     >
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4 sm:mb-5">
         <div className="flex items-center">
           <h3 className="text-sm font-semibold text-gray-800">
             Emotions breakdown

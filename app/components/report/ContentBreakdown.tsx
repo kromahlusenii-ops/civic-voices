@@ -171,11 +171,11 @@ export default function ContentBreakdown({
 
   return (
     <div
-      className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm"
+      className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden"
       data-testid="content-breakdown"
     >
       {/* Header with tabs - stacked on mobile */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-5">
         <div className="flex items-center">
           <h3 className="text-sm font-semibold text-gray-800">
             Content breakdown
@@ -200,7 +200,7 @@ export default function ContentBreakdown({
       </div>
 
       {/* Segmented bar */}
-      <div className="h-3 rounded-full overflow-hidden flex mb-5">
+      <div className="h-3 rounded-full overflow-hidden flex mb-4 sm:mb-5">
         {dataWithColors.map((item, index) => (
           <div
             key={index}
