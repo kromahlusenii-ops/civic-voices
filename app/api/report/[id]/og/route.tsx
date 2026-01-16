@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og"
 import { prisma } from "@/lib/prisma"
 
-export const runtime = "edge"
+// Use Node.js runtime since Prisma doesn't support edge
+export const runtime = "nodejs"
 
 // Image dimensions
 const WIDTH = 1200
