@@ -68,14 +68,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     if (!reportData) {
-      const hasAuthHeader = !!authHeader;
-      const tokenVerified = hasAuthHeader && accessToken !== null;
-      console.log(`[PDF] Report not found by any method, returning 404. Auth header: ${hasAuthHeader}, Share token: ${!!shareToken}`);
+      console.log(`[PDF] Report not found by any method, returning 404. Auth header: ${!!authHeader}, Share token: ${!!shareToken}`);
       return NextResponse.json(
         {
           error: "Report not found or access denied",
           debug: {
-            hasAuth: hasAuthHeader,
+            hasAuth: !!authHeader,
             hasShareToken: !!shareToken,
           }
         },
