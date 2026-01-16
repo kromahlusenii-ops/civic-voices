@@ -78,9 +78,9 @@ function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
   }
-  // Production default - ensures share links always use the canonical domain
+  // Production default - use the Vercel deployment URL
   if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
-    return "https://civicvoices.app";
+    return "https://civic-voices-six.vercel.app";
   }
   // For preview deployments, use VERCEL_URL
   if (process.env.VERCEL_URL) {

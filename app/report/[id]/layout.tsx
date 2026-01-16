@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   const { id } = await params
   const report = await getReportMetadata(id)
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://civicvoices.app"
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://civic-voices-six.vercel.app"
 
   if (!report) {
     return {
