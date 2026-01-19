@@ -5,6 +5,7 @@ import { YouTubeProvider } from "@/lib/providers/YouTubeProvider";
 import { BlueskyProvider } from "@/lib/providers/BlueskyProvider";
 import { TruthSocialProvider } from "@/lib/providers/TruthSocialProvider";
 import TikTokApiService from "@/lib/services/tiktokApi";
+import SociaVaultApiService from "@/lib/services/sociaVaultApi";
 import AIAnalysisService from "@/lib/services/aiAnalysis";
 import { config } from "@/lib/config";
 import type { SearchParams, SearchResponse, Post, AIAnalysis, SortOption } from "@/lib/types/api";
@@ -316,12 +317,61 @@ export async function POST(request: NextRequest) {
       searchPromises.push(xSearch());
     }
 
-    // TikTok search promise
+    // TikTok search promise - prefer SociaVault over TikAPI
     if (sources.includes("tiktok")) {
       const tiktokSearch = async () => {
         try {
+          // Prefer SociaVault API for TikTok
+          if (config.sociaVault.apiKey) {
+            const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey);
+            const tiktokQuery = SociaVaultApiService.getBaseQuery(query);
+
+            // Wrap with retry-on-empty to handle flaky API responses
+            const tiktokResults = await withRetryOnEmpty(
+              () => withRetry(
+                () => withTimeout(
+                  sociaVaultService.searchTikTokVideos(tiktokQuery),
+                  30000,
+                  "TikTok SociaVault API"
+                ),
+                { retries: 2, delay: 1500, name: "TikTok SociaVault API" }
+              ),
+              {
+                isEmpty: (result) => !result.data || result.data.length === 0,
+                maxEmptyRetries: 3,
+                emptyRetryDelay: 2000,
+                name: "TikTok SociaVault API",
+              }
+            );
+
+            let tiktokPosts = sociaVaultService.transformTikTokToPosts(tiktokResults);
+            tiktokPosts = SociaVaultApiService.filterByTimeRange(tiktokPosts, timeFilter);
+
+            if (SociaVaultApiService.hasBooleanQuery(query)) {
+              tiktokPosts = SociaVaultApiService.filterByBooleanQuery(tiktokPosts, query);
+            }
+
+            const rawVideoCount = tiktokResults.data?.length || 0;
+            console.log('[TikTok SociaVault] Raw:', rawVideoCount, 'Filtered:', tiktokPosts.length, 'TimeFilter:', timeFilter);
+
+            allPosts.push(...tiktokPosts);
+            platformCounts.tiktok = tiktokPosts.length;
+
+            if (tiktokPosts.length === 0 && rawVideoCount === 0) {
+              warnings.push("TikTok returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
+            }
+            return;
+          }
+
+          // Fallback to TikAPI if SociaVault not configured
+          if (!config.tiktok.apiKey) {
+            console.warn("TikTok API: Neither SociaVault nor TikAPI key configured");
+            platformCounts.tiktok = 0;
+            return;
+          }
+
           const tiktokService = new TikTokApiService(
-            config.tiktok.apiKey || "",
+            config.tiktok.apiKey,
             config.tiktok.apiUrl
           );
 
@@ -354,7 +404,7 @@ export async function POST(request: NextRequest) {
           }
 
           const rawVideoCount = tiktokResults.videos?.length || 0;
-          console.log('[TikTok API] Raw:', rawVideoCount, 'Filtered:', tiktokPosts.length, 'TimeFilter:', timeFilter);
+          console.log('[TikTok TikAPI] Raw:', rawVideoCount, 'Filtered:', tiktokPosts.length, 'TimeFilter:', timeFilter);
 
           allPosts.push(...tiktokPosts);
           platformCounts.tiktok = tiktokPosts.length;
@@ -371,6 +421,63 @@ export async function POST(request: NextRequest) {
         }
       };
       searchPromises.push(tiktokSearch());
+    }
+
+    // Reddit search promise - using SociaVault API
+    if (sources.includes("reddit")) {
+      const redditSearch = async () => {
+        try {
+          if (!config.sociaVault.apiKey) {
+            console.warn("Reddit API: SociaVault API key not configured");
+            platformCounts.reddit = 0;
+            return;
+          }
+
+          const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey);
+          const redditQuery = SociaVaultApiService.getBaseQuery(query);
+
+          // Wrap with retry-on-empty to handle flaky API responses
+          const redditResults = await withRetryOnEmpty(
+            () => withRetry(
+              () => withTimeout(
+                sociaVaultService.searchReddit(redditQuery, { limit: 100 }),
+                30000,
+                "Reddit SociaVault API"
+              ),
+              { retries: 2, delay: 1500, name: "Reddit SociaVault API" }
+            ),
+            {
+              isEmpty: (result) => !result.data || result.data.length === 0,
+              maxEmptyRetries: 3,
+              emptyRetryDelay: 2000,
+              name: "Reddit SociaVault API",
+            }
+          );
+
+          let redditPosts = sociaVaultService.transformRedditToPosts(redditResults);
+          redditPosts = SociaVaultApiService.filterByTimeRange(redditPosts, timeFilter);
+
+          if (SociaVaultApiService.hasBooleanQuery(query)) {
+            redditPosts = SociaVaultApiService.filterByBooleanQuery(redditPosts, query);
+          }
+
+          const rawPostCount = redditResults.data?.length || 0;
+          console.log('[Reddit SociaVault] Raw:', rawPostCount, 'Filtered:', redditPosts.length, 'TimeFilter:', timeFilter);
+
+          allPosts.push(...redditPosts);
+          platformCounts.reddit = redditPosts.length;
+
+          if (redditPosts.length === 0 && rawPostCount === 0) {
+            warnings.push("Reddit returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error("Reddit API error:", errorMessage);
+          platformCounts.reddit = 0;
+          warnings.push(`Reddit search failed: ${errorMessage}`);
+        }
+      };
+      searchPromises.push(redditSearch());
     }
 
     // YouTube search promise

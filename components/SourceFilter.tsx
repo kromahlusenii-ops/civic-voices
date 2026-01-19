@@ -65,7 +65,7 @@ const SOURCES: Source[] = [
   { id: "tiktok", name: "TikTok", enabled: true, icon: <TikTokIcon /> },
   { id: "bluesky", name: "Bluesky", enabled: true, icon: <BlueskyIcon /> },
   { id: "truthsocial", name: "Truth Social", enabled: false, icon: <TruthSocialIcon /> }, // Blocked by Cloudflare
-  { id: "reddit", name: "Reddit", enabled: false, icon: <RedditIcon /> },
+  { id: "reddit", name: "Reddit", enabled: true, icon: <RedditIcon /> },
   { id: "instagram", name: "Instagram", enabled: false, icon: <InstagramIcon /> },
   { id: "linkedin", name: "LinkedIn", enabled: false, icon: <LinkedInIcon /> },
 ];

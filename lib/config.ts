@@ -52,6 +52,11 @@ interface Config {
     apiUrl?: string;
   };
 
+  // SociaVault API (for TikTok and Reddit)
+  sociaVault: {
+    apiKey?: string;
+  };
+
   // Bluesky API
   bluesky: {
     identifier?: string;
@@ -153,6 +158,10 @@ function loadConfig(): Config {
     tiktok: {
       apiKey: getOptionalEnv('TIKTOK_API_KEY'),
       apiUrl: getOptionalEnv('TIKTOK_API_URL'),
+    },
+
+    sociaVault: {
+      apiKey: getOptionalEnv('SOCIAVAULT_API_KEY'),
     },
 
     bluesky: {

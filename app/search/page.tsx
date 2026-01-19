@@ -667,6 +667,7 @@ function SearchPageContent() {
       x: "X",
       tiktok: "TikTok",
       youtube: "YouTube",
+      reddit: "Reddit",
       instagram: "Instagram",
       bluesky: "Bluesky",
       truthsocial: "Truth Social",

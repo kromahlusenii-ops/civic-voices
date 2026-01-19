@@ -12,6 +12,9 @@ const mockConfig = {
     apiKey: "test-tiktok-api-key",
     apiUrl: "https://api.tikapi.io",
   },
+  sociaVault: {
+    apiKey: "", // Empty by default to use TikAPI for existing tests
+  },
   llm: {
     anthropic: {
       apiKey: "", // Disable AI analysis in tests
@@ -80,6 +83,33 @@ vi.mock("@/lib/services/tiktokApi", () => {
 
   return {
     default: MockTikTokApiService,
+    __esModule: true,
+  };
+});
+
+// Mock SociaVaultApiService - use hoisted
+const { mockSearchTikTokVideos, mockTransformTikTokToPosts, mockSearchReddit, mockTransformRedditToPosts } = vi.hoisted(() => ({
+  mockSearchTikTokVideos: vi.fn(),
+  mockTransformTikTokToPosts: vi.fn(),
+  mockSearchReddit: vi.fn(),
+  mockTransformRedditToPosts: vi.fn(),
+}));
+
+vi.mock("@/lib/services/sociaVaultApi", () => {
+  class MockSociaVaultApiService {
+    searchTikTokVideos = mockSearchTikTokVideos;
+    transformTikTokToPosts = mockTransformTikTokToPosts;
+    searchReddit = mockSearchReddit;
+    transformRedditToPosts = mockTransformRedditToPosts;
+
+    static getBaseQuery = vi.fn((query: string) => query);
+    static filterByTimeRange = vi.fn((posts) => posts);
+    static hasBooleanQuery = vi.fn(() => false);
+    static filterByBooleanQuery = vi.fn((posts) => posts);
+  }
+
+  return {
+    default: MockSociaVaultApiService,
     __esModule: true,
   };
 });
