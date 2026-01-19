@@ -286,13 +286,14 @@ export class SociaVaultApiService {
 
   /**
    * Search Reddit posts
+   * Note: SociaVault uses 'keyword' parameter for Reddit search (same as TikTok)
    */
   async searchReddit(
     query: string,
     options: { after?: string; limit?: number } = {}
   ): Promise<SociaVaultRedditSearchResponse> {
     const params: Record<string, string> = {
-      q: query,
+      keyword: query,
     };
 
     if (options.after) {
