@@ -95,7 +95,7 @@ interface SearchResults {
 }
 
 function SearchPageContent() {
-  const { isAuthenticated, loading, user, billing, refreshBilling } = useAuth();
+  const { isAuthenticated, loading, user, billing, billingLoading, refreshBilling } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { showToast } = useToast();
@@ -141,6 +141,7 @@ function SearchPageContent() {
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
   const hasExecutedAuthCallbackSearch = useRef(false);
+  const hasHandledSubscriptionSuccess = useRef(false);
 
   // Helper to check if time range is allowed for free tier
   const isTimeRangeAllowedForFree = (range: string): boolean => {
@@ -221,6 +222,56 @@ function SearchPageContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isAuthenticated, loading, isSearching, searchResults, router]);
+
+  // Handle subscription success - trigger pending report generation
+  useEffect(() => {
+    const isSubscriptionSuccess = searchParams.get("subscription") === "success";
+
+    if (!isSubscriptionSuccess || hasHandledSubscriptionSuccess.current) return;
+    if (loading || billingLoading) return; // Wait for auth and billing to load
+
+    hasHandledSubscriptionSuccess.current = true;
+
+    // Remove the subscription param from URL
+    const url = new URL(window.location.href);
+    url.searchParams.delete("subscription");
+    router.replace(url.pathname + url.search, { scroll: false });
+
+    // Refresh billing status to get updated subscription
+    refreshBilling();
+
+    // Show success toast
+    showToast({ message: "Subscription activated! Welcome to Pro." });
+
+    // Check for pending report generation in localStorage
+    const pendingReport = localStorage.getItem("pendingReportGeneration");
+    if (pendingReport) {
+      try {
+        const { query, sources, timeRange: savedTimeRange, language: savedLanguage } = JSON.parse(pendingReport);
+        localStorage.removeItem("pendingReportGeneration");
+
+        // Restore the search state if we have one
+        if (query && sources) {
+          setSearchQuery(query);
+          setSelectedSources(sources);
+          if (savedTimeRange) setTimeRange(savedTimeRange);
+          if (savedLanguage) setLanguage(savedLanguage);
+
+          // If we don't have search results yet, execute the search first
+          if (!searchResults) {
+            executeSearchWithFilters(query, sources, savedTimeRange || timeRange, savedLanguage || language);
+          }
+
+          // Show a message that report will start after search
+          showToast({ message: "Your search is being restored. Report generation will start shortly." });
+        }
+      } catch (e) {
+        console.error("Failed to parse pending report:", e);
+        localStorage.removeItem("pendingReportGeneration");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, loading, billingLoading, router, refreshBilling, showToast]);
 
   // Handle time range change
   const handleTimeRangeChange = useCallback((value: string) => {
@@ -470,6 +521,16 @@ function SearchPageContent() {
 
     // Check if user has active subscription (reports require subscription)
     if (!hasActiveSubscription) {
+      // Save pending report to localStorage so it can be resumed after subscription
+      if (searchResults) {
+        localStorage.setItem("pendingReportGeneration", JSON.stringify({
+          query: searchResults.query,
+          sources: selectedSources,
+          timeRange,
+          language,
+          searchId: searchResults.searchId,
+        }));
+      }
       setTrialModalFeature("AI-powered report generation");
       setShowTrialModal(true);
       return;
