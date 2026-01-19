@@ -72,6 +72,72 @@ async function syncSubscriptionFromStripe(userId: string, stripeSubscriptionId: 
   }
 }
 
+// Sync subscription by customer ID (fallback when webhook hasn't processed yet)
+async function syncSubscriptionByCustomerId(userId: string, stripeCustomerId: string) {
+  try {
+    // Fetch active subscriptions for this customer
+    const subscriptions = await stripe.subscriptions.list({
+      customer: stripeCustomerId,
+      status: "all",
+      limit: 1,
+    })
+
+    if (subscriptions.data.length === 0) {
+      console.log(`No subscriptions found for customer ${stripeCustomerId}`)
+      return null
+    }
+
+    const subscription = subscriptions.data[0]
+
+    // Only sync if subscription is active or trialing
+    if (subscription.status !== "active" && subscription.status !== "trialing") {
+      console.log(`Subscription status is ${subscription.status}, not syncing`)
+      return null
+    }
+
+    // Map Stripe status to our status
+    const status = subscription.status === "trialing" ? "trialing" : "active"
+
+    // Get period dates using type assertion
+    const subscriptionData = subscription as unknown as {
+      current_period_start?: number
+      current_period_end?: number
+      trial_start?: number | null
+      trial_end?: number | null
+    }
+
+    // Update the user with subscription data
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        stripeSubscriptionId: subscription.id,
+        subscriptionStatus: status,
+        subscriptionPlan: "pro",
+        currentPeriodStart: subscriptionData.current_period_start
+          ? new Date(subscriptionData.current_period_start * 1000)
+          : null,
+        currentPeriodEnd: subscriptionData.current_period_end
+          ? new Date(subscriptionData.current_period_end * 1000)
+          : null,
+        trialStartDate: subscriptionData.trial_start
+          ? new Date(subscriptionData.trial_start * 1000)
+          : null,
+        trialEndDate: subscriptionData.trial_end
+          ? new Date(subscriptionData.trial_end * 1000)
+          : null,
+        monthlyCredits: STRIPE_CONFIG.monthlyCredits,
+        creditsResetDate: new Date(),
+      },
+    })
+
+    console.log(`Synced subscription by customer ID for user ${userId}: ${status}`)
+    return status
+  } catch (error) {
+    console.error("Failed to sync subscription by customer ID:", error)
+    return null
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Verify authentication
@@ -98,6 +164,7 @@ export async function GET(request: NextRequest) {
       where: { supabaseUid: authUser.id },
       select: {
         id: true,
+        stripeCustomerId: true,
         stripeSubscriptionId: true,
         subscriptionStatus: true,
       },
@@ -107,10 +174,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // If user has a subscription ID but status is "free", sync from Stripe
-    // This handles cases where the webhook didn't process
-    if (user.stripeSubscriptionId && user.subscriptionStatus === "free") {
-      await syncSubscriptionFromStripe(user.id, user.stripeSubscriptionId)
+    // Sync subscription from Stripe if status is "free" but user has Stripe IDs
+    // This handles cases where the webhook didn't process yet
+    if (user.subscriptionStatus === "free" || !user.subscriptionStatus) {
+      if (user.stripeSubscriptionId) {
+        // Sync by subscription ID
+        await syncSubscriptionFromStripe(user.id, user.stripeSubscriptionId)
+      } else if (user.stripeCustomerId) {
+        // Fallback: sync by customer ID (for when webhook hasn't set subscription ID yet)
+        await syncSubscriptionByCustomerId(user.id, user.stripeCustomerId)
+      }
     }
 
     // Get billing status and feature limits
