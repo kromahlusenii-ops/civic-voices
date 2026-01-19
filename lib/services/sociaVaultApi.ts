@@ -110,24 +110,22 @@ export class SociaVaultApiService {
   // ============================================
 
   /**
-   * Search TikTok videos by hashtag
+   * Search TikTok videos by keyword
+   * Uses the /tiktok/search/keyword endpoint for keyword-based search
    */
-  async searchTikTokByHashtag(
-    hashtag: string,
+  async searchTikTokByKeyword(
+    keyword: string,
     options: { cursor?: string } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
-    // Remove # if present
-    const cleanHashtag = hashtag.startsWith("#") ? hashtag.slice(1) : hashtag;
-
     const params: Record<string, string> = {
-      hashtag: cleanHashtag,
+      keyword: keyword,
     };
 
     if (options.cursor) {
       params.cursor = options.cursor;
     }
 
-    return this.fetchApi<SociaVaultTikTokSearchResponse>("/tiktok/search/hashtag", params);
+    return this.fetchApi<SociaVaultTikTokSearchResponse>("/tiktok/search/keyword", params);
   }
 
   /**
@@ -156,18 +154,13 @@ export class SociaVaultApiService {
   }
 
   /**
-   * Search TikTok videos - uses hashtag search as the primary method
-   * Falls back to trending if no results
+   * Search TikTok videos - uses keyword search as the primary method
    */
   async searchTikTokVideos(
     query: string,
     options: { cursor?: string } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
-    // Try hashtag search first (most relevant for topic searches)
-    const result = await this.searchTikTokByHashtag(query, options);
-
-    // If no results from hashtag, return empty (trending is not query-specific)
-    return result;
+    return this.searchTikTokByKeyword(query, options);
   }
 
   /**
