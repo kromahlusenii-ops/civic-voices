@@ -223,7 +223,7 @@ export default function ReportPage() {
   const insightsPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch report data from API
-  const fetchReportData = useCallback(async (options?: { silent?: boolean }) => {
+  const fetchReportData = useCallback(async (options?: { silent?: boolean; isRetry?: boolean }) => {
     if (!options?.silent) {
       setIsLoading(true);
       setError(null);
@@ -251,14 +251,23 @@ export default function ReportPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // No auth and no valid share - show login
-          if (!shareToken) {
+          // If we got 401 without a token on first try, retry once after delay
+          // (handles race condition where auth session is still initializing)
+          if (!token && !options?.isRetry && !options?.silent) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return fetchReportData({ ...options, isRetry: true });
+          }
+
+          // No auth and no valid share - show login (but not for silent/background fetches)
+          if (!shareToken && !options?.silent) {
             setShowAuthModal(true);
             setIsLoading(false);
             return;
           }
-          setError("Share link is invalid or has been revoked");
-          setIsLoading(false);
+          if (!options?.silent) {
+            setError("Share link is invalid or has been revoked");
+            setIsLoading(false);
+          }
           return;
         }
         if (response.status === 404) {
@@ -299,14 +308,9 @@ export default function ReportPage() {
       return;
     }
 
-    // Otherwise check auth
-    if (!isAuthenticated) {
-      // Try fetching anyway - might be a public report
-      if (!hasLoadedRef.current) {
-        hasLoadedRef.current = true;
-        fetchReportData();
-      }
-    } else if (!hasLoadedRef.current) {
+    // Otherwise, try to fetch with auth
+    // Use getAccessToken() as source of truth (more reliable than isAuthenticated context state)
+    if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
       setShowAuthModal(false);
       fetchReportData();
