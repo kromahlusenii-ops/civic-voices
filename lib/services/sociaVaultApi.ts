@@ -244,7 +244,7 @@ export class SociaVaultApiService {
     options: { after?: string; limit?: number } = {}
   ): Promise<SociaVaultRedditSearchResponse> {
     const params: Record<string, string> = {
-      query: query,
+      q: query,
     };
 
     if (options.after) {
