@@ -46,10 +46,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Determine the base URL from request headers or environment
+    const host = request.headers.get("host") || "localhost:3000"
+    const protocol = host.includes("localhost") ? "http" : "https"
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`
+
     // Create portal session
     const portalSession = await stripe.billingPortal.sessions.create({
       customer: user.stripeCustomerId,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/search`,
+      return_url: `${baseUrl}/search`,
     })
 
     return NextResponse.json({ url: portalSession.url })

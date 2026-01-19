@@ -82,6 +82,11 @@ export async function POST(request: NextRequest) {
     // Log the price ID being used (first 10 chars for security)
     console.log(`Creating checkout session with price: ${priceId.substring(0, 10)}...`)
 
+    // Determine the base URL from request headers or environment
+    const host = request.headers.get("host") || "localhost:3000"
+    const protocol = host.includes("localhost") ? "http" : "https"
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`
+
     // Create checkout session with trial
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -96,8 +101,8 @@ export async function POST(request: NextRequest) {
       subscription_data: {
         trial_period_days: STRIPE_CONFIG.subscription.trialDays,
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/search?subscription=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/search?subscription=canceled`,
+      success_url: `${baseUrl}/search?subscription=success`,
+      cancel_url: `${baseUrl}/search?subscription=canceled`,
       metadata: {
         userId: user.id,
       },
