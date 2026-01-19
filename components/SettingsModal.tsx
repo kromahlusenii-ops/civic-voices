@@ -69,7 +69,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("credit_usage");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const { signOut: supabaseSignOut, getAccessToken } = useAuth();
+  const { signOut: supabaseSignOut } = useAuth();
   const router = useRouter();
 
   if (!isOpen) return null;

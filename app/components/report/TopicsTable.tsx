@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import type { Post, TopicAnalysis } from "@/lib/types/api";
 
 export interface TopicData {
@@ -217,11 +218,12 @@ function TopicMentionCard({ post }: { post: Post }) {
       {/* Thumbnail */}
       {post.thumbnail && (
         <div className="relative w-24 h-20 flex-shrink-0 rounded-md overflow-hidden bg-gray-100">
-          <img
+          <Image
             src={post.thumbnail}
             alt=""
-            className="w-full h-full object-cover"
-            loading="lazy"
+            fill
+            className="object-cover"
+            unoptimized
           />
           <div className={`absolute top-1 left-1 ${platformColor} text-white p-1 rounded`}>
             {PLATFORM_ICONS[post.platform]}
@@ -234,10 +236,13 @@ function TopicMentionCard({ post }: { post: Post }) {
         {/* Author row */}
         <div className="flex items-center gap-2 mb-1">
           {post.authorAvatar ? (
-            <img
+            <Image
               src={post.authorAvatar}
               alt={post.author}
+              width={20}
+              height={20}
               className="w-5 h-5 rounded-full object-cover"
+              unoptimized
             />
           ) : (
             <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center">

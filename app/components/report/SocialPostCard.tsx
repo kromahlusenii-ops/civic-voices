@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
+import Image from "next/image";
 import type { Post } from "@/lib/types/api";
 
 // Platform icons matching the report page
@@ -117,11 +118,12 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
         {/* Media Thumbnail */}
         {post.thumbnail && (
           <div className="relative aspect-video bg-gray-100 overflow-hidden">
-            <img
+            <Image
               src={post.thumbnail}
               alt=""
-              className="w-full h-full object-cover"
-              loading="lazy"
+              fill
+              className="object-cover"
+              unoptimized
             />
             {/* Platform badge overlay */}
             <div
@@ -137,10 +139,13 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
           <div className="flex items-start gap-3 mb-3">
             {/* Avatar */}
             {post.authorAvatar ? (
-              <img
+              <Image
                 src={post.authorAvatar}
                 alt={post.author}
+                width={40}
+                height={40}
                 className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                unoptimized
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">

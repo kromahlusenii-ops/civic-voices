@@ -3,7 +3,7 @@ import { POST } from "./route";
 import { NextRequest } from "next/server";
 
 // Config that can be modified per test
-let mockConfig = {
+const mockConfig = {
   x: {
     bearerToken: "test-x-bearer-token",
     rapidApiKey: "", // Empty by default to use official API for existing tests

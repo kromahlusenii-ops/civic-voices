@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [isCompleting, setIsCompleting] = useState(false);
 
-  const completeOnboarding = async () => {
+  const completeOnboarding = useCallback(async () => {
     if (isCompleting) return;
     setIsCompleting(true);
 
@@ -22,13 +22,13 @@ export default function OnboardingPage() {
     }
 
     router.push("/search");
-  };
+  }, [isCompleting, router]);
 
   // Auto-complete onboarding after a brief welcome
   useEffect(() => {
     const timer = setTimeout(completeOnboarding, 2000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [completeOnboarding]);
 
   return (
     <div className="min-h-screen bg-paper flex items-center justify-center p-4">
