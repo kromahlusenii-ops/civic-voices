@@ -110,12 +110,12 @@ export class SociaVaultApiService {
   // ============================================
 
   /**
-   * Search TikTok videos by keyword
+   * Search TikTok videos by keyword (single page)
    * Uses the /tiktok/search/keyword endpoint for keyword-based search
    */
   async searchTikTokByKeyword(
     keyword: string,
-    options: { cursor?: string } = {}
+    options: { cursor?: string; count?: number } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
     const params: Record<string, string> = {
       keyword: keyword,
@@ -125,7 +125,51 @@ export class SociaVaultApiService {
       params.cursor = options.cursor;
     }
 
+    // Try to request more results per page
+    if (options.count) {
+      params.count = String(options.count);
+    }
+
     return this.fetchApi<SociaVaultTikTokSearchResponse>("/tiktok/search/keyword", params);
+  }
+
+  /**
+   * Search TikTok videos with pagination - fetches multiple pages for more results
+   */
+  async searchTikTokByKeywordPaginated(
+    keyword: string,
+    options: { maxPages?: number; count?: number } = {}
+  ): Promise<SociaVaultTikTokSearchResponse> {
+    const maxPages = options.maxPages || 3; // Default to 3 pages
+    const count = options.count || 30; // Request 30 per page if supported
+
+    const allVideos: SociaVaultTikTokVideo[] = [];
+    let cursor: string | undefined;
+    let hasMore = true;
+    let pagesLoaded = 0;
+
+    while (hasMore && pagesLoaded < maxPages) {
+      const result = await this.searchTikTokByKeyword(keyword, { cursor, count });
+
+      if (result.data && result.data.length > 0) {
+        allVideos.push(...result.data);
+      }
+
+      cursor = result.cursor;
+      hasMore = result.hasMore === true && !!cursor;
+      pagesLoaded++;
+
+      // Small delay between pages to avoid rate limiting
+      if (hasMore && pagesLoaded < maxPages) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    return {
+      data: allVideos,
+      hasMore: hasMore,
+      cursor: cursor,
+    };
   }
 
   /**
@@ -154,13 +198,17 @@ export class SociaVaultApiService {
   }
 
   /**
-   * Search TikTok videos - uses keyword search as the primary method
+   * Search TikTok videos - fetches multiple pages for maximum results
    */
   async searchTikTokVideos(
     query: string,
-    options: { cursor?: string } = {}
+    options: { maxPages?: number } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
-    return this.searchTikTokByKeyword(query, options);
+    // Use paginated search to get more results
+    return this.searchTikTokByKeywordPaginated(query, {
+      maxPages: options.maxPages || 3,
+      count: 30
+    });
   }
 
   /**
