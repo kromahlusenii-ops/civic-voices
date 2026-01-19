@@ -137,7 +137,7 @@ For intentionsBreakdown, analyze the primary purpose/intention of each post:
 
 Provide a JSON response with the following structure:
 {
-  "interpretation": "A 2-3 sentence analysis mentioning SPECIFIC findings from the posts - what claims are being made, what events are referenced, what opinions dominate",
+  "interpretation": "A 2-3 sentence analysis that summarizes the ACTUAL CONTENT of the posts. DO NOT say 'Found X posts' or mention numbers. DO NOT use generic phrases like 'conversation spans multiple platforms'. Instead, describe WHAT people are saying - the key claims, events, opinions, or narratives you found. Example: 'Recent discussions focus on [specific event], with many expressing [specific opinion]. A notable narrative is [specific claim].'",
   "keyThemes": ["theme1", "theme2", "theme3"],
   "sentimentBreakdown": {
     "overall": "positive|negative|neutral|mixed",
@@ -266,28 +266,50 @@ Respond ONLY with valid JSON, no additional text.`;
   }
 
   private getFallbackAnalysis(query: string, posts: Post[]): AIAnalysis {
-    const hasPositive = posts.length > 0;
-    const keyThemes = posts.length > 0
-      ? [query.split(" ")[0], "social media discourse", "public opinion"]
-      : ["no results"];
+    const hasResults = posts.length > 0;
+
+    let interpretation = "";
+    let keyThemes: string[] = [];
+
+    if (hasResults) {
+      // Get platform breakdown for context
+      const platforms = [...new Set(posts.map(p => p.platform))];
+      const platformNames = platforms.map(p =>
+        p === "x" ? "X" : p === "tiktok" ? "TikTok" : p.charAt(0).toUpperCase() + p.slice(1)
+      );
+
+      // Create a clean, readable summary
+      const platformStr = platformNames.length === 1
+        ? platformNames[0]
+        : platformNames.slice(0, -1).join(", ") + " and " + platformNames.slice(-1);
+
+      interpretation = `Browse the posts on the right to explore discussions about "${query}" from ${platformStr}. Use the suggested searches below to refine your results.`;
+
+      // Use query terms as themes instead of extracting from messy post content
+      keyThemes = query.split(/\s+/).filter(w => w.length > 2 && !["and", "the", "for"].includes(w.toLowerCase())).slice(0, 3);
+      if (keyThemes.length === 0) keyThemes = [query];
+    } else {
+      keyThemes = ["no results"];
+      interpretation = `No posts found for "${query}". Try broadening your search terms or selecting different platforms.`;
+    }
 
     // Generate fallback topic analysis with first 4 post IDs per theme
-    const topicAnalysis = keyThemes.map((theme) => ({
-      topic: theme,
-      postsOverview: `**${theme}** is being discussed across multiple platforms with varying perspectives.`,
-      commentsOverview: `**Audience engagement** shows mixed reactions with users sharing diverse opinions.`,
-      postIds: posts.slice(0, 4).map(p => p.id),
-    }));
+    const topicAnalysis = hasResults
+      ? keyThemes.map((theme) => ({
+          topic: theme,
+          postsOverview: `Content related to **${theme}** appears in the search results.`,
+          commentsOverview: `See the posts for audience reactions and engagement.`,
+          postIds: posts.slice(0, 4).map(p => p.id),
+        }))
+      : undefined;
 
     return {
-      interpretation: posts.length > 0
-        ? `Found ${posts.length} posts discussing "${query}". The conversation spans multiple platforms with varying perspectives and engagement levels.`
-        : `No posts found for "${query}". Try broadening your search terms or selecting different platforms.`,
+      interpretation,
       keyThemes,
       sentimentBreakdown: {
-        overall: hasPositive ? "mixed" : "neutral",
-        summary: hasPositive
-          ? "The conversation shows a mix of perspectives from different users."
+        overall: hasResults ? "mixed" : "neutral",
+        summary: hasResults
+          ? "See the posts for detailed perspectives."
           : "Unable to determine sentiment without posts.",
       },
       intentionsBreakdown: [
@@ -296,7 +318,7 @@ Respond ONLY with valid JSON, no additional text.`;
         { name: "Entertain", percentage: 20, engagementRate: 4.0 },
         { name: "Express", percentage: 25, engagementRate: 2.0 },
       ],
-      topicAnalysis: posts.length > 0 ? topicAnalysis : undefined,
+      topicAnalysis,
       suggestedQueries: [
         {
           label: "Recent news",
@@ -319,7 +341,7 @@ Respond ONLY with valid JSON, no additional text.`;
           query: `${query} AND (impact OR effect OR consequence)`,
         },
       ],
-      followUpQuestion: `Would you like to explore a specific aspect of ${query}, such as recent events or public reactions?`,
+      followUpQuestion: `Would you like to explore a specific aspect of "${query}", such as recent events or public reactions?`,
     };
   }
 }

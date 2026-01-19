@@ -15,9 +15,12 @@ import FilterDropdown from "../../components/FilterDropdown";
 import VerificationBadge from "../../components/VerificationBadge";
 import SettingsModal from "../../components/SettingsModal";
 import ReportProgressModal from "../components/ReportProgressModal";
+import TrialModal from "../components/modals/TrialModal";
+import CreditsModal from "../components/modals/CreditsModal";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "../contexts/ToastContext";
+import { STRIPE_CONFIG } from "@/lib/stripe-config";
 // Streaming search is available but disabled by default - enable with NEXT_PUBLIC_FEATURE_STREAMING_SEARCH=true
 // import { useStreamingSearch } from "@/lib/hooks/useStreamingSearch";
 // import { PlatformStatusList } from "../components/PlatformStatusBadge";
@@ -29,37 +32,7 @@ import {
   MENTIONS_BADGE_LABELS,
 } from "@/lib/utils/mentions";
 
-// Helper function to get sentiment color class
-function getSentimentColorClass(sentiment: string): string {
-  switch (sentiment) {
-    case "positive":
-      return "text-green-600";
-    case "negative":
-      return "text-red-600";
-    case "mixed":
-      return "text-yellow-600";
-    default:
-      return "text-gray-600";
-  }
-}
-
-// Sentiment summary component for cleaner rendering
-function SentimentSummary({ overall, summary }: { overall: string; summary: string }) {
-  return (
-    <div className="rounded-lg bg-gray-50 p-3">
-      <p className="text-sm text-gray-600">
-        <span className="font-medium">Sentiment: </span>
-        <span className={`capitalize ${getSentimentColorClass(overall)}`}>
-          {overall}
-        </span>
-        {" - "}{summary}
-      </p>
-    </div>
-  );
-}
-
 const TIME_INTERVAL_OPTIONS = [
-  { id: "today", label: "Today" },
   { id: "last_week", label: "Last week" },
   { id: "last_3_months", label: "Last 3 months" },
   { id: "last_year", label: "Last year" },
@@ -76,7 +49,6 @@ const LANGUAGE_OPTIONS = [
 
 // Map URL time_range values to API timeFilter values
 const TIME_RANGE_TO_API: Record<string, string> = {
-  today: "1d",
   last_week: "7d",
   last_3_months: "3m",
   last_year: "12m",
@@ -123,7 +95,7 @@ interface SearchResults {
 }
 
 function SearchPageContent() {
-  const { isAuthenticated, loading, user } = useAuth();
+  const { isAuthenticated, loading, user, billing, refreshBilling } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { showToast } = useToast();
@@ -163,8 +135,27 @@ function SearchPageContent() {
   const [isSavingReportSearch, setIsSavingReportSearch] = useState(false);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [clickedPostCount, setClickedPostCount] = useState(0);
+  const [showTrialModal, setShowTrialModal] = useState(false);
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [trialModalFeature, setTrialModalFeature] = useState<string | undefined>();
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
+  const hasExecutedAuthCallbackSearch = useRef(false);
+
+  // Helper to check if time range is allowed for free tier
+  const isTimeRangeAllowedForFree = (range: string): boolean => {
+    // Free tier allows: today (1d -> maps to 7d for checking), last_week (7d), and last_year (12m -> 1y)
+    // Basically "last_week" and "last_year" are allowed
+    return range === "last_week" || range === "last_year";
+  };
+
+  // Check if user has active subscription
+  const hasActiveSubscription = billing?.subscriptionStatus === "active" || billing?.subscriptionStatus === "trialing";
+
+  // Check if user has enough credits
+  const hasEnoughCredits = (required: number): boolean => {
+    return (billing?.credits?.total || 0) >= required;
+  };
 
   // Update URL when filters change
   const updateUrlParams = useCallback((params: {
@@ -207,6 +198,29 @@ function SearchPageContent() {
       setShowAuthModal(true);
     }
   }, [searchParams, isAuthenticated, loading]);
+
+  // Auto-execute search after OAuth callback if there's a pending query
+  useEffect(() => {
+    const isAuthCallback = searchParams.get("auth_callback") === "true";
+    const pendingMessage = searchParams.get("message");
+
+    // Prevent double execution using ref
+    if (hasExecutedAuthCallbackSearch.current) return;
+
+    if (isAuthCallback && isAuthenticated && !loading && pendingMessage && !isSearching && !searchResults) {
+      hasExecutedAuthCallbackSearch.current = true;
+
+      // Remove the auth_callback param from URL to prevent re-execution on refresh
+      const url = new URL(window.location.href);
+      url.searchParams.delete("auth_callback");
+      router.replace(url.pathname + url.search, { scroll: false });
+
+      // Execute the pending search
+      setSearchQuery(pendingMessage);
+      executeSearchWithFilters(pendingMessage, selectedSources, timeRange, language);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, isAuthenticated, loading, isSearching, searchResults, router]);
 
   // Handle time range change
   const handleTimeRangeChange = useCallback((value: string) => {
@@ -306,8 +320,11 @@ function SearchPageContent() {
                 id: post.id,
                 text: post.text,
                 author: post.author,
+                authorHandle: post.authorHandle,
+                authorAvatar: post.authorAvatar,
                 platform: post.platform,
                 url: post.url,
+                thumbnail: post.thumbnail,
                 createdAt: post.createdAt,
                 engagement: post.engagement,
               })),
@@ -321,6 +338,30 @@ function SearchPageContent() {
           }
         } catch (saveError) {
           console.error("Failed to save search:", saveError);
+        }
+      }
+
+      // Track credit usage for authenticated users (API handles free tier gracefully)
+      if (isAuthenticated) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            await fetch("/api/billing/deduct", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                action: "search",
+                description: `Search: ${query}`,
+              }),
+            });
+            // Refresh billing to update credit display
+            refreshBilling();
+          }
+        } catch (deductError) {
+          console.error("Failed to deduct credits:", deductError);
         }
       }
     } catch (error) {
@@ -350,6 +391,19 @@ function SearchPageContent() {
     if (!isAuthenticated) {
       setPendingSearch(true);
       setShowAuthModal(true);
+      return;
+    }
+
+    // Check subscription status for premium time ranges
+    if (!hasActiveSubscription && !isTimeRangeAllowedForFree(timeRange)) {
+      setTrialModalFeature("Advanced time range filters");
+      setShowTrialModal(true);
+      return;
+    }
+
+    // Check credits for paid users
+    if (hasActiveSubscription && !hasEnoughCredits(STRIPE_CONFIG.creditCosts.search)) {
+      setShowCreditsModal(true);
       return;
     }
 
@@ -414,6 +468,19 @@ function SearchPageContent() {
       return;
     }
 
+    // Check if user has active subscription (reports require subscription)
+    if (!hasActiveSubscription) {
+      setTrialModalFeature("AI-powered report generation");
+      setShowTrialModal(true);
+      return;
+    }
+
+    // Check if user has enough credits for report generation
+    if (!hasEnoughCredits(STRIPE_CONFIG.creditCosts.reportGeneration)) {
+      setShowCreditsModal(true);
+      return;
+    }
+
     setReportError(null);
 
     try {
@@ -439,8 +506,11 @@ function SearchPageContent() {
               id: post.id,
               text: post.text,
               author: post.author,
+              authorHandle: post.authorHandle,
+              authorAvatar: post.authorAvatar,
               platform: post.platform,
               url: post.url,
+              thumbnail: post.thumbnail,
               createdAt: post.createdAt,
               engagement: post.engagement,
             })),
@@ -460,6 +530,25 @@ function SearchPageContent() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("No active session");
+      }
+
+      // Deduct credits for report generation
+      try {
+        await fetch("/api/billing/deduct", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            action: "report_generation",
+            description: `Report: ${searchResults?.query || "Search report"}`,
+          }),
+        });
+        // Refresh billing to update credit display
+        refreshBilling();
+      } catch (deductError) {
+        console.error("Failed to deduct credits:", deductError);
       }
 
       // Store the access token and show the progress modal
@@ -516,7 +605,10 @@ function SearchPageContent() {
     const sourceLabels: Record<string, string> = {
       x: "X",
       tiktok: "TikTok",
+      youtube: "YouTube",
       instagram: "Instagram",
+      bluesky: "Bluesky",
+      truthsocial: "Truth Social",
     };
 
     if (selectedSources.length === 0) {
@@ -525,7 +617,8 @@ function SearchPageContent() {
     if (selectedSources.length === 1) {
       return sourceLabels[selectedSources[0]] || selectedSources[0];
     }
-    return `${sourceLabels[selectedSources[0]]} +${selectedSources.length - 1}`;
+    const firstLabel = sourceLabels[selectedSources[0]] || selectedSources[0];
+    return `${firstLabel} +${selectedSources.length - 1}`;
   };
 
   // Render markdown-like text with bold and code
@@ -553,6 +646,7 @@ function SearchPageContent() {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         onSuccess={handleAuthSuccess}
+        redirectUrl={pendingSearch ? window.location.href : undefined}
       />
 
       {/* Search History Modal */}
@@ -571,6 +665,21 @@ function SearchPageContent() {
       <SettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
+      />
+
+      {/* Trial Modal */}
+      <TrialModal
+        isOpen={showTrialModal}
+        onClose={() => setShowTrialModal(false)}
+        feature={trialModalFeature}
+      />
+
+      {/* Credits Modal */}
+      <CreditsModal
+        isOpen={showCreditsModal}
+        onClose={() => setShowCreditsModal(false)}
+        currentCredits={billing?.credits?.total || 0}
+        requiredCredits={STRIPE_CONFIG.creditCosts.search}
       />
 
       {/* Report Progress Modal */}
@@ -841,8 +950,8 @@ function SearchPageContent() {
         {/* Results State - Split Screen */}
         {searchResults && !isSearching && (
           <div className="flex h-screen">
-            {/* Left Panel - AI Analysis */}
-            <div className="flex w-1/2 flex-col border-r border-gray-200">
+            {/* Left Panel - AI Analysis (hidden on mobile) */}
+            <div className="hidden w-1/2 flex-col border-r border-gray-200 md:flex">
               {/* Header with query */}
               <div className="border-b border-gray-200 p-6">
                 <div className="inline-block rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-800">
@@ -867,37 +976,17 @@ function SearchPageContent() {
                             {renderFormattedText(searchResults.aiAnalysis.interpretation)}
                           </p>
 
-                          {/* Key Themes */}
-                          {searchResults.keyThemes.length > 0 && (
-                            <div className="flex flex-wrap gap-2">
-                              {searchResults.keyThemes.map((theme, i) => (
-                                <span key={i} className="rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700">
-                                  {theme}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Sentiment Summary */}
-                          {searchResults.aiAnalysis.sentimentBreakdown && (
-                            <SentimentSummary
-                              overall={searchResults.aiAnalysis.sentimentBreakdown.overall}
-                              summary={searchResults.aiAnalysis.sentimentBreakdown.summary}
-                            />
-                          )}
-
-                          <p className="text-gray-800 leading-relaxed">
-                            {renderFormattedText(searchResults.aiAnalysis.followUpQuestion)}
-                          </p>
-
-                          {/* Query Refinement Suggestions */}
+                          {/* Suggested Boolean Search */}
                           {searchResults.aiAnalysis.suggestedQueries && searchResults.aiAnalysis.suggestedQueries.length > 0 && (
-                            <QuerySuggestions
-                              suggestions={searchResults.aiAnalysis.suggestedQueries}
-                              onQuerySelect={(query) => {
-                                setFollowUpQuery(query);
-                              }}
-                            />
+                            <div className="space-y-2">
+                              <h3 className="text-sm font-medium text-gray-700">Suggested Boolean Search</h3>
+                              <QuerySuggestions
+                                suggestions={searchResults.aiAnalysis.suggestedQueries}
+                                onQuerySelect={(query) => {
+                                  setFollowUpQuery(query);
+                                }}
+                              />
+                            </div>
                           )}
                         </>
                       ) : (
@@ -935,25 +1024,11 @@ function SearchPageContent() {
               </div>
             </div>
 
-            {/* Right Panel - Posts Preview */}
-            <div className="flex w-1/2 flex-col bg-gray-50">
+            {/* Right Panel - Posts Preview (full width on mobile) */}
+            <div className="flex w-full flex-col bg-gray-50 md:w-1/2">
               {/* Header */}
               <div className="border-b border-gray-200 bg-white p-6">
                 <h2 className="mb-4 text-lg font-medium text-gray-900">Posts preview for query</h2>
-
-                {/* Key themes */}
-                {searchResults.keyThemes.length > 0 && (
-                  <div className="mb-4 flex flex-wrap gap-1">
-                    {searchResults.keyThemes.map((theme, i) => (
-                      <span
-                        key={i}
-                        className="rounded bg-gray-100 px-2 py-1 text-sm text-gray-800"
-                      >
-                        {theme}
-                      </span>
-                    ))}
-                  </div>
-                )}
 
                 {/* Filters row */}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">

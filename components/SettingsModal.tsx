@@ -1,29 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 
-type SettingsTab = "preferences" | "credit_usage" | "plan_billing" | "team_members" | "integrations";
-
-// Suggested topics from onboarding
-const SUGGESTED_TOPICS = [
-  { query: "immigration", label: "Immigration" },
-  { query: "AI regulation", label: "AI" },
-  { query: "climate policy", label: "Climate" },
-  { query: "cryptocurrency", label: "Crypto" },
-  { query: "2026 elections", label: "2026 Elections" },
-  { query: "tech layoffs", label: "Tech Layoffs" },
-  { query: "healthcare policy", label: "Healthcare" },
-  { query: "housing crisis", label: "Housing" },
-];
-
-interface TrackedTopic {
-  id: string;
-  query: string;
-  name: string | null;
-  createdAt: string;
-}
+type SettingsTab = "credit_usage" | "plan_billing" | "team_members" | "integrations";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -59,22 +40,9 @@ const IntegrationsIcon = () => (
   </svg>
 );
 
-const HelpIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" strokeWidth="2" />
-    <path strokeWidth="2" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
-  </svg>
-);
-
 const LogoutIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeWidth="2" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
-  </svg>
-);
-
-const ExternalLinkIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeWidth="2" d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3" />
   </svg>
 );
 
@@ -90,13 +58,6 @@ const CheckIcon = () => (
   </svg>
 );
 
-const PreferencesIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-    <circle cx="12" cy="12" r="3" strokeWidth="2" />
-  </svg>
-);
-
 const SpinnerIcon = () => (
   <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -105,7 +66,7 @@ const SpinnerIcon = () => (
 );
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("preferences");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("credit_usage");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const { signOut: supabaseSignOut, getAccessToken } = useAuth();
@@ -133,11 +94,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const navItems = [
-    { id: "preferences" as const, label: "Preferences", icon: PreferencesIcon },
-    { id: "credit_usage" as const, label: "Credit usage", icon: CreditIcon },
-    { id: "plan_billing" as const, label: "Plan & Billing", icon: BillingIcon },
-    { id: "team_members" as const, label: "Team & Members", icon: TeamIcon },
-    { id: "integrations" as const, label: "Integrations", icon: IntegrationsIcon },
+    { id: "credit_usage" as const, label: "Credit usage", icon: CreditIcon, disabled: false },
+    { id: "plan_billing" as const, label: "Plan & Billing", icon: BillingIcon, disabled: false },
+    { id: "team_members" as const, label: "Team & Members", icon: TeamIcon, disabled: true },
+    { id: "integrations" as const, label: "Integrations", icon: IntegrationsIcon, disabled: true },
   ];
 
   return (
@@ -187,33 +147,32 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Navigation */}
           <nav className="flex-1 p-3 space-y-1">
             {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
-                  activeTab === item.id
-                    ? "bg-blue-50 text-blue-700 font-medium"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                <item.icon />
-                <span>{item.label}</span>
-              </button>
+              <div key={item.id} className="relative group">
+                <button
+                  onClick={() => !item.disabled && setActiveTab(item.id)}
+                  disabled={item.disabled}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
+                    item.disabled
+                      ? "text-gray-400 cursor-not-allowed"
+                      : activeTab === item.id
+                        ? "bg-blue-50 text-blue-700 font-medium"
+                        : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <item.icon />
+                  <span>{item.label}</span>
+                </button>
+                {item.disabled && (
+                  <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                    Coming soon
+                  </div>
+                )}
+              </div>
             ))}
           </nav>
 
           {/* Bottom Actions */}
-          <div className="p-3 border-t border-gray-200 space-y-1">
-            <a
-              href="https://civicvoices.io/help"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-            >
-              <HelpIcon />
-              <span>Get help</span>
-              <ExternalLinkIcon />
-            </a>
+          <div className="p-3 border-t border-gray-200">
             <button
               onClick={() => setShowLogoutConfirm(true)}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors"
@@ -226,7 +185,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === "preferences" && <PreferencesTab getAccessToken={getAccessToken} />}
           {activeTab === "credit_usage" && <CreditUsageTab />}
           {activeTab === "plan_billing" && <PlanBillingTab />}
           {activeTab === "team_members" && <TeamMembersTab />}
@@ -237,124 +195,49 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   );
 }
 
-// Preferences Tab
-function PreferencesTab({ getAccessToken }: { getAccessToken: () => Promise<string | null> }) {
-  const [topics, setTopics] = useState<TrackedTopic[]>([]);
+// Credit Usage Tab
+function CreditUsageTab() {
+  const { getAccessToken } = useAuth();
+  const [billingData, setBillingData] = useState<{
+    credits: { monthly: number; bonus: number; total: number; resetDate: string | null };
+    recentTransactions: Array<{ id: string; amount: number; type: string; description: string | null; createdAt: string }>;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [customTopic, setCustomTopic] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const fetchTopics = useCallback(async () => {
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/topics", {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch topics");
-      }
-
-      const data = await response.json();
-      setTopics(data.topics || []);
-    } catch (err) {
-      console.error("Error fetching topics:", err);
-      setError("Failed to load topics");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getAccessToken]);
 
   useEffect(() => {
-    fetchTopics();
-  }, [fetchTopics]);
+    const fetchBillingData = async () => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          setIsLoading(false);
+          return;
+        }
 
-  const addTopic = async (query: string) => {
-    if (!query.trim()) return;
+        const response = await fetch("/api/billing/status", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
 
-    const accessToken = await getAccessToken();
-    if (!accessToken) return;
-
-    setIsAdding(true);
-    try {
-      const response = await fetch("/api/topics", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ query: query.trim() }),
-      });
-
-      if (response.status === 409) {
-        setError("Topic already tracked");
-        setTimeout(() => setError(null), 3000);
-        return;
+        if (response.ok) {
+          const data = await response.json();
+          setBillingData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch billing data:", error);
+      } finally {
+        setIsLoading(false);
       }
+    };
 
-      if (!response.ok) {
-        throw new Error("Failed to add topic");
-      }
+    // Initial fetch
+    fetchBillingData();
 
-      const data = await response.json();
-      setTopics((prev) => [data.topic, ...prev]);
-      setCustomTopic("");
-    } catch (err) {
-      console.error("Error adding topic:", err);
-      setError("Failed to add topic");
-      setTimeout(() => setError(null), 3000);
-    } finally {
-      setIsAdding(false);
-    }
-  };
+    // Poll for updates every 10 seconds
+    const pollInterval = setInterval(fetchBillingData, 10000);
 
-  const deleteTopic = async (topicId: string) => {
-    const accessToken = await getAccessToken();
-    if (!accessToken) return;
-
-    setDeletingId(topicId);
-    try {
-      const response = await fetch(`/api/topics?id=${topicId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete topic");
-      }
-
-      setTopics((prev) => prev.filter((t) => t.id !== topicId));
-    } catch (err) {
-      console.error("Error deleting topic:", err);
-      setError("Failed to delete topic");
-      setTimeout(() => setError(null), 3000);
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addTopic(customTopic);
-    }
-  };
-
-  const isTopicTracked = (query: string) => {
-    const normalized = query.toLowerCase().trim();
-    return topics.some((t) => t.query === normalized);
-  };
+    return () => clearInterval(pollInterval);
+  }, [getAccessToken]);
 
   if (isLoading) {
     return (
@@ -364,132 +247,21 @@ function PreferencesTab({ getAccessToken }: { getAccessToken: () => Promise<stri
     );
   }
 
-  return (
-    <div className="p-6">
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">Preferences</h3>
-      <p className="text-gray-600 mb-6">Manage the topics you want to track across social platforms.</p>
+  const credits = billingData?.credits || { monthly: 0, bonus: 0, total: 0, resetDate: null };
+  const transactions = billingData?.recentTransactions || [];
+  const totalCredits = 200; // Max monthly credits
+  const percentUsed = ((totalCredits - credits.total) / totalCredits) * 100;
+  const resetDate = credits.resetDate ? new Date(credits.resetDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A";
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Suggested Topics */}
-      <div className="mb-6">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">Suggested topics</h4>
-        <div className="flex flex-wrap gap-2">
-          {SUGGESTED_TOPICS.map((topic) => {
-            const isTracked = isTopicTracked(topic.query);
-            return (
-              <button
-                key={topic.query}
-                onClick={() => !isTracked && addTopic(topic.query)}
-                disabled={isTracked || isAdding}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  isTracked
-                    ? "bg-blue-100 text-blue-700 cursor-default"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                } disabled:opacity-50`}
-              >
-                {isTracked && (
-                  <span className="inline-flex items-center gap-1">
-                    <CheckIcon />
-                  </span>
-                )}
-                {topic.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Custom Topic Input */}
-      <div className="mb-6">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">Add custom topic</h4>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={customTopic}
-            onChange={(e) => setCustomTopic(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Enter a topic to track..."
-            className="flex-1 px-4 py-2.5 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-sm"
-          />
-          <button
-            onClick={() => addTopic(customTopic)}
-            disabled={!customTopic.trim() || isAdding}
-            className="px-4 py-2.5 bg-gray-900 text-white rounded-lg font-medium text-sm hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isAdding ? <SpinnerIcon /> : "Add"}
-          </button>
-        </div>
-      </div>
-
-      {/* Current Topics */}
-      <div>
-        <h4 className="text-sm font-medium text-gray-700 mb-3">
-          Your tracked topics ({topics.length})
-        </h4>
-        {topics.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-xl">
-            <p className="text-gray-500">No topics tracked yet.</p>
-            <p className="text-gray-400 text-sm mt-1">Add topics above to start tracking.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {topics.map((topic) => (
-              <div
-                key={topic.id}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors"
-              >
-                <div>
-                  <span className="font-medium text-gray-900">{topic.name || topic.query}</span>
-                  {topic.name && topic.name !== topic.query && (
-                    <span className="text-gray-500 text-sm ml-2">({topic.query})</span>
-                  )}
-                </div>
-                <button
-                  onClick={() => deleteTopic(topic.id)}
-                  disabled={deletingId === topic.id}
-                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                  aria-label={`Remove ${topic.name || topic.query}`}
-                >
-                  {deletingId === topic.id ? (
-                    <SpinnerIcon />
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Credit Usage Tab
-function CreditUsageTab() {
-  // Mock data - replace with real data from API
-  const credits = {
-    used: 91.5,
-    total: 200,
-    resetDate: "Feb 4, 2026",
+  const formatActivityType = (type: string) => {
+    switch (type) {
+      case "search_usage": return "Search";
+      case "report_generation": return "Report";
+      case "monthly_reset": return "Monthly Reset";
+      case "overage_purchase": return "Credit Purchase";
+      default: return type;
+    }
   };
-
-  const usageHistory = [
-    { activity: "Tracking", date: "01/11/2026, 17:00", credits: -0.5 },
-    { activity: "Report", date: "01/07/2026, 22:04", credits: -10 },
-    { activity: "Report", date: "01/07/2026, 22:03", credits: -10 },
-    { activity: "Report", date: "01/07/2026, 12:25", credits: -10 },
-    { activity: "Report", date: "01/04/2026, 13:33", credits: -10 },
-  ];
-
-  const percentUsed = (credits.used / credits.total) * 100;
 
   return (
     <div className="p-6">
@@ -512,7 +284,7 @@ function CreditUsageTab() {
               <circle cx="12" cy="12" r="10" strokeWidth="2" />
               <path strokeWidth="2" d="M12 6v6l4 2" />
             </svg>
-            <span className="font-medium">{credits.total - credits.used}/{credits.total}</span>
+            <span className="font-medium">{credits.total}/{totalCredits}</span>
           </div>
         </div>
 
@@ -520,19 +292,31 @@ function CreditUsageTab() {
         <div className="h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
           <div
             className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300"
-            style={{ width: `${100 - percentUsed}%` }}
+            style={{ width: `${Math.max(0, 100 - percentUsed)}%` }}
           />
+        </div>
+
+        {/* Credit breakdown */}
+        <div className="flex gap-4 mb-4 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
+            <span className="text-gray-600">Monthly: {credits.monthly}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+            <span className="text-gray-600">Bonus: {credits.bonus}</span>
+          </div>
         </div>
 
         {/* Info */}
         <div className="space-y-2 text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <CheckIcon />
-            <span>Monthly credits resets on {credits.resetDate}</span>
+            <span>Monthly credits reset on {resetDate}</span>
           </div>
           <div className="flex items-center gap-2">
             <CheckIcon />
-            <span>Unused subscription credits roll over for one month</span>
+            <span>Bonus credits never expire</span>
           </div>
         </div>
       </div>
@@ -542,26 +326,34 @@ function CreditUsageTab() {
         <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
           <h4 className="font-medium text-gray-900">Usage history</h4>
         </div>
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost per action</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credits</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {usageHistory.map((item, index) => (
-              <tr key={index} className="hover:bg-gray-50">
-                <td className="px-6 py-4 text-sm text-gray-900">{item.activity}</td>
-                <td className="px-6 py-4 text-sm text-gray-600">{item.date}</td>
-                <td className="px-6 py-4 text-sm text-gray-600 text-right">—</td>
-                <td className="px-6 py-4 text-sm text-gray-900 text-right font-medium">{item.credits} RH</td>
+        {transactions.length === 0 ? (
+          <div className="p-6 text-center text-gray-500">
+            No transactions yet
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credits</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {transactions.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm text-gray-900">{formatActivityType(item.type)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {new Date(item.createdAt).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                  <td className={`px-6 py-4 text-sm text-right font-medium ${item.amount >= 0 ? "text-green-600" : "text-gray-900"}`}>
+                    {item.amount >= 0 ? "+" : ""}{item.amount}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -569,127 +361,414 @@ function CreditUsageTab() {
 
 // Plan & Billing Tab
 function PlanBillingTab() {
-  const [billingInterval, setBillingInterval] = useState<"yearly" | "monthly" | "one_time">("monthly");
+  const { getAccessToken } = useAuth();
+  const [billingData, setBillingData] = useState<{
+    subscription: { status: string; plan: string | null; currentPeriodEnd: string | null; trialEndDate: string | null };
+    credits: { monthly: number; bonus: number; total: number; resetDate: string | null };
+  } | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCheckoutLoading, setIsCheckoutLoading] = useState(false);
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
-  const plans = [
-    {
-      name: "Pro",
-      price: billingInterval === "yearly" ? 39 : 49,
-      period: billingInterval === "one_time" ? "" : "/month",
-      features: ["200 RH / month", "$0.25 / RH", "Credits rollovers", "AI Assistant", "Tracking", "Parallel researches"],
-      isCurrent: true,
-    },
-    {
-      name: "Business",
-      price: billingInterval === "yearly" ? 119 : 149,
-      period: billingInterval === "one_time" ? "" : "/month",
-      features: ["600 RH / month", "$0.25 / RH", "Credits rollovers", "AI Assistant", "Tracking", "Parallel researches"],
-      isCurrent: false,
-    },
-    {
-      name: "Enterprise",
-      price: null,
-      features: ["Custom RH limit", "API access & integrations", "Custom data sources", "Custom domain", "Unlimited seats"],
-      isCurrent: false,
-    },
-  ];
+  useEffect(() => {
+    const fetchBillingData = async () => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          setIsLoading(false);
+          return;
+        }
 
-  const handleUpgrade = () => {
-    // Mock - show coming soon toast
-    alert("Coming soon! Plan upgrades will be available shortly.");
+        const response = await fetch("/api/billing/status", {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setBillingData(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch billing data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBillingData();
+  }, [getAccessToken]);
+
+  const handleStartTrial = async () => {
+    try {
+      setIsCheckoutLoading(true);
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      const response = await fetch("/api/billing/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error("Checkout error:", error);
+    } finally {
+      setIsCheckoutLoading(false);
+    }
+  };
+
+  const handleManagePlan = async () => {
+    try {
+      setIsPortalLoading(true);
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      const response = await fetch("/api/billing/portal", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error("Portal error:", error);
+    } finally {
+      setIsPortalLoading(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    try {
+      setIsCanceling(true);
+      setCancelError(null);
+      const accessToken = await getAccessToken();
+      if (!accessToken) return;
+
+      const response = await fetch("/api/billing/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setCancelError(data.error || "Failed to cancel subscription");
+        return;
+      }
+
+      // Update local state to reflect cancellation
+      setBillingData((prev) =>
+        prev
+          ? {
+              ...prev,
+              subscription: {
+                ...prev.subscription,
+                status: "canceled",
+              },
+            }
+          : null
+      );
+      setShowCancelConfirm(false);
+    } catch (error) {
+      console.error("Cancel error:", error);
+      setCancelError("Failed to cancel subscription. Please try again.");
+    } finally {
+      setIsCanceling(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[300px]">
+        <SpinnerIcon />
+      </div>
+    );
+  }
+
+  const subscription = billingData?.subscription || { status: "free", plan: null, currentPeriodEnd: null, trialEndDate: null };
+  const isSubscribed = subscription.status === "active" || subscription.status === "trialing";
+  const isTrial = subscription.status === "trialing";
+  const isCanceled = subscription.status === "canceled";
+
+  const getStatusLabel = () => {
+    switch (subscription.status) {
+      case "active": return "Active";
+      case "trialing": return "Trial";
+      case "canceled": return "Canceled";
+      case "past_due": return "Past Due";
+      default: return "Free";
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (subscription.status) {
+      case "active": return "bg-green-100 text-green-800";
+      case "trialing": return "bg-blue-100 text-blue-800";
+      case "canceled": return "bg-orange-100 text-orange-800";
+      case "past_due": return "bg-red-100 text-red-800";
+      default: return "bg-gray-100 text-gray-600";
+    }
   };
 
   return (
     <div className="p-6">
+      {/* Cancel Confirmation Dialog */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl z-[70]">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Cancel subscription?</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to cancel your Pro subscription? You&apos;ll lose access to:
+            </p>
+            <ul className="text-sm text-gray-600 mb-4 space-y-1">
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">✕</span>
+                200 monthly credits
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">✕</span>
+                AI-powered reports
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">✕</span>
+                All search timeframes
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-red-500">✕</span>
+                Export functionality
+              </li>
+            </ul>
+            {subscription.currentPeriodEnd && (
+              <p className="text-sm text-gray-500 mb-4">
+                You&apos;ll have access until {new Date(subscription.currentPeriodEnd).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.
+              </p>
+            )}
+            {cancelError && (
+              <p className="text-sm text-red-600 mb-4">{cancelError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowCancelConfirm(false);
+                  setCancelError(null);
+                }}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+              >
+                Keep subscription
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={isCanceling}
+                className="flex-1 px-4 py-2 text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
+              >
+                {isCanceling ? "Canceling..." : "Cancel subscription"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h3 className="text-xl font-semibold text-gray-900 mb-6">Plan & Billing</h3>
 
-      {/* Current Plan */}
-      <div className="bg-gray-50 rounded-xl p-6 mb-6 flex items-center justify-between">
-        <div>
-          <p className="text-gray-600 text-sm">Current plan: <span className="font-semibold text-gray-900">Pro monthly</span></p>
-          <p className="text-gray-500 text-sm">Credits reset on Feb 4, 2026</p>
-        </div>
-        <button
-          onClick={handleUpgrade}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium"
-        >
-          Manage plan
-        </button>
-      </div>
-
-      {/* Billing Interval Toggle */}
-      <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-        {[
-          { id: "yearly", label: "Yearly" },
-          { id: "monthly", label: "Monthly" },
-          { id: "one_time", label: "One time" },
-        ].map((interval) => (
-          <button
-            key={interval.id}
-            onClick={() => setBillingInterval(interval.id as typeof billingInterval)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              billingInterval === interval.id
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            {interval.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Plan Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {plans.map((plan) => (
-          <div
-            key={plan.name}
-            className={`border rounded-xl p-6 ${
-              plan.isCurrent ? "border-blue-200 bg-blue-50/30" : "border-gray-200"
-            }`}
-          >
-            <h4 className="font-semibold text-gray-900 mb-2">{plan.name}</h4>
-            {plan.price !== null ? (
-              <p className="text-3xl font-bold text-gray-900 mb-4">
-                ${plan.price}<span className="text-base font-normal text-gray-500">{plan.period}</span>
-              </p>
-            ) : (
-              <p className="text-xl font-semibold text-gray-900 mb-4">Contact us</p>
-            )}
-
-            {plan.isCurrent ? (
+      {/* Current Plan Status - only show for subscribed or canceled users */}
+      {(isSubscribed || isCanceled) && (
+        <div className="bg-gray-50 rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <p className="text-lg font-semibold text-gray-900">Pro Plan</p>
+                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getStatusColor()}`}>
+                  {getStatusLabel()}
+                </span>
+              </div>
+              {isSubscribed && subscription.currentPeriodEnd && (
+                <p className="text-sm text-gray-500">
+                  {isTrial ? "Trial ends" : "Renews"} on {new Date(subscription.currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </p>
+              )}
+              {isCanceled && subscription.currentPeriodEnd && (
+                <p className="text-sm text-gray-500">
+                  Access ends on {new Date(subscription.currentPeriodEnd).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                </p>
+              )}
+            </div>
+            {isSubscribed ? (
               <button
-                disabled
-                className="w-full py-2 px-4 bg-gray-200 text-gray-500 rounded-lg font-medium mb-4 cursor-not-allowed"
+                onClick={handleManagePlan}
+                disabled={isPortalLoading}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors font-medium disabled:opacity-50"
               >
-                Current plan
-              </button>
-            ) : plan.price !== null ? (
-              <button
-                onClick={handleUpgrade}
-                className="w-full py-2 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors mb-4"
-              >
-                Get started
+                {isPortalLoading ? <SpinnerIcon /> : "Manage plan"}
               </button>
             ) : (
               <button
-                onClick={handleUpgrade}
-                className="w-full py-2 px-4 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors mb-4"
+                onClick={handleStartTrial}
+                disabled={isCheckoutLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                Book a call
+                {isCheckoutLoading ? <SpinnerIcon /> : "Resubscribe"}
               </button>
             )}
-
-            <ul className="space-y-2">
-              {plan.features.map((feature, index) => (
-                <li key={index} className="flex items-center gap-2 text-sm text-gray-600">
-                  <CheckIcon />
-                  <span>{feature}</span>
-                </li>
-              ))}
-            </ul>
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Plans Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Pro Plan */}
+        <div className={`border rounded-xl p-5 ${isSubscribed || isCanceled ? "border-blue-200 bg-blue-50/30" : "border-gray-200"}`}>
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="font-semibold text-gray-900">Pro</h4>
+            {!isSubscribed && !isCanceled && (
+              <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Recommended</span>
+            )}
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mb-3">$49<span className="text-sm font-normal text-gray-500">/month</span></p>
+
+          {isSubscribed ? (
+            <div className="w-full py-2 px-3 bg-green-100 text-green-700 rounded-lg font-medium mb-3 text-center text-sm">
+              {isTrial ? "Trial active" : "Current plan"}
+            </div>
+          ) : isCanceled ? (
+            <button
+              onClick={handleStartTrial}
+              disabled={isCheckoutLoading}
+              className="w-full py-2 px-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors mb-3 disabled:opacity-50 text-sm"
+            >
+              {isCheckoutLoading ? <SpinnerIcon /> : "Resubscribe"}
+            </button>
+          ) : (
+            <button
+              onClick={handleStartTrial}
+              disabled={isCheckoutLoading}
+              className="w-full py-2 px-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors mb-3 disabled:opacity-50 text-sm"
+            >
+              {isCheckoutLoading ? <SpinnerIcon /> : "Start $1 Trial"}
+            </button>
+          )}
+
+          <ul className="space-y-1.5">
+            {[
+              "200 credits / month",
+              "$0.25 / credit overage",
+              "All search timeframes",
+              "AI-powered reports",
+              "PDF report generator",
+              "Shareable reports",
+              "Email alerts",
+              "Export data",
+              "Priority support",
+            ].map((feature, index) => (
+              <li key={index} className="flex items-center gap-2 text-xs text-gray-600">
+                <CheckIcon />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Business Plan */}
+        <div className="border border-gray-200 rounded-xl p-5 relative opacity-75">
+          <div className="absolute top-3 right-3">
+            <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">Coming soon</span>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="font-semibold text-gray-900">Business</h4>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mb-3">$149<span className="text-sm font-normal text-gray-500">/month</span></p>
+
+          <button
+            disabled
+            className="w-full py-2 px-3 bg-gray-200 text-gray-500 rounded-lg font-medium mb-3 cursor-not-allowed text-sm"
+          >
+            Coming soon
+          </button>
+
+          <ul className="space-y-1.5">
+            {[
+              "Everything in Pro",
+              "500 credits / month",
+              "Team collaboration",
+              "5 team members",
+              "Shared workspaces",
+              "Advanced analytics",
+              "API access",
+              "Dedicated support",
+            ].map((feature, index) => (
+              <li key={index} className="flex items-center gap-2 text-xs text-gray-500">
+                <CheckIcon />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Enterprise Plan */}
+        <div className="border border-gray-200 rounded-xl p-5 relative opacity-75">
+          <div className="absolute top-3 right-3">
+            <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">Coming soon</span>
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            <h4 className="font-semibold text-gray-900">Enterprise</h4>
+          </div>
+          <p className="text-2xl font-bold text-gray-900 mb-3">Custom</p>
+
+          <button
+            disabled
+            className="w-full py-2 px-3 bg-gray-200 text-gray-500 rounded-lg font-medium mb-3 cursor-not-allowed text-sm"
+          >
+            Contact sales
+          </button>
+
+          <ul className="space-y-1.5">
+            {[
+              "Everything in Business",
+              "Unlimited credits",
+              "Unlimited team members",
+              "Custom integrations",
+              "SSO / SAML",
+              "SLA guarantee",
+              "Dedicated account manager",
+              "Custom training",
+            ].map((feature, index) => (
+              <li key={index} className="flex items-center gap-2 text-xs text-gray-500">
+                <CheckIcon />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
+
+      {/* Cancel Membership */}
+      {isSubscribed && (
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <button
+            onClick={() => setShowCancelConfirm(true)}
+            className="text-sm text-gray-500 hover:text-red-600 transition-colors"
+          >
+            Cancel membership
+          </button>
+        </div>
+      )}
     </div>
   );
 }

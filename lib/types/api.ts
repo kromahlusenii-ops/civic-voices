@@ -70,6 +70,9 @@ export interface Post {
   credibilityScore?: number;        // 0-1 computed score
   credibilityTier?: CredibilityTier;
   verificationBadge?: VerificationBadge;
+
+  // Top voice indicator
+  isTopVoice?: boolean;             // Indicates author is a top/influential voice on this topic
 }
 
 export interface SuggestedQuery {

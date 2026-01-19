@@ -96,6 +96,9 @@ interface OldBirdTweet {
       result?: OldBirdUser;
     };
   };
+  // Alternative user locations in some API responses
+  user?: OldBirdUser;
+  author?: OldBirdUser;
 }
 
 interface OldBirdUser {
@@ -121,6 +124,9 @@ interface OldBirdUser {
     is_blue_verified?: boolean;
     verified_type?: string;
   };
+  // Top-level profile image (some API responses)
+  profile_image_url_https?: string;
+  profile_image_url?: string;
   // Legacy API structure (backwards compatibility)
   legacy?: {
     name?: string;
@@ -378,15 +384,25 @@ export class XRapidApiProvider {
   private normalizeTweet(tweet: OldBirdTweet): Post | null {
     const tweetId = tweet.rest_id || tweet.id;
     const legacy = tweet.legacy;
-    const user = tweet.core?.user_results?.result;
+    // Try multiple locations for user data
+    const user = tweet.core?.user_results?.result || tweet.user || tweet.author;
 
     if (!tweetId || !legacy) return null;
 
     // Get user info from new structure (user.core) or fallback to legacy (user.legacy)
     const userName = user?.core?.name || user?.legacy?.name || "Unknown";
     const screenName = user?.core?.screen_name || user?.legacy?.screen_name || "unknown";
-    const avatarUrl = user?.avatar?.image_url?.replace("_normal", "_bigger") ||
-                     user?.legacy?.profile_image_url_https?.replace("_normal", "_bigger");
+
+    // Extract avatar URL from various possible locations in the API response
+    // The X API structure changes frequently, so we check multiple paths
+    const rawAvatarUrl =
+      user?.avatar?.image_url ||
+      user?.legacy?.profile_image_url_https ||
+      user?.profile_image_url_https ||
+      user?.profile_image_url;
+
+    // Upgrade to larger image size if available
+    const avatarUrl = rawAvatarUrl?.replace("_normal", "_bigger")?.replace("_mini", "_bigger");
 
     // Parse Twitter's date format: "Wed Jan 08 14:23:45 +0000 2025"
     const createdAt = legacy.created_at

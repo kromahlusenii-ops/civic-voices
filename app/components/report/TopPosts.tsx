@@ -134,22 +134,40 @@ export default function TopPosts({ posts, limit = 5 }: TopPostsProps) {
                 className="flex-shrink-0 w-[280px] sm:w-auto snap-start
                            border border-gray-100 rounded-lg p-3 hover:bg-gray-50 transition-colors"
               >
-              {/* Header: Platform icon, author, sentiment badge */}
+              {/* Header: Avatar, author info, platform icon, sentiment badge */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500">
-                    {PLATFORM_ICONS[post.platform] || null}
-                  </span>
-                  <span className="text-sm font-medium text-gray-800">
-                    {post.author}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    @{post.authorHandle}
-                  </span>
+                  {/* Author Avatar */}
+                  {post.authorAvatar ? (
+                    <img
+                      src={post.authorAvatar}
+                      alt={post.author}
+                      className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
+                      <span className="text-gray-500 text-xs font-medium">
+                        {post.author.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-gray-800 truncate">
+                        {post.author}
+                      </span>
+                      <span className="text-gray-500 flex-shrink-0">
+                        {PLATFORM_ICONS[post.platform] || null}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-500 truncate">
+                      @{post.authorHandle}
+                    </span>
+                  </div>
                 </div>
                 {sentimentConfig && (
                   <span
-                    className={`text-xs px-2 py-0.5 rounded-full ${sentimentConfig.bgColor} ${sentimentConfig.textColor} border ${sentimentConfig.borderColor}`}
+                    className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${sentimentConfig.bgColor} ${sentimentConfig.textColor} border ${sentimentConfig.borderColor}`}
                   >
                     {sentimentConfig.label}
                   </span>

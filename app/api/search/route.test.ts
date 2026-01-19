@@ -2,27 +2,39 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "./route";
 import { NextRequest } from "next/server";
 
+// Config that can be modified per test
+let mockConfig = {
+  x: {
+    bearerToken: "test-x-bearer-token",
+    rapidApiKey: "", // Empty by default to use official API for existing tests
+  },
+  tiktok: {
+    apiKey: "test-tiktok-api-key",
+    apiUrl: "https://api.tikapi.io",
+  },
+  llm: {
+    anthropic: {
+      apiKey: "", // Disable AI analysis in tests
+    },
+  },
+  providers: {
+    youtube: { apiKey: "" },
+  },
+  bluesky: { identifier: "", appPassword: "" },
+  truthSocial: { username: "", password: "" },
+};
+
 // Mock the config module
 vi.mock("@/lib/config", () => ({
-  config: {
-    x: {
-      bearerToken: "test-x-bearer-token",
-    },
-    tiktok: {
-      apiKey: "test-tiktok-api-key",
-      apiUrl: "https://api.tikapi.io",
-    },
-    llm: {
-      anthropic: {
-        apiKey: "", // Disable AI analysis in tests
-      },
-    },
+  get config() {
+    return mockConfig;
   },
 }));
 
 // Mock XProvider - use hoisted to allow module mock to access variables
-const { mockSearchWithWarning } = vi.hoisted(() => ({
+const { mockSearchWithWarning, mockSearchLatest } = vi.hoisted(() => ({
   mockSearchWithWarning: vi.fn(),
+  mockSearchLatest: vi.fn(),
 }));
 
 vi.mock("@/lib/providers/XProvider", () => {
@@ -38,27 +50,37 @@ vi.mock("@/lib/providers/XProvider", () => {
   return { XProvider: MockXProvider };
 });
 
-// Mock TikTokApiService
-const mockSearchVideos = vi.fn();
-const mockTransformToPosts = vi.fn();
+// Mock XRapidApiProvider
+vi.mock("@/lib/providers/XRapidApiProvider", () => {
+  class MockXRapidApiProvider {
+    searchLatest = mockSearchLatest;
 
-vi.mock("@/lib/services/tiktokApi", () => ({
-  default: vi.fn().mockImplementation(() => ({
-    searchVideos: mockSearchVideos,
-    transformToPosts: mockTransformToPosts,
-  })),
-  __esModule: true,
+    static filterByTimeRange = vi.fn((posts) => posts);
+  }
+
+  return { XRapidApiProvider: MockXRapidApiProvider };
+});
+
+// Mock TikTokApiService - use hoisted
+const { mockSearchVideos, mockTransformToPosts } = vi.hoisted(() => ({
+  mockSearchVideos: vi.fn(),
+  mockTransformToPosts: vi.fn(),
 }));
 
-// We need to mock the static methods separately
-vi.mock("@/lib/services/tiktokApi", async () => {
-  const actual = await vi.importActual("@/lib/services/tiktokApi");
+vi.mock("@/lib/services/tiktokApi", () => {
+  class MockTikTokApiService {
+    searchVideos = mockSearchVideos;
+    transformToPosts = mockTransformToPosts;
+
+    static getBaseQuery = vi.fn((query: string) => query);
+    static filterByTimeRange = vi.fn((posts) => posts);
+    static hasBooleanQuery = vi.fn(() => false);
+    static filterByBooleanQuery = vi.fn((posts) => posts);
+  }
+
   return {
-    ...actual,
-    default: vi.fn().mockImplementation(() => ({
-      searchVideos: mockSearchVideos,
-      transformToPosts: mockTransformToPosts,
-    })),
+    default: MockTikTokApiService,
+    __esModule: true,
   };
 });
 
@@ -75,6 +97,8 @@ function createMockRequest(body: object): NextRequest {
 describe("POST /api/search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset config to default (no RapidAPI key) for existing tests
+    mockConfig.x.rapidApiKey = "";
   });
 
   describe("validation", () => {
@@ -327,5 +351,281 @@ describe("POST /api/search", () => {
       expect(response.status).toBe(500);
       expect(data.error).toBe("Internal server error");
     });
+  });
+
+  describe("X RapidAPI retry-on-empty", () => {
+    beforeEach(() => {
+      // Enable RapidAPI for these tests
+      mockConfig.x.rapidApiKey = "test-rapidapi-key";
+    });
+
+    it("retries when X RapidAPI returns empty results", async () => {
+      const mockXPosts = [
+        {
+          id: "tweet1",
+          text: "Test tweet",
+          author: "User",
+          authorHandle: "@user",
+          platform: "x",
+          createdAt: "2024-01-15T10:00:00Z",
+          engagement: { likes: 10, comments: 1, shares: 0, views: 100 },
+          url: "https://twitter.com/user/status/tweet1",
+        },
+      ];
+
+      // First call returns empty, second call returns results
+      mockSearchLatest
+        .mockResolvedValueOnce({ posts: [] })
+        .mockResolvedValueOnce({ posts: mockXPosts });
+
+      const request = createMockRequest({
+        query: "test query",
+        sources: ["x"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Should have retried and got results on second attempt
+      expect(mockSearchLatest).toHaveBeenCalledTimes(2);
+      expect(data.posts).toHaveLength(1);
+      expect(data.summary.platforms.x).toBe(1);
+    }, 15000); // Longer timeout for retry delays
+
+    it("returns empty after max retries when X RapidAPI consistently returns empty", async () => {
+      // All calls return empty
+      mockSearchLatest.mockResolvedValue({ posts: [] });
+
+      const request = createMockRequest({
+        query: "obscure query with no results",
+        sources: ["x"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Should have retried max times (1 initial + 3 retries + 1 final = 5 calls)
+      expect(mockSearchLatest).toHaveBeenCalledTimes(5);
+      expect(data.posts).toHaveLength(0);
+      expect(data.warnings).toContain(
+        "X/Twitter returned no results after multiple attempts. The topic may have limited coverage or API is rate limited."
+      );
+    }, 30000); // Longer timeout for multiple retries with delays
+
+    it("returns results immediately on first attempt if not empty", async () => {
+      const mockXPosts = [
+        {
+          id: "tweet1",
+          text: "Test tweet",
+          author: "User",
+          authorHandle: "@user",
+          platform: "x",
+          createdAt: "2024-01-15T10:00:00Z",
+          engagement: { likes: 10, comments: 1, shares: 0, views: 100 },
+          url: "https://twitter.com/user/status/tweet1",
+        },
+      ];
+
+      mockSearchLatest.mockResolvedValue({ posts: mockXPosts });
+
+      const request = createMockRequest({
+        query: "popular query",
+        sources: ["x"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Should only call once since first attempt had results
+      expect(mockSearchLatest).toHaveBeenCalledTimes(1);
+      expect(data.posts).toHaveLength(1);
+      expect(data.warnings).toBeUndefined();
+    });
+  });
+
+  describe("TikTok retry-on-empty", () => {
+    it("retries when TikTok returns empty results", async () => {
+      const mockTikTokPosts = [
+        {
+          id: "video1",
+          text: "Test TikTok video",
+          author: "TikTokUser",
+          authorHandle: "@tiktokuser",
+          platform: "tiktok",
+          createdAt: "2024-01-15T10:00:00Z",
+          engagement: { likes: 100, comments: 10, shares: 5, views: 1000 },
+          url: "https://tiktok.com/@tiktokuser/video/video1",
+        },
+      ];
+
+      // First call returns empty, second call returns results
+      mockSearchVideos
+        .mockResolvedValueOnce({ videos: [] })
+        .mockResolvedValueOnce({ videos: [{ id: "video1" }] });
+
+      // transformToPosts is called once with the final (non-empty) result
+      mockTransformToPosts.mockReturnValue(mockTikTokPosts);
+
+      const request = createMockRequest({
+        query: "test query",
+        sources: ["tiktok"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Should have retried and got results on second attempt
+      expect(mockSearchVideos).toHaveBeenCalledTimes(2);
+      expect(data.posts).toHaveLength(1);
+      expect(data.summary.platforms.tiktok).toBe(1);
+    }, 15000); // Longer timeout for retry delays
+
+    it("returns empty after max retries when TikTok consistently returns empty", async () => {
+      // All calls return empty
+      mockSearchVideos.mockResolvedValue({ videos: [] });
+      mockTransformToPosts.mockReturnValue([]);
+
+      const request = createMockRequest({
+        query: "obscure query with no results",
+        sources: ["tiktok"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Should have retried max times (1 initial + 3 retries + 1 final = 5 calls)
+      expect(mockSearchVideos).toHaveBeenCalledTimes(5);
+      expect(data.posts).toHaveLength(0);
+      expect(data.warnings).toContain(
+        "TikTok returned no results after multiple attempts. The topic may have limited coverage or API is rate limited."
+      );
+    }, 30000); // Longer timeout for multiple retries with delays
+
+    it("returns results immediately on first attempt if not empty", async () => {
+      const mockTikTokPosts = [
+        {
+          id: "video1",
+          text: "Test TikTok video",
+          author: "TikTokUser",
+          authorHandle: "@tiktokuser",
+          platform: "tiktok",
+          createdAt: "2024-01-15T10:00:00Z",
+          engagement: { likes: 100, comments: 10, shares: 5, views: 1000 },
+          url: "https://tiktok.com/@tiktokuser/video/video1",
+        },
+      ];
+
+      mockSearchVideos.mockResolvedValue({ videos: [{ id: "video1" }] });
+      mockTransformToPosts.mockReturnValue(mockTikTokPosts);
+
+      const request = createMockRequest({
+        query: "popular query",
+        sources: ["tiktok"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Should only call once since first attempt had results
+      expect(mockSearchVideos).toHaveBeenCalledTimes(1);
+      expect(data.posts).toHaveLength(1);
+      expect(data.warnings).toBeUndefined();
+    });
+
+    it("handles undefined videos array gracefully", async () => {
+      // Return response without videos array
+      mockSearchVideos.mockResolvedValue({});
+      mockTransformToPosts.mockReturnValue([]);
+
+      const request = createMockRequest({
+        query: "test query",
+        sources: ["tiktok"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      // Should retry since videos is undefined (treated as empty)
+      expect(mockSearchVideos.mock.calls.length).toBeGreaterThan(1);
+      expect(data.posts).toHaveLength(0);
+    }, 30000); // Longer timeout for multiple retries
+  });
+
+  describe("combined retry-on-empty for multiple sources", () => {
+    beforeEach(() => {
+      // Enable RapidAPI for these tests
+      mockConfig.x.rapidApiKey = "test-rapidapi-key";
+    });
+
+    it("retries both X and TikTok independently when both return empty initially", async () => {
+      const mockXPosts = [
+        {
+          id: "tweet1",
+          text: "Test tweet",
+          author: "User",
+          authorHandle: "@user",
+          platform: "x",
+          createdAt: "2024-01-15T10:00:00Z",
+          engagement: { likes: 10, comments: 1, shares: 0, views: 100 },
+          url: "https://twitter.com/user/status/tweet1",
+        },
+      ];
+
+      const mockTikTokPosts = [
+        {
+          id: "video1",
+          text: "Test TikTok video",
+          author: "TikTokUser",
+          authorHandle: "@tiktokuser",
+          platform: "tiktok",
+          createdAt: "2024-01-15T10:00:00Z",
+          engagement: { likes: 100, comments: 10, shares: 5, views: 1000 },
+          url: "https://tiktok.com/@tiktokuser/video/video1",
+        },
+      ];
+
+      // X: first empty, second has results
+      mockSearchLatest
+        .mockResolvedValueOnce({ posts: [] })
+        .mockResolvedValueOnce({ posts: mockXPosts });
+
+      // TikTok: first empty, second has results
+      mockSearchVideos
+        .mockResolvedValueOnce({ videos: [] })
+        .mockResolvedValueOnce({ videos: [{ id: "video1" }] });
+
+      // transformToPosts is called once with the final result
+      mockTransformToPosts.mockReturnValue(mockTikTokPosts);
+
+      const request = createMockRequest({
+        query: "test query",
+        sources: ["x", "tiktok"],
+        timeFilter: "7d",
+      });
+
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(mockSearchLatest).toHaveBeenCalledTimes(2);
+      expect(mockSearchVideos).toHaveBeenCalledTimes(2);
+      expect(data.posts).toHaveLength(2);
+      expect(data.summary.platforms.x).toBe(1);
+      expect(data.summary.platforms.tiktok).toBe(1);
+    }, 20000); // Longer timeout for parallel retries
   });
 });

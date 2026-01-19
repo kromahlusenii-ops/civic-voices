@@ -34,7 +34,8 @@
     "playwright-core": "^1.57.0",
     "prisma": "^5.22.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "stripe": "^20.2.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",

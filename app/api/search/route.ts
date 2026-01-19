@@ -160,6 +160,44 @@ async function withRetry<T>(
   throw lastError;
 }
 
+// Retry wrapper that retries on empty results (for flaky APIs like X and TikTok)
+async function withRetryOnEmpty<T>(
+  fn: () => Promise<T>,
+  options: {
+    isEmpty: (result: T) => boolean;
+    maxEmptyRetries?: number;
+    emptyRetryDelay?: number;
+    name?: string;
+  }
+): Promise<T> {
+  const {
+    isEmpty,
+    maxEmptyRetries = 3,
+    emptyRetryDelay = 2000,
+    name = "API",
+  } = options;
+
+  for (let attempt = 0; attempt <= maxEmptyRetries; attempt++) {
+    const result = await fn();
+
+    if (!isEmpty(result)) {
+      if (attempt > 0) {
+        console.log(`[${name}] Got results on attempt ${attempt + 1}`);
+      }
+      return result;
+    }
+
+    if (attempt < maxEmptyRetries) {
+      console.log(`[${name}] Empty results on attempt ${attempt + 1}, retrying in ${emptyRetryDelay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, emptyRetryDelay));
+    }
+  }
+
+  // Return last (empty) result after all retries exhausted
+  console.log(`[${name}] All ${maxEmptyRetries + 1} attempts returned empty results`);
+  return fn();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: SearchParams = await request.json();
@@ -198,15 +236,24 @@ export async function POST(request: NextRequest) {
               apiKey: config.x.rapidApiKey,
             });
 
-            const xResult = await withRetry(
-              () => withTimeout(
-                rapidApiProvider.searchLatest(query, {
-                  maxResults: 100,
-                }),
-                30000,
-                "X RapidAPI"
+            // Wrap with retry-on-empty to handle flaky API responses
+            const xResult = await withRetryOnEmpty(
+              () => withRetry(
+                () => withTimeout(
+                  rapidApiProvider.searchLatest(query, {
+                    maxResults: 100,
+                  }),
+                  30000,
+                  "X RapidAPI"
+                ),
+                { retries: 2, delay: 1500, name: "X RapidAPI" }
               ),
-              { retries: 2, delay: 1500, name: "X RapidAPI" }
+              {
+                isEmpty: (result) => result.posts.length === 0,
+                maxEmptyRetries: 3,
+                emptyRetryDelay: 2000,
+                name: "X RapidAPI",
+              }
             );
 
             // Filter by time range (client-side for RapidAPI)
@@ -220,9 +267,9 @@ export async function POST(request: NextRequest) {
             allPosts.push(...filteredPosts);
             platformCounts.x = filteredPosts.length;
 
-            // Warn if X returned no results (may indicate rate limiting)
+            // Warn if X returned no results after all retries
             if (filteredPosts.length === 0 && xResult.posts.length === 0) {
-              warnings.push("X/Twitter returned no results. This may be due to API rate limiting - try again shortly or add more sources.");
+              warnings.push("X/Twitter returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
             }
             return;
           }
@@ -279,13 +326,23 @@ export async function POST(request: NextRequest) {
           );
 
           const tiktokQuery = TikTokApiService.getBaseQuery(query);
-          const tiktokResults = await withRetry(
-            () => withTimeout(
-              tiktokService.searchVideos(tiktokQuery, { count: 50 }),
-              30000,
-              "TikTok API"
+
+          // Wrap with retry-on-empty to handle flaky API responses
+          const tiktokResults = await withRetryOnEmpty(
+            () => withRetry(
+              () => withTimeout(
+                tiktokService.searchVideos(tiktokQuery, { count: 50 }),
+                30000,
+                "TikTok API"
+              ),
+              { retries: 2, delay: 1500, name: "TikTok API" }
             ),
-            { retries: 2, delay: 1500, name: "TikTok API" }
+            {
+              isEmpty: (result) => !result.videos || result.videos.length === 0,
+              maxEmptyRetries: 3,
+              emptyRetryDelay: 2000,
+              name: "TikTok API",
+            }
           );
 
           let tiktokPosts = tiktokService.transformToPosts(tiktokResults);
@@ -296,8 +353,16 @@ export async function POST(request: NextRequest) {
             tiktokPosts = TikTokApiService.filterByBooleanQuery(tiktokPosts, query);
           }
 
+          const rawVideoCount = tiktokResults.videos?.length || 0;
+          console.log('[TikTok API] Raw:', rawVideoCount, 'Filtered:', tiktokPosts.length, 'TimeFilter:', timeFilter);
+
           allPosts.push(...tiktokPosts);
           platformCounts.tiktok = tiktokPosts.length;
+
+          // Warn if TikTok returned no results after all retries
+          if (tiktokPosts.length === 0 && rawVideoCount === 0) {
+            warnings.push("TikTok returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
+          }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error("TikTok API error:", errorMessage);

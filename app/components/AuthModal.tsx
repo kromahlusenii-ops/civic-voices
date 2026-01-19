@@ -8,9 +8,11 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  /** URL to redirect to after OAuth authentication (for preserving pending searches) */
+  redirectUrl?: string;
 }
 
-export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, onSuccess, redirectUrl }: AuthModalProps) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup" | "reset">("login");
   const [email, setEmail] = useState("");
@@ -127,10 +129,19 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
     setLoading(true);
 
     try {
+      // Build redirect URL with auth callback flag for pending searches
+      let callbackUrl = `${window.location.origin}/auth/callback`;
+      if (redirectUrl) {
+        // Add auth_callback param to the redirect URL so search page knows to auto-execute
+        const redirectWithFlag = new URL(redirectUrl, window.location.origin);
+        redirectWithFlag.searchParams.set("auth_callback", "true");
+        callbackUrl += `?next=${encodeURIComponent(redirectWithFlag.pathname + redirectWithFlag.search)}`;
+      }
+
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackUrl,
         },
       });
 

@@ -16,6 +16,7 @@ import {
   TopicsTable,
   generateTopicsFromThemes,
   TopPosts,
+  TopVoices,
   ShareModal,
   DashboardTabs,
   SocialPostGrid,
@@ -769,6 +770,15 @@ export default function ReportPage() {
                       reportData.posts
                     )}
                     onViewMore={() => handleTabChange("social-posts")}
+                  />
+                )}
+
+                {/* Top Voices - Full Width */}
+                {reportData.posts.length > 0 && (
+                  <TopVoices
+                    posts={reportData.posts}
+                    limit={6}
+                    onViewAll={() => handleTabChange("social-posts")}
                   />
                 )}
 

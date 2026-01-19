@@ -10,6 +10,7 @@ export type { TopicData } from "./TopicsTable";
 export { default as PlatformBreakdown } from "./PlatformBreakdown";
 export { default as KeyThemes } from "./KeyThemes";
 export { default as TopPosts } from "./TopPosts";
+export { default as TopVoices } from "./TopVoices";
 export { default as ShareModal } from "./ShareModal";
 export { default as DashboardTabs } from "./DashboardTabs";
 export type { DashboardTab } from "./DashboardTabs";

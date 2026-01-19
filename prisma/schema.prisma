@@ -26,14 +26,31 @@ model User {
   // Onboarding
   onboardingCompletedAt DateTime?  // null means not completed
 
+  // Stripe subscription fields
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
+  subscriptionStatus    String    @default("free") // free, trialing, active, canceled, past_due
+  subscriptionPlan      String?   // "pro" when subscribed
+  trialStartDate        DateTime?
+  trialEndDate          DateTime?
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+
+  // Credit fields
+  monthlyCredits        Int       @default(0)
+  bonusCredits          Int       @default(0)
+  creditsResetDate      DateTime?
+
   researchJobs  ResearchJob[]
   searches      Search[]
   accounts      Account[]
   sessions      Session[]
   trackedTopics TrackedTopic[]
+  creditTransactions CreditTransaction[]
 
   @@index([firebaseUid])
   @@index([supabaseUid])
+  @@index([stripeCustomerId])
   @@map("users")
 }
 
@@ -252,4 +269,18 @@ model TrackedTopic {
   @@unique([userId, query])
   @@index([userId, createdAt(sort: Desc)])
   @@map("tracked_topics")
+}
+
+model CreditTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int      // positive = add, negative = deduct
+  type        String   // "monthly_reset", "overage_purchase", "search_usage", "report_generation"
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("credit_transactions")
 }

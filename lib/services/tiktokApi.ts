@@ -120,7 +120,7 @@ export class TikTokApiService {
           text: String(v.desc || v.description || ""),
           author: authorName,
           authorHandle: `@${authorId}`,
-          authorAvatar: String(author.avatarLarger || author.avatar_larger || author.avatar || ""),
+          authorAvatar: (author.avatarLarger || author.avatar_larger || author.avatar) ? String(author.avatarLarger || author.avatar_larger || author.avatar) : undefined,
           createdAt: v.createTime
             ? new Date(Number(v.createTime) * 1000).toISOString()
             : v.create_time
