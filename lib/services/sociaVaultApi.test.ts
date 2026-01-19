@@ -165,7 +165,7 @@ describe("SociaVaultApiService", () => {
   });
 
   describe("Reddit search", () => {
-    it("calls correct endpoint with keyword parameter", async () => {
+    it("calls correct endpoint with query parameter", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ data: [] }),
@@ -177,7 +177,9 @@ describe("SociaVaultApiService", () => {
       const [url, options] = mockFetch.mock.calls[0];
 
       expect(url).toContain("/reddit/search");
-      expect(url).toContain("keyword=test+query");
+      expect(url).toContain("query=test+query");
+      expect(url).toContain("sort=relevance");
+      expect(url).toContain("time=month");
       expect(options.headers["X-API-Key"]).toBe("test-api-key");
     });
 
