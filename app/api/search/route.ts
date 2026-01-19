@@ -447,7 +447,8 @@ export async function POST(request: NextRequest) {
               { retries: 2, delay: 1500, name: "Reddit SociaVault API" }
             ),
             {
-              isEmpty: (result) => !result.data || result.data.length === 0,
+              // SociaVault Reddit returns { data: { posts: [...] } }
+              isEmpty: (result) => !result.data?.posts || result.data.posts.length === 0,
               maxEmptyRetries: 3,
               emptyRetryDelay: 2000,
               name: "Reddit SociaVault API",
@@ -461,7 +462,7 @@ export async function POST(request: NextRequest) {
             redditPosts = SociaVaultApiService.filterByBooleanQuery(redditPosts, query);
           }
 
-          const rawPostCount = redditResults.data?.length || 0;
+          const rawPostCount = redditResults.data?.posts?.length || 0;
           console.log('[Reddit SociaVault] Raw:', rawPostCount, 'Filtered:', redditPosts.length, 'TimeFilter:', timeFilter);
 
           allPosts.push(...redditPosts);

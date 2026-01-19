@@ -208,20 +208,23 @@ describe("SociaVaultApiService", () => {
     });
 
     it("transforms Reddit response to Post format", () => {
+      // SociaVault returns { data: { posts: [...] } }
       const response = {
-        data: [
-          {
-            id: "abc123",
-            title: "Test Post Title",
-            selftext: "This is the post content",
-            author: "testuser",
-            subreddit: "test",
-            created_utc: 1705320000, // 2024-01-15T10:00:00Z
-            score: 100,
-            num_comments: 25,
-            permalink: "/r/test/comments/abc123/test_post/",
-          },
-        ],
+        data: {
+          posts: [
+            {
+              id: "abc123",
+              title: "Test Post Title",
+              body: "This is the post content", // SociaVault uses 'body'
+              author: "testuser",
+              subreddit: "test",
+              created_utc: 1705320000, // 2024-01-15T10:00:00Z
+              score: 100,
+              num_comments: 25,
+              permalink: "/r/test/comments/abc123/test_post/",
+            },
+          ],
+        },
       };
 
       const posts = service.transformRedditToPosts(response);
@@ -242,18 +245,20 @@ describe("SociaVaultApiService", () => {
       });
     });
 
-    it("handles missing selftext in Reddit posts", () => {
+    it("handles missing body in Reddit posts", () => {
       const response = {
-        data: [
-          {
-            id: "abc123",
-            title: "Link Post Title",
-            author: "testuser",
-            subreddit: "test",
-            score: 50,
-            num_comments: 10,
-          },
-        ],
+        data: {
+          posts: [
+            {
+              id: "abc123",
+              title: "Link Post Title",
+              author: "testuser",
+              subreddit: "test",
+              score: 50,
+              num_comments: 10,
+            },
+          ],
+        },
       };
 
       const posts = service.transformRedditToPosts(response);

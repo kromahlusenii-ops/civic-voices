@@ -50,9 +50,10 @@ interface SociaVaultTikTokSearchResponse {
 
 // SociaVault Reddit response types
 interface SociaVaultRedditPost {
-  id: string;
+  id?: string;
   title?: string;
   selftext?: string;
+  body?: string; // SociaVault uses 'body' instead of 'selftext'
   author?: string;
   subreddit?: string;
   created_utc?: number;
@@ -65,8 +66,11 @@ interface SociaVaultRedditPost {
   upvote_ratio?: number;
 }
 
+// SociaVault Reddit search returns { data: { posts: [...] } }
 interface SociaVaultRedditSearchResponse {
-  data?: SociaVaultRedditPost[];
+  data?: {
+    posts?: SociaVaultRedditPost[];
+  };
   after?: string;
 }
 
@@ -333,21 +337,28 @@ export class SociaVaultApiService {
 
   /**
    * Transform SociaVault Reddit response to common Post format
+   * SociaVault returns { data: { posts: [...] } } structure
    */
   transformRedditToPosts(data: SociaVaultRedditSearchResponse): Post[] {
-    if (!data.data || data.data.length === 0) {
+    // Handle the nested structure: data.posts
+    const posts = data.data?.posts;
+    if (!posts || posts.length === 0) {
       return [];
     }
 
-    return data.data
-      .filter((post) => post && post.id)
-      .map((post) => {
-        const postId = String(post.id);
+    return posts
+      .filter((post) => post && (post.id || post.url || post.title))
+      .map((post, index) => {
+        // Generate ID from url, id, or index
+        const postId = post.id ? String(post.id) :
+          post.url ? post.url.split('/').pop() || `reddit-${index}` :
+          `reddit-${index}`;
         const author = String(post.author || "[deleted]");
 
-        // Combine title and selftext for the post content
-        const text = post.selftext
-          ? `${post.title || ""}\n\n${post.selftext}`.trim()
+        // SociaVault uses 'body' instead of 'selftext'
+        const bodyText = post.body || post.selftext;
+        const text = bodyText
+          ? `${post.title || ""}\n\n${bodyText}`.trim()
           : String(post.title || "");
 
         // Reddit engagement: score (upvotes - downvotes), comments
@@ -355,10 +366,10 @@ export class SociaVaultApiService {
         const score = Number(post.score || 0);
         const comments = Number(post.num_comments || 0);
 
-        // Build Reddit URL
-        const url = post.permalink
+        // Build Reddit URL - use provided url or construct from permalink
+        const url = post.url || (post.permalink
           ? `https://www.reddit.com${post.permalink}`
-          : `https://www.reddit.com/r/${post.subreddit}/comments/${postId}`;
+          : `https://www.reddit.com/r/${post.subreddit || 'all'}/comments/${postId}`);
 
         // Get thumbnail (filter out Reddit's placeholder values)
         let thumbnail = post.thumbnail;
