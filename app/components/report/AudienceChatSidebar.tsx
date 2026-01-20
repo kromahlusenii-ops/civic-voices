@@ -31,6 +31,7 @@ export default function AudienceChatSidebar({
   onScrollToPost,
 }: AudienceChatSidebarProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [isTokenLoading, setIsTokenLoading] = useState(true)
   const searchParams = useSearchParams()
 
   // Get share token from URL (for shared reports)
@@ -39,7 +40,15 @@ export default function AudienceChatSidebar({
   // Get access token when sidebar opens
   useEffect(() => {
     if (isOpen) {
-      getAccessToken().then(setAccessToken)
+      setIsTokenLoading(true)
+      getAccessToken()
+        .then((token) => {
+          setAccessToken(token)
+          setIsTokenLoading(false)
+        })
+        .catch(() => {
+          setIsTokenLoading(false)
+        })
     }
   }, [isOpen, getAccessToken])
 
@@ -240,7 +249,15 @@ export default function AudienceChatSidebar({
 
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
-          {messages.length === 0 ? (
+          {/* Loading state while getting auth token */}
+          {isTokenLoading && !shareToken ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="flex items-center gap-2 text-gray-500">
+                <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                <span className="text-sm">Loading...</span>
+              </div>
+            </div>
+          ) : messages.length === 0 ? (
             <ChatWelcome
               query={reportData.report.query}
               postCount={postCount}
@@ -284,8 +301,8 @@ export default function AudienceChatSidebar({
         {/* Input area */}
         <ChatInput
           onSend={sendMessage}
-          disabled={status === "streaming"}
-          placeholder="Ask about this audience..."
+          disabled={status === "streaming" || (isTokenLoading && !shareToken)}
+          placeholder={isTokenLoading && !shareToken ? "Loading..." : "Ask about this audience..."}
         />
       </aside>
     </>
