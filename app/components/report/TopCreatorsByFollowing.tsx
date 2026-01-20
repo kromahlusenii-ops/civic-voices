@@ -1,34 +1,24 @@
 "use client";
 
 import Image from "next/image";
-import type { Post, CredibilityTier } from "@/lib/types/api";
+import type { Post } from "@/lib/types/api";
 
-interface TopVoicesProps {
+interface TopCreatorsByFollowingProps {
   posts: Post[];
   limit?: number;
   onViewAll?: () => void;
 }
 
-interface VoiceData {
+interface CreatorData {
   author: string;
   authorHandle: string;
   authorAvatar?: string;
   platform: string;
-  totalEngagement: number;
+  followersCount: number;
   postCount: number;
+  totalEngagement: number;
   isVerified: boolean;
-  credibilityTier?: CredibilityTier;
-  followersCount?: number;
 }
-
-// Credibility tier labels and colors
-const CREDIBILITY_CONFIG: Record<string, { label: string; color: string }> = {
-  official: { label: "Official", color: "bg-blue-500 text-white" },
-  news: { label: "News", color: "bg-purple-500 text-white" },
-  journalist: { label: "Journalist", color: "bg-indigo-500 text-white" },
-  expert: { label: "Expert", color: "bg-emerald-500 text-white" },
-  verified: { label: "Verified", color: "bg-sky-500 text-white" },
-};
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   x: (
@@ -84,18 +74,18 @@ const PLATFORM_COLORS: Record<string, string> = {
   linkedin: "bg-blue-700 text-white",
 };
 
-function formatEngagement(num: number): string {
+function formatFollowers(num: number): string {
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + "M";
   }
   if (num >= 1000) {
     return (num / 1000).toFixed(1) + "K";
   }
-  return num.toString();
+  return num.toLocaleString();
 }
 
 function getProfileUrl(platform: string, handle: string): string {
-  const cleanHandle = handle.replace(/^@/, "");
+  const cleanHandle = handle.replace(/^@/, "").replace(/^u\//, "");
   switch (platform) {
     case "x":
       return `https://x.com/${cleanHandle}`;
@@ -118,110 +108,75 @@ function getProfileUrl(platform: string, handle: string): string {
   }
 }
 
-// Check if a post author is verified or credible
-function isVerifiedOrCredible(post: Post): boolean {
-  // Check platform verification
-  if (post.authorMetadata?.isVerified || post.authorMetadata?.isPlatformOfficial) {
-    return true;
-  }
-  // Check credibility tier (exclude 'unknown')
-  if (post.credibilityTier && post.credibilityTier !== "unknown") {
-    return true;
-  }
-  // Check for verification badge
-  if (post.verificationBadge) {
-    return true;
-  }
-  return false;
-}
+function aggregateCreatorsByFollowing(posts: Post[]): CreatorData[] {
+  const creatorMap = new Map<string, CreatorData>();
 
-function aggregateVoices(posts: Post[]): VoiceData[] {
-  const voiceMap = new Map<string, VoiceData>();
-
-  // Filter to only verified/credible posts first
-  const verifiedPosts = posts.filter(isVerifiedOrCredible);
-
-  verifiedPosts.forEach((post) => {
+  for (const post of posts) {
     const key = `${post.authorHandle}-${post.platform}`;
+    const followersCount = post.authorMetadata?.followersCount || 0;
     const totalEngagement =
       (post.engagement.likes || 0) +
       (post.engagement.comments || 0) +
       (post.engagement.shares || 0);
 
-    if (voiceMap.has(key)) {
-      const existing = voiceMap.get(key)!;
-      existing.totalEngagement += totalEngagement;
+    const existing = creatorMap.get(key);
+
+    if (existing) {
       existing.postCount += 1;
+      existing.totalEngagement += totalEngagement;
+      // Update followers count if higher
+      if (followersCount > existing.followersCount) {
+        existing.followersCount = followersCount;
+      }
       // Update avatar if we find one
       if (!existing.authorAvatar && post.authorAvatar) {
         existing.authorAvatar = post.authorAvatar;
       }
-      // Update followers count if higher
-      if (post.authorMetadata?.followersCount &&
-          (!existing.followersCount || post.authorMetadata.followersCount > existing.followersCount)) {
-        existing.followersCount = post.authorMetadata.followersCount;
-      }
     } else {
-      voiceMap.set(key, {
+      creatorMap.set(key, {
         author: post.author,
         authorHandle: post.authorHandle,
         authorAvatar: post.authorAvatar,
         platform: post.platform,
-        totalEngagement,
+        followersCount,
         postCount: 1,
+        totalEngagement,
         isVerified: post.authorMetadata?.isVerified || post.authorMetadata?.isPlatformOfficial || false,
-        credibilityTier: post.credibilityTier,
-        followersCount: post.authorMetadata?.followersCount,
       });
     }
-  });
+  }
 
-  // Sort by credibility tier priority, then by engagement
-  const tierPriority: Record<string, number> = {
-    official: 1,
-    news: 2,
-    journalist: 3,
-    expert: 4,
-    verified: 5,
-    unknown: 6,
-  };
-
-  return Array.from(voiceMap.values()).sort((a, b) => {
-    // First sort by credibility tier
-    const aPriority = tierPriority[a.credibilityTier || "unknown"] || 6;
-    const bPriority = tierPriority[b.credibilityTier || "unknown"] || 6;
-    if (aPriority !== bPriority) {
-      return aPriority - bPriority;
-    }
-    // Then by engagement
-    return b.totalEngagement - a.totalEngagement;
-  });
+  // Filter to only creators with follower data and sort by followers descending
+  return Array.from(creatorMap.values())
+    .filter((creator) => creator.followersCount > 0)
+    .sort((a, b) => b.followersCount - a.followersCount);
 }
 
-export default function TopVoices({ posts, limit = 5, onViewAll }: TopVoicesProps) {
-  const voices = aggregateVoices(posts).slice(0, limit);
+export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: TopCreatorsByFollowingProps) {
+  const creators = aggregateCreatorsByFollowing(posts).slice(0, limit);
 
   // Debug logging
-  console.log('[TopVoices] Posts received:', posts.length);
-  console.log('[TopVoices] Posts with isVerified:', posts.filter(p => p.authorMetadata?.isVerified).length);
-  console.log('[TopVoices] Posts with credibilityTier (not unknown):', posts.filter(p => p.credibilityTier && p.credibilityTier !== 'unknown').length);
-  console.log('[TopVoices] Posts with verificationBadge:', posts.filter(p => p.verificationBadge).length);
-  console.log('[TopVoices] Verified voices found:', voices.length);
+  console.log('[TopCreatorsByFollowing] Posts received:', posts.length);
+  console.log('[TopCreatorsByFollowing] Posts with follower data:', posts.filter(p => p.authorMetadata?.followersCount).length);
+  console.log('[TopCreatorsByFollowing] Creators found:', creators.length);
+  if (creators.length > 0) {
+    console.log('[TopCreatorsByFollowing] Top creator:', creators[0]);
+  }
 
-  // Don't render if no verified voices found
-  if (voices.length === 0) {
+  // Don't render if no creators with follower data found
+  if (creators.length === 0) {
     return null;
   }
 
   return (
     <div
       className="bg-white rounded-lg border border-gray-200 p-4 overflow-hidden"
-      data-testid="top-voices"
+      data-testid="top-creators-by-following"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-gray-700">Verified Voices</h3>
-          <span className="text-xs text-gray-400">Credible sources on this topic</span>
+          <h3 className="text-sm font-medium text-gray-700">Top Creators</h3>
+          <span className="text-xs text-gray-400">By following size</span>
         </div>
         {onViewAll && (
           <button
@@ -239,10 +194,10 @@ export default function TopVoices({ posts, limit = 5, onViewAll }: TopVoicesProp
       {/* Horizontal scroll row */}
       <div className="relative -mx-4 sm:mx-0">
         <div className="flex gap-3 overflow-x-auto px-4 sm:px-0 pb-2 snap-x scrollbar-hide">
-          {voices.map((voice, index) => (
+          {creators.map((creator, index) => (
             <a
-              key={`${voice.authorHandle}-${voice.platform}-${index}`}
-              href={getProfileUrl(voice.platform, voice.authorHandle)}
+              key={`${creator.authorHandle}-${creator.platform}-${index}`}
+              href={getProfileUrl(creator.platform, creator.authorHandle)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-shrink-0 w-[160px] sm:w-[180px] snap-start
@@ -250,10 +205,10 @@ export default function TopVoices({ posts, limit = 5, onViewAll }: TopVoicesProp
             >
               {/* Avatar + Platform badge */}
               <div className="relative mb-3">
-                {voice.authorAvatar ? (
+                {creator.authorAvatar ? (
                   <Image
-                    src={voice.authorAvatar}
-                    alt={voice.author}
+                    src={creator.authorAvatar}
+                    alt={creator.author}
                     width={48}
                     height={48}
                     className="w-12 h-12 rounded-full object-cover mx-auto"
@@ -262,72 +217,53 @@ export default function TopVoices({ posts, limit = 5, onViewAll }: TopVoicesProp
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mx-auto">
                     <span className="text-gray-500 text-lg font-medium">
-                      {voice.author.charAt(0).toUpperCase()}
+                      {creator.author.charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
                 {/* Platform badge */}
                 <span
                   className={`absolute -bottom-1 left-1/2 -translate-x-1/2 p-1 rounded-full ${
-                    PLATFORM_COLORS[voice.platform] || "bg-gray-500 text-white"
+                    PLATFORM_COLORS[creator.platform] || "bg-gray-500 text-white"
                   }`}
                 >
-                  {PLATFORM_ICONS[voice.platform]}
+                  {PLATFORM_ICONS[creator.platform]}
                 </span>
               </div>
 
               {/* Name + Handle + Verification */}
               <div className="text-center mb-2">
                 <div className="flex items-center justify-center gap-1">
-                  <p className="text-sm font-medium text-gray-800 truncate">{voice.author}</p>
+                  <p className="text-sm font-medium text-gray-800 truncate">{creator.author}</p>
                   {/* Verification checkmark */}
-                  {voice.isVerified && (
+                  {creator.isVerified && (
                     <svg className="w-4 h-4 text-blue-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M8.603 3.799A4.49 4.49 0 0112 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 013.498 1.307 4.491 4.491 0 011.307 3.497A4.49 4.49 0 0121.75 12a4.49 4.49 0 01-1.549 3.397 4.491 4.491 0 01-1.307 3.497 4.491 4.491 0 01-3.497 1.307A4.49 4.49 0 0112 21.75a4.49 4.49 0 01-3.397-1.549 4.49 4.49 0 01-3.498-1.306 4.491 4.491 0 01-1.307-3.498A4.49 4.49 0 012.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 011.307-3.497 4.49 4.49 0 013.497-1.307zm7.007 6.387a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" />
                     </svg>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 truncate">@{voice.authorHandle}</p>
+                <p className="text-xs text-gray-500 truncate">{creator.authorHandle}</p>
               </div>
 
-              {/* Credibility Badge */}
-              {voice.credibilityTier && voice.credibilityTier !== "unknown" && CREDIBILITY_CONFIG[voice.credibilityTier] && (
-                <div className="flex justify-center mb-2">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full ${CREDIBILITY_CONFIG[voice.credibilityTier].color}`}>
-                    {CREDIBILITY_CONFIG[voice.credibilityTier].label}
-                  </span>
-                </div>
-              )}
+              {/* Follower Count - Prominent */}
+              <div className="flex items-center justify-center gap-1 mb-2">
+                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                  />
+                </svg>
+                <span className="text-sm font-semibold text-gray-800">
+                  {formatFollowers(creator.followersCount)}
+                </span>
+                <span className="text-xs text-gray-400">followers</span>
+              </div>
 
-              {/* Stats */}
+              {/* Secondary Stats */}
               <div className="flex items-center justify-center gap-3 text-xs text-gray-500">
-                {/* Followers count if available */}
-                {voice.followersCount ? (
-                  <span className="flex items-center gap-1" title="Followers">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                    {formatEngagement(voice.followersCount)}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1" title="Total engagement">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                      />
-                    </svg>
-                    {formatEngagement(voice.totalEngagement)}
-                  </span>
-                )}
-                <span className="flex items-center gap-1" title="Posts">
+                <span className="flex items-center gap-1" title="Posts in this report">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -336,7 +272,7 @@ export default function TopVoices({ posts, limit = 5, onViewAll }: TopVoicesProp
                       d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
                     />
                   </svg>
-                  {voice.postCount}
+                  {creator.postCount} {creator.postCount === 1 ? "post" : "posts"}
                 </span>
               </div>
             </a>

@@ -17,6 +17,7 @@ import {
   generateTopicsFromThemes,
   TopPosts,
   TopVoices,
+  TopCreatorsByFollowing,
   ShareModal,
   DashboardTabs,
   SocialPostGrid,
@@ -792,6 +793,15 @@ export default function ReportPage() {
                       reportData.posts
                     )}
                     onViewMore={() => handleTabChange("social-posts")}
+                  />
+                )}
+
+                {/* Top Creators by Following - Full Width */}
+                {reportData.posts.length > 0 && (
+                  <TopCreatorsByFollowing
+                    posts={reportData.posts}
+                    limit={6}
+                    onViewAll={() => handleTabChange("social-posts")}
                   />
                 )}
 
