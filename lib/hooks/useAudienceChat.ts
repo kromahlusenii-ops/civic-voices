@@ -123,7 +123,7 @@ export function useAudienceChat(
 
           for (const line of lines) {
             if (line.startsWith("event: ")) {
-              const eventType = line.slice(7).trim()
+              // Event type line - skip to data line
               continue
             }
 

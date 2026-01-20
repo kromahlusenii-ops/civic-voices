@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useAudienceChat } from "@/lib/hooks/useAudienceChat"
 import ChatMessage from "./ChatMessage"
 import ChatInput from "./ChatInput"

@@ -1,4 +1,4 @@
-import type { Post, AIAnalysis } from "../types/api"
+import type { Post } from "../types/api"
 import type { ChatContext, Citation, ChatRole } from "../types/chat"
 import { anthropicFetch } from "./anthropicClient"
 
