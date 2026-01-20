@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user from database
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: { supabaseUid: authUser.id },
       select: {
         id: true,
@@ -43,8 +43,25 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // Auto-create user if they don't exist in the database
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+      console.log(`Auto-creating user for credit deduction: ${authUser.id}`)
+      const newUser = await prisma.user.create({
+        data: {
+          supabaseUid: authUser.id,
+          email: authUser.email || `${authUser.id}@unknown.com`,
+          subscriptionStatus: "free",
+          monthlyCredits: 0,
+          bonusCredits: 0,
+        },
+        select: {
+          id: true,
+          subscriptionStatus: true,
+          monthlyCredits: true,
+          bonusCredits: true,
+        },
+      })
+      user = newUser
     }
 
     // Only deduct credits for active subscriptions
