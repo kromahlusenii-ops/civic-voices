@@ -384,11 +384,9 @@ export default function Home() {
 
               {/* Main Headline */}
               <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl text-stone-900 leading-[0.95] mb-6 tracking-tight">
-                Know what residents
+                Understand resident
                 <br />
-                are saying—<span className="italic">before</span>
-                <br />
-                the reporter calls<span className="text-red-600">.</span>
+                sentiment <span className="italic">in real time</span><span className="text-red-600">.</span>
               </h1>
 
               {/* Subhead - Editorial style */}
