@@ -8,8 +8,10 @@ import { useAuth } from "../contexts/AuthContext";
 import AuthModal from "../components/AuthModal";
 import SearchHistoryModal from "../components/SearchHistoryModal";
 import SearchHistorySidebar from "../components/SearchHistorySidebar";
-import { SkeletonCardList } from "../components/SkeletonCard";
 import QuerySuggestions from "../components/QuerySuggestions";
+import ScopeToggle, { type SearchScope } from "../components/ScopeToggle";
+import GeoFilters from "../components/GeoFilters";
+import LocalComingSoon from "../components/LocalComingSoon";
 import SourceFilter from "../../components/SourceFilter";
 import FilterDropdown from "../../components/FilterDropdown";
 import VerificationBadge from "../../components/VerificationBadge";
@@ -138,6 +140,11 @@ function SearchPageContent() {
   const [showTrialModal, setShowTrialModal] = useState(false);
   const [showCreditsModal, setShowCreditsModal] = useState(false);
   const [trialModalFeature, setTrialModalFeature] = useState<string | undefined>();
+  const [showMentionsPreview, setShowMentionsPreview] = useState(false);
+  const [searchScope, setSearchScope] = useState<SearchScope>("national");
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [showLocalComingSoon, setShowLocalComingSoon] = useState(false);
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
   const hasExecutedAuthCallbackSearch = useRef(false);
@@ -431,6 +438,12 @@ function SearchPageContent() {
   const handleStartResearch = () => {
     if (!searchQuery.trim()) return;
 
+    // If local scope is selected, show coming soon instead of executing search
+    if (searchScope === "local") {
+      setShowLocalComingSoon(true);
+      return;
+    }
+
     // Update URL with current search state
     updateUrlParams({
       message: searchQuery,
@@ -482,8 +495,21 @@ function SearchPageContent() {
     setFollowUpQuery("");
     setReportError(null);
     setClickedPostCount(0);
+    setShowMentionsPreview(false);
+    setShowLocalComingSoon(false);
+    setSearchScope("national");
+    setSelectedState(null);
+    setSelectedCity(null);
     // Clear URL query parameters for fresh search
     router.replace("/search", { scroll: false });
+  };
+
+  // Handle switching back to national search from Local Coming Soon
+  const handleBackToNational = () => {
+    setSearchScope("national");
+    setShowLocalComingSoon(false);
+    setSelectedState(null);
+    setSelectedCity(null);
   };
 
   // Handle post card click - prompt to generate report instead of navigating away
@@ -871,8 +897,18 @@ function SearchPageContent() {
 
       {/* Main content */}
       <main className={`flex-1 transition-all duration-300 lg:ml-16 ${showSearchHistorySidebar ? "lg:ml-80" : ""}`}>
+        {/* Local Coming Soon State */}
+        {showLocalComingSoon && (
+          <LocalComingSoon
+            query={searchQuery}
+            selectedState={selectedState}
+            selectedCity={selectedCity}
+            onBackToNational={handleBackToNational}
+          />
+        )}
+
         {/* Initial Search State */}
-        {!searchResults && !isSearching && (
+        {!searchResults && !isSearching && !showLocalComingSoon && (
           <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-2xl">
               <h1 className="mb-8 text-center text-3xl font-light text-gray-400" data-testid="dashboard-greeting">
@@ -882,20 +918,28 @@ function SearchPageContent() {
               </h1>
 
               <div className="rounded-2xl bg-white p-6 shadow-sm">
+                {/* Search bar with inline scope toggle */}
                 <div className="mb-4 flex gap-3">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search an issue, candidate, or ballot measure"
-                    className="flex-1 rounded-lg border border-gray-300 px-4 py-3 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
-                    data-testid="search-input"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && searchQuery.trim()) {
-                        handleStartResearch();
-                      }
-                    }}
-                  />
+                  <div className="flex flex-1">
+                    <ScopeToggle
+                      scope={searchScope}
+                      onScopeChange={setSearchScope}
+                      variant="inline"
+                    />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search an issue, candidate, or ballot measure"
+                      className="flex-1 rounded-r-lg border border-l-0 border-gray-300 px-4 h-[48px] focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                      data-testid="search-input"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && searchQuery.trim()) {
+                          handleStartResearch();
+                        }
+                      }}
+                    />
+                  </div>
                   <button
                     onClick={handleStartResearch}
                     disabled={!searchQuery.trim() || isSearching}
@@ -912,6 +956,18 @@ function SearchPageContent() {
                     )}
                   </button>
                 </div>
+
+                {/* Geo Filters - show below search bar when local scope */}
+                {searchScope === "local" && (
+                  <div className="mb-4">
+                    <GeoFilters
+                      selectedState={selectedState}
+                      selectedCity={selectedCity}
+                      onStateChange={setSelectedState}
+                      onCityChange={setSelectedCity}
+                    />
+                  </div>
+                )}
 
                 {searchError && (
                   <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{searchError}</div>
@@ -957,60 +1013,221 @@ function SearchPageContent() {
           </div>
         )}
 
-        {/* Loading State - Split Screen */}
+        {/* Loading State - Centered */}
         {isSearching && (
-          <div className="flex h-screen" role="status" aria-live="polite" aria-busy="true">
-            {/* Left Panel - Thinking State */}
-            <div className="flex w-1/2 flex-col border-r border-gray-200">
-              {/* Header with query */}
-              <div className="border-b border-gray-200 p-6">
-                <div className="inline-block rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-800">
+          <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4" role="status" aria-live="polite" aria-busy="true">
+            <div className="w-full max-w-2xl">
+              {/* Query Badge */}
+              <div className="flex justify-end mb-6">
+                <div className="inline-block rounded-full bg-white border border-gray-200 px-4 py-2 text-sm text-gray-800 shadow-sm">
                   {searchQuery}
                 </div>
               </div>
 
-              {/* Thinking Content */}
-              <div className="flex-1 flex items-start p-6">
-                <div className="flex gap-3">
-                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100">
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+              {/* Loading indicator */}
+              <div className="mb-8 flex items-center gap-3">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+                <span className="text-gray-600" data-testid="thinking-indicator">
+                  Searching across platforms...
+                </span>
+              </div>
+
+              {/* Placeholder Card */}
+              <div className="rounded-2xl bg-white border border-gray-200 p-6 shadow-sm">
+                {/* Filters Row Skeleton */}
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <div className="h-8 w-24 animate-pulse rounded-full bg-gray-100" />
+                  <div className="h-8 w-28 animate-pulse rounded-full bg-gray-100" />
+                  <div className="h-8 w-24 animate-pulse rounded-full bg-gray-100" />
+                </div>
+
+                {/* Stats Skeleton */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="h-6 w-32 animate-pulse rounded bg-gray-100 mb-2" />
+                    <div className="h-4 w-48 animate-pulse rounded bg-gray-100" />
                   </div>
-                  <div className="flex items-center">
-                    <span className="text-gray-600 text-lg" data-testid="thinking-indicator">
-                      Thinking...
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-32 animate-pulse rounded-lg bg-gray-100" />
+                    <div className="h-10 w-28 animate-pulse rounded-lg bg-gray-200" />
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Right Panel - Skeleton Cards */}
-            <div className="flex w-1/2 flex-col bg-gray-50">
-              {/* Header skeleton */}
-              <div className="border-b border-gray-200 bg-white p-6">
-                <div className="h-6 w-48 animate-pulse rounded bg-gray-200 mb-4" />
-                <div className="flex gap-2">
-                  <div className="h-8 w-24 animate-pulse rounded-full bg-gray-200" />
-                  <div className="h-8 w-28 animate-pulse rounded-full bg-gray-200" />
-                </div>
-              </div>
-
-              {/* Stats skeleton */}
-              <div className="border-b border-gray-200 bg-white px-6 py-3">
-                <div className="h-6 w-32 animate-pulse rounded bg-gray-200 mb-1" />
-                <div className="h-4 w-48 animate-pulse rounded bg-gray-200" />
-              </div>
-
-              {/* Skeleton cards */}
-              <div className="flex-1 overflow-y-auto p-6">
-                <SkeletonCardList count={6} />
               </div>
             </div>
           </div>
         )}
 
-        {/* Results State - Split Screen */}
-        {searchResults && !isSearching && (
+        {/* Results State - Centered Summary (before Preview) */}
+        {searchResults && !isSearching && !showMentionsPreview && (
+          <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+            <div className="w-full max-w-2xl">
+              {/* Query Badge */}
+              <div className="flex justify-end mb-6">
+                <div className="inline-block rounded-full bg-white border border-gray-200 px-4 py-2 text-sm text-gray-800 shadow-sm">
+                  {searchResults.query}
+                </div>
+              </div>
+
+              {/* AI Analysis */}
+              <div className="mb-8 space-y-4">
+                {searchResults.aiAnalysis ? (
+                  <>
+                    <p className="text-gray-700 leading-relaxed" data-testid="ai-interpretation">
+                      {renderFormattedText(searchResults.aiAnalysis.interpretation)}
+                    </p>
+
+                    {/* Suggested Boolean Search */}
+                    {searchResults.aiAnalysis.suggestedQueries && searchResults.aiAnalysis.suggestedQueries.length > 0 && (
+                      <div className="space-y-3">
+                        <QuerySuggestions
+                          suggestions={searchResults.aiAnalysis.suggestedQueries}
+                          onQuerySelect={(query) => {
+                            setFollowUpQuery(query);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-gray-700 leading-relaxed" data-testid="ai-interpretation">
+                    Found {searchResults.totalMentions} posts about &quot;{searchResults.query}&quot;.
+                  </p>
+                )}
+              </div>
+
+              {/* Search Builder Card */}
+              <div className="rounded-2xl bg-white border border-gray-200 p-6 shadow-sm">
+                {/* Boolean Query Display */}
+                {searchResults.aiAnalysis?.suggestedQueries && searchResults.aiAnalysis.suggestedQueries.length > 0 && (
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <span className="rounded bg-white border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800">
+                      {searchResults.query}
+                    </span>
+                  </div>
+                )}
+
+                {/* Filters Row */}
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  {/* Sources */}
+                  <div className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-600">
+                    {selectedSources.slice(0, 2).map((source) => (
+                      <span key={source} className="text-gray-600">
+                        {SOURCE_ICONS[source]}
+                      </span>
+                    ))}
+                    <span className="ml-1">{getSourceLabel()}</span>
+                  </div>
+
+                  {/* Time Range */}
+                  <div className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-600">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{TIME_INTERVAL_OPTIONS.find(o => o.id === timeRange)?.label || "Last 3 months"}</span>
+                  </div>
+
+                  {/* Language */}
+                  <div className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-600">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                    <span>{LANGUAGE_OPTIONS.find(o => o.id === language)?.label || "All languages"}</span>
+                  </div>
+                </div>
+
+                {/* Stats and Actions */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-semibold text-gray-900" data-testid="total-mentions">
+                        {formatMentions(searchResults.totalMentions)} mentions
+                      </span>
+                      {searchResults.qualityBadge && (
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            MENTIONS_BADGE_STYLES[searchResults.qualityBadge]
+                          }`}
+                          data-testid="mentions-badge"
+                        >
+                          {MENTIONS_BADGE_LABELS[searchResults.qualityBadge]}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      {formatDateRange(searchResults.dateRange.start, searchResults.dateRange.end)}
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowMentionsPreview(true)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                      data-testid="preview-mentions-btn"
+                    >
+                      Preview mentions
+                    </button>
+                    <button
+                      onClick={handleStartReportGeneration}
+                      disabled={showReportProgress || isSavingReportSearch}
+                      className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      data-testid="generate-report-btn"
+                    >
+                      {isSavingReportSearch ? "Saving..." : "Start research"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Report error message */}
+                {reportError && (
+                  <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                    {reportError}
+                  </div>
+                )}
+
+                {/* API Warnings */}
+                {searchResults.warnings && searchResults.warnings.length > 0 && (
+                  <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                    {searchResults.warnings.map((warning, index) => (
+                      <p key={index} className="text-sm text-amber-800 flex items-center gap-2">
+                        <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                        </svg>
+                        {warning}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Follow-up Search */}
+              <div className="mt-6">
+                <form onSubmit={handleFollowUpSearch} className="relative">
+                  <input
+                    type="text"
+                    value={followUpQuery}
+                    onChange={(e) => setFollowUpQuery(e.target.value)}
+                    placeholder="Search a topic or paste a URL"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 pr-12 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                    data-testid="follow-up-input"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!followUpQuery.trim()}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-gray-900 p-2 text-white hover:bg-gray-800 disabled:opacity-50"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Results State - Split Screen with Mentions Preview */}
+        {searchResults && !isSearching && showMentionsPreview && (
           <div className="flex h-screen">
             {/* Left Panel - AI Analysis (hidden on mobile) */}
             <div className="hidden w-1/2 flex-col border-r border-gray-200 md:flex">
@@ -1090,7 +1307,18 @@ function SearchPageContent() {
             <div className="flex w-full flex-col bg-gray-50 md:w-1/2">
               {/* Header */}
               <div className="border-b border-gray-200 bg-white p-6">
-                <h2 className="mb-4 text-lg font-medium text-gray-900">Posts preview for query</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-medium text-gray-900">Mentions preview</h2>
+                  <button
+                    onClick={() => setShowMentionsPreview(false)}
+                    className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Close
+                  </button>
+                </div>
 
                 {/* Filters row */}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
@@ -1146,20 +1374,26 @@ function SearchPageContent() {
                     </svg>
                     Verified only
                   </button>
+                </div>
 
+                {/* Generate Report Button - prominent placement */}
+                <div className="mt-4">
                   <button
                     onClick={handleStartReportGeneration}
                     disabled={showReportProgress || isSavingReportSearch}
-                    className="ml-auto rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-base font-semibold text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="generate-report-btn"
                   >
-                    {isSavingReportSearch ? "Saving..." : "Generate Report"}
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    {isSavingReportSearch ? "Saving..." : "Start research"}
                   </button>
                 </div>
 
                 {/* Report error message */}
                 {reportError && (
-                  <div className="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">
+                  <div className="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">
                     {reportError}
                   </div>
                 )}
