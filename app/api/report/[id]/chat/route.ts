@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
-import { getReport } from "@/lib/services/reportService"
+import { getReport, getReportForSharing } from "@/lib/services/reportService"
 import { AudienceChatService } from "@/lib/services/audienceChatService"
 import { config } from "@/lib/config"
 import type { ChatRequest, ChatContext, Citation } from "@/lib/types/chat"
@@ -75,8 +75,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
-    // Fetch report data
-    const reportData = await getReport(reportId, user.id)
+    // Fetch report data - try owner access first, then shared access
+    let reportData = await getReport(reportId, user.id)
+
+    // If not owner, try to access as a shared report
+    if (!reportData) {
+      reportData = await getReportForSharing(reportId)
+    }
+
     if (!reportData) {
       return new Response(JSON.stringify({ error: "Report not found or access denied" }), {
         status: 404,
