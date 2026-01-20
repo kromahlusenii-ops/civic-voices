@@ -641,7 +641,7 @@ function PlanBillingTab() {
               <span className="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Recommended</span>
             )}
           </div>
-          <p className="text-2xl font-bold text-gray-900 mb-3">$49<span className="text-sm font-normal text-gray-500">/month</span></p>
+          <p className="text-2xl font-bold text-gray-900 mb-3">$99<span className="text-sm font-normal text-gray-500">/month</span></p>
 
           {isSubscribed ? (
             <div className="w-full py-2 px-3 bg-green-100 text-green-700 rounded-lg font-medium mb-3 text-center text-sm">
@@ -693,7 +693,7 @@ function PlanBillingTab() {
           <div className="flex items-center gap-2 mb-2">
             <h4 className="font-semibold text-gray-900">Business</h4>
           </div>
-          <p className="text-2xl font-bold text-gray-900 mb-3">$149<span className="text-sm font-normal text-gray-500">/month</span></p>
+          <p className="text-2xl font-bold text-gray-900 mb-3">$499<span className="text-sm font-normal text-gray-500">/month</span></p>
 
           <button
             disabled

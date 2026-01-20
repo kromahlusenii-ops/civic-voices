@@ -856,7 +856,7 @@ export default function Home() {
                 POPULAR
               </div>
               <div className="font-mono text-xs font-bold text-stone-400 tracking-wider mb-2">PRO</div>
-              <div className="font-display text-4xl text-white mb-4">$49<span className="text-lg text-stone-400">/mo</span></div>
+              <div className="font-display text-4xl text-white mb-4">$99<span className="text-lg text-stone-400">/mo</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="text-sm text-stone-300 flex items-start gap-2">
                   <span className="text-emerald-400">✓</span> Unlimited searches
@@ -882,7 +882,7 @@ export default function Home() {
             {/* Team */}
             <div className="bg-stone-50 border border-stone-200 p-6">
               <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">TEAM</div>
-              <div className="font-display text-4xl text-stone-900 mb-4">$149<span className="text-lg text-stone-500">/mo</span></div>
+              <div className="font-display text-4xl text-stone-900 mb-4">$499<span className="text-lg text-stone-500">/mo</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="text-sm text-stone-600 flex items-start gap-2">
                   <span className="text-emerald-600">✓</span> Everything in Pro
