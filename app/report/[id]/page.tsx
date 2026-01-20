@@ -226,11 +226,14 @@ export default function ReportPage() {
   const insightsPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch report data from API
-  const fetchReportData = useCallback(async (options?: { silent?: boolean; isRetry?: boolean }) => {
+  const fetchReportData = useCallback(async (options?: { silent?: boolean; retryCount?: number }) => {
     if (!options?.silent) {
       setIsLoading(true);
       setError(null);
     }
+
+    const retryCount = options?.retryCount || 0;
+    const maxRetries = 3;
 
     try {
       // Check for share token in URL
@@ -254,15 +257,18 @@ export default function ReportPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // If we got 401 without a token on first try, retry once after delay
-          // (handles race condition where auth session is still initializing)
-          if (!token && !options?.isRetry && !options?.silent) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            return fetchReportData({ ...options, isRetry: true });
+          // Retry with progressive delay for auth race conditions
+          // This handles: 1) session still initializing, 2) token refresh in progress
+          if (retryCount < maxRetries && !options?.silent) {
+            const delay = 500 * (retryCount + 1); // 500ms, 1000ms, 1500ms
+            console.log(`[Report] Auth retry ${retryCount + 1}/${maxRetries} after ${delay}ms (had token: ${!!token})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return fetchReportData({ ...options, retryCount: retryCount + 1 });
           }
 
           // No auth and no valid share - show login (but not for silent/background fetches)
           if (!shareToken && !options?.silent) {
+            console.log('[Report] Showing auth modal after all retries exhausted');
             setShowAuthModal(true);
             setIsLoading(false);
             return;
