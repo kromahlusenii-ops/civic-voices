@@ -247,13 +247,16 @@ export default function ReportPage() {
       }
 
       // Try authenticated access if available
+      console.log(`[Report] Fetching report ${params.id}, retry: ${retryCount}, silent: ${!!options?.silent}`);
       const token = await getAccessToken();
+      console.log(`[Report] Got token: ${!!token}`);
       const headers: HeadersInit = {};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
 
       const response = await fetch(url, { headers });
+      console.log(`[Report] Response status: ${response.status}`);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -289,13 +292,16 @@ export default function ReportPage() {
       }
 
       const data = await response.json();
+      console.log(`[Report] Data received, posts: ${data.posts?.length || 0}, status: ${data.report?.status}`);
       setReportData(data);
       setIsOwner(data.isOwner === true);
     } catch (err) {
+      console.error('[Report] Error:', err);
       if (!options?.silent) {
         setError(err instanceof Error ? err.message : "An error occurred");
       }
     } finally {
+      console.log(`[Report] Finally block, silent: ${!!options?.silent}`);
       if (!options?.silent) {
         setIsLoading(false);
       }
@@ -304,6 +310,7 @@ export default function ReportPage() {
 
   // Handle auth check and initial data load
   useEffect(() => {
+    console.log(`[Report] useEffect: authLoading=${authLoading}, isAuthenticated=${isAuthenticated}, hasLoaded=${hasLoadedRef.current}`);
     if (authLoading) return;
 
     const searchParams = new URLSearchParams(window.location.search);
@@ -312,6 +319,7 @@ export default function ReportPage() {
     // If has share token, proceed without requiring auth
     if (shareToken) {
       if (!hasLoadedRef.current) {
+        console.log('[Report] Starting fetch with share token');
         hasLoadedRef.current = true;
         fetchReportData();
       }
@@ -321,6 +329,7 @@ export default function ReportPage() {
     // Otherwise, try to fetch with auth
     // Use getAccessToken() as source of truth (more reliable than isAuthenticated context state)
     if (!hasLoadedRef.current) {
+      console.log('[Report] Starting fetch with auth');
       hasLoadedRef.current = true;
       setShowAuthModal(false);
       fetchReportData();
@@ -777,7 +786,11 @@ export default function ReportPage() {
                   {/* Content Breakdown */}
                   {reportData.aiAnalysis?.keyThemes && (
                     <ContentBreakdown
-                      categories={generateCategoryData(reportData.aiAnalysis.keyThemes)}
+                      categories={generateCategoryData(
+                        reportData.aiAnalysis.keyThemes,
+                        reportData.posts,
+                        reportData.aiAnalysis.topicAnalysis
+                      )}
                       intentions={reportData.aiAnalysis.intentionsBreakdown}
                       formats={generateFormatData(reportData.posts)}
                     />

@@ -86,8 +86,10 @@ function InfoIcon({ tooltip }: { tooltip: string }) {
   );
 }
 
-// Engagement rate indicator
+// Engagement rate indicator with tooltip
 function EngagementIndicator({ rate }: { rate: number }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
   // Color based on engagement rate
   const getColor = () => {
     if (rate >= 5) return "text-green-600 bg-green-100";
@@ -96,18 +98,28 @@ function EngagementIndicator({ rate }: { rate: number }) {
   };
 
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getColor()}`}
-    >
-      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-        <path
-          fillRule="evenodd"
-          d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
-          clipRule="evenodd"
-        />
-      </svg>
-      ER {rate.toFixed(1)}%
-    </span>
+    <div className="relative inline-block">
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium cursor-help ${getColor()}`}
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+          <path
+            fillRule="evenodd"
+            d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
+            clipRule="evenodd"
+          />
+        </svg>
+        ER {rate.toFixed(1)}%
+      </span>
+      {showTooltip && (
+        <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg whitespace-nowrap">
+          Engagement Rate: (likes + comments + shares) / impressions
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -231,9 +243,12 @@ export default function ContentBreakdown({
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xl font-bold text-gray-900">
-                {item.percentage}%
-              </span>
+              <div className="flex items-center">
+                <span className="text-xl font-bold text-gray-900">
+                  {item.percentage}%
+                </span>
+                <InfoIcon tooltip={`${item.percentage}% of posts matched this ${currentTab === "intentions" ? "intention" : currentTab === "format" ? "format" : "category"}`} />
+              </div>
               <EngagementIndicator rate={item.engagementRate} />
             </div>
           </div>
@@ -250,23 +265,92 @@ export default function ContentBreakdown({
   );
 }
 
-// Helper function to generate mock category data from themes
-export function generateCategoryData(themes: string[]): CategoryData[] {
-  const total = themes.length;
-  const basePercentage = Math.floor(100 / total);
-  let remaining = 100 - basePercentage * total;
+// Helper function to generate category data from themes and posts
+export function generateCategoryData(
+  themes: string[],
+  posts?: Post[],
+  topicAnalysis?: { topic: string; postIds?: string[] }[]
+): CategoryData[] {
+  if (!posts || posts.length === 0) {
+    // Fallback to even distribution if no posts
+    const basePercentage = Math.floor(100 / themes.length);
+    return themes.map((theme, index) => ({
+      name: theme,
+      percentage: basePercentage,
+      engagementRate: 0,
+      color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
+    }));
+  }
 
-  return themes.map((theme, index) => {
-    const bonus = remaining > 0 ? 1 : 0;
-    remaining -= bonus;
+  // Create a map of post IDs to posts for quick lookup
+  const postsMap = new Map(posts.map(p => [p.id, p]));
+
+  // Create a map of topic analysis by topic name (case-insensitive)
+  const analysisMap = new Map(
+    topicAnalysis?.map(ta => [ta.topic.toLowerCase(), ta]) || []
+  );
+
+  // Calculate metrics for each theme
+  const themeMetrics = themes.map((theme, index) => {
+    const themeLower = theme.toLowerCase();
+    const analysis = analysisMap.get(themeLower);
+
+    // Get posts for this theme
+    let themePosts: Post[] = [];
+
+    if (analysis?.postIds && analysis.postIds.length > 0) {
+      // Use AI-identified post IDs
+      themePosts = analysis.postIds
+        .map(id => postsMap.get(id))
+        .filter((p): p is Post => p !== undefined);
+    }
+
+    // Fallback: text matching if no AI analysis
+    if (themePosts.length === 0) {
+      const themeWords = themeLower.split(/\s+/);
+      themePosts = posts.filter(post => {
+        const textLower = post.text.toLowerCase();
+        return themeWords.some(word => word.length > 3 && textLower.includes(word));
+      });
+    }
+
+    // Calculate total engagement for this theme
+    let totalEngagement = 0;
+    let totalImpressions = 0;
+
+    themePosts.forEach(post => {
+      const engagement = (post.engagement.likes || 0) +
+                         (post.engagement.comments || 0) +
+                         (post.engagement.shares || 0);
+      totalEngagement += engagement;
+      // Use views as impressions, fallback to engagement * 10 estimate
+      totalImpressions += post.engagement.views || engagement * 10;
+    });
+
+    // Calculate engagement rate (engagement / impressions * 100)
+    const engagementRate = totalImpressions > 0
+      ? Math.round((totalEngagement / totalImpressions) * 1000) / 10
+      : 0;
 
     return {
       name: theme,
-      percentage: basePercentage + bonus + Math.floor(Math.random() * 10) - 5,
-      engagementRate: Math.round((Math.random() * 5 + 0.5) * 10) / 10,
+      postCount: themePosts.length,
+      engagementRate,
       color: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
     };
   });
+
+  // Calculate percentages based on post counts
+  const totalPostCount = themeMetrics.reduce((sum, m) => sum + m.postCount, 0);
+
+  return themeMetrics.map(metric => ({
+    name: metric.name,
+    percentage: totalPostCount > 0
+      ? Math.round((metric.postCount / totalPostCount) * 100)
+      : Math.floor(100 / themes.length),
+    engagementRate: metric.engagementRate,
+    color: metric.color,
+  }));
 }
 
 // Helper to determine content format from post data
