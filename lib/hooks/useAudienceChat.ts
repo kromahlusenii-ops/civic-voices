@@ -38,11 +38,6 @@ export function useAudienceChat(
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!accessToken) {
-        setError("Authentication required")
-        return
-      }
-
       if (!content.trim()) return
 
       // Cancel any existing request
@@ -82,12 +77,17 @@ export function useAudienceChat(
           })
         )
 
+        // Build headers - include auth token if available
+        const headers: HeadersInit = {
+          "Content-Type": "application/json",
+        }
+        if (accessToken) {
+          headers.Authorization = `Bearer ${accessToken}`
+        }
+
         const response = await fetch(`/api/report/${reportId}/chat`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
+          headers,
           body: JSON.stringify({
             message: content.trim(),
             conversationHistory,

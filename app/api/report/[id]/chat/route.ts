@@ -38,26 +38,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
-    // Verify authentication
-    const authHeader = request.headers.get("Authorization")
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized - No token provided" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
-
-    const accessToken = authHeader.split("Bearer ")[1]
-    const user = await verifySupabaseToken(accessToken)
-
-    if (!user) {
-      return new Response(JSON.stringify({ error: "Unauthorized - Invalid token" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
-
-    // Parse request body
+    // Parse request body first
     let body: ChatRequest
     try {
       body = await request.json()
@@ -75,10 +56,21 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
-    // Fetch report data - try owner access first, then shared access
-    let reportData = await getReport(reportId, user.id)
+    // Try to verify authentication (optional for shared reports)
+    const authHeader = request.headers.get("Authorization")
+    let user = null
+    if (authHeader?.startsWith("Bearer ")) {
+      const accessToken = authHeader.split("Bearer ")[1]
+      user = await verifySupabaseToken(accessToken)
+    }
 
-    // If not owner, try to access as a shared report
+    // Fetch report data - try owner access first if authenticated, then shared access
+    let reportData = null
+    if (user) {
+      reportData = await getReport(reportId, user.id)
+    }
+
+    // If not owner or not authenticated, try to access as a shared report
     if (!reportData) {
       reportData = await getReportForSharing(reportId)
     }
