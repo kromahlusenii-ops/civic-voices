@@ -233,7 +233,7 @@ export default function ReportPage() {
     }
 
     const retryCount = options?.retryCount || 0;
-    const maxRetries = 3;
+    const maxRetries = 5; // More retries for production resilience
 
     try {
       // Check for share token in URL
@@ -259,8 +259,9 @@ export default function ReportPage() {
         if (response.status === 401) {
           // Retry with progressive delay for auth race conditions
           // This handles: 1) session still initializing, 2) token refresh in progress
+          // Total max wait: 500+750+1000+1250+1500 = 5 seconds
           if (retryCount < maxRetries && !options?.silent) {
-            const delay = 500 * (retryCount + 1); // 500ms, 1000ms, 1500ms
+            const delay = 500 + (retryCount * 250); // 500ms, 750ms, 1000ms, 1250ms, 1500ms
             console.log(`[Report] Auth retry ${retryCount + 1}/${maxRetries} after ${delay}ms (had token: ${!!token})`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return fetchReportData({ ...options, retryCount: retryCount + 1 });

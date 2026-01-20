@@ -124,9 +124,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [fetchBilling]);
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token ?? null;
-  }, []);
+    // First try to use the session we already have in state (most reliable)
+    if (session?.access_token) {
+      // Check if token is expired (with 60 second buffer)
+      const expiresAt = session.expires_at;
+      if (expiresAt && expiresAt > Math.floor(Date.now() / 1000) + 60) {
+        return session.access_token;
+      }
+    }
+
+    // Fall back to getting fresh session from Supabase
+    // This handles token refresh and edge cases
+    const { data: { session: freshSession } } = await supabase.auth.getSession();
+    return freshSession?.access_token ?? null;
+  }, [session]);
 
   const signOut = useCallback(async (): Promise<void> => {
     await supabase.auth.signOut();
