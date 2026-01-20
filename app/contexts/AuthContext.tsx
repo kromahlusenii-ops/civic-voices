@@ -65,9 +65,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           currentPeriodEnd: data.subscription?.currentPeriodEnd || null,
           trialEndDate: data.subscription?.trialEndDate || null,
         });
+      } else {
+        // Set default free billing status on error so user can at least use free features
+        console.error("Billing API error:", response.status);
+        setBilling({
+          subscriptionStatus: "free",
+          subscriptionPlan: null,
+          credits: { monthly: 0, bonus: 0, total: 0 },
+          currentPeriodEnd: null,
+          trialEndDate: null,
+        });
       }
     } catch (error) {
       console.error("Failed to fetch billing status:", error);
+      // Set default free billing status on error
+      setBilling({
+        subscriptionStatus: "free",
+        subscriptionPlan: null,
+        credits: { monthly: 0, bonus: 0, total: 0 },
+        currentPeriodEnd: null,
+        trialEndDate: null,
+      });
     } finally {
       setBillingLoading(false);
     }

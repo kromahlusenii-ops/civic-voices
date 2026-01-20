@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user from database with subscription info
-    const user = await prisma.user.findFirst({
+    let user = await prisma.user.findFirst({
       where: { supabaseUid: authUser.id },
       select: {
         id: true,
@@ -170,8 +170,26 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Auto-create user if they don't exist in the database
+    // This handles cases where user signed up via Supabase but record wasn't created
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+      console.log(`Auto-creating user for Supabase UID: ${authUser.id}`)
+      const newUser = await prisma.user.create({
+        data: {
+          supabaseUid: authUser.id,
+          email: authUser.email || `${authUser.id}@unknown.com`,
+          subscriptionStatus: "free",
+          monthlyCredits: 0,
+          bonusCredits: 0,
+        },
+        select: {
+          id: true,
+          stripeCustomerId: true,
+          stripeSubscriptionId: true,
+          subscriptionStatus: true,
+        },
+      })
+      user = newUser
     }
 
     // Sync subscription from Stripe if status is "free" but user has Stripe IDs
