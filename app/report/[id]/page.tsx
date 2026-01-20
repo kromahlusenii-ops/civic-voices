@@ -21,6 +21,7 @@ import {
   DashboardTabs,
   SocialPostGrid,
   MobileBottomNav,
+  AudienceChatSidebar,
 } from "@/app/components/report";
 import type { DashboardTab } from "@/app/components/report";
 import type { Post, AIAnalysis } from "@/lib/types/api";
@@ -207,6 +208,7 @@ export default function ReportPage() {
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -660,6 +662,22 @@ export default function ReportPage() {
                         )}
                       </button>
                     )}
+                    {/* Chat Button */}
+                    <button
+                      onClick={() => setIsChatOpen(true)}
+                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      aria-label="Talk to audience"
+                      title="Talk to the audience"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
+                      </svg>
+                    </button>
                     {/* Share Button - only show for owner */}
                     {isOwner && (
                       <button
@@ -819,7 +837,34 @@ export default function ReportPage() {
           activeTab={activeTab}
           onTabChange={handleTabChange}
           onShare={() => setShowShareModal(true)}
+          onOpenChat={() => setIsChatOpen(true)}
           isOwner={isOwner}
+        />
+      )}
+
+      {/* Audience Chat Sidebar - only render when chat is open */}
+      {reportData && isChatOpen && (
+        <AudienceChatSidebar
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          reportData={reportData}
+          getAccessToken={getAccessToken}
+          onScrollToPost={(postId) => {
+            // Switch to social posts tab and scroll to the post
+            setActiveTab("social-posts");
+            // Give time for tab to switch, then scroll
+            setTimeout(() => {
+              const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+              if (postElement) {
+                postElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                // Add highlight effect
+                postElement.classList.add("ring-2", "ring-blue-500", "ring-offset-2");
+                setTimeout(() => {
+                  postElement.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
+                }, 2000);
+              }
+            }, 100);
+          }}
         />
       )}
     </div>

@@ -17,3 +17,8 @@ export type { DashboardTab } from "./DashboardTabs";
 export { default as SocialPostCard } from "./SocialPostCard";
 export { default as SocialPostGrid } from "./SocialPostGrid";
 export { default as MobileBottomNav } from "./MobileBottomNav";
+export { default as AudienceChatSidebar } from "./AudienceChatSidebar";
+export { default as ChatMessage } from "./ChatMessage";
+export { default as ChatInput } from "./ChatInput";
+export { default as ChatWelcome } from "./ChatWelcome";
+export { default as CitationLink } from "./CitationLink";
