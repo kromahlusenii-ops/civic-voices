@@ -3,6 +3,38 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 
+// Info icon component
+function InfoIcon({ tooltip }: { tooltip: string }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        className="ml-1 text-gray-400 hover:text-gray-600 focus:outline-none"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        aria-label="More information"
+      >
+        <svg
+          className="h-3.5 w-3.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <circle cx="12" cy="12" r="10" strokeWidth="2" />
+          <path strokeWidth="2" d="M12 16v-4m0-4h.01" />
+        </svg>
+      </button>
+      {showTooltip && (
+        <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg whitespace-nowrap max-w-xs">
+          {tooltip}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface DataPoint {
   date: string;
   count: number;
@@ -330,7 +362,10 @@ export default function ActivityChart({
     <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
       {/* Header with tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
-        <h3 className="text-sm font-semibold text-gray-800">Activity over time</h3>
+        <div className="flex items-center">
+          <h3 className="text-sm font-semibold text-gray-800">Activity over time</h3>
+          <InfoIcon tooltip="Tracks views and post mentions over the search time period. Views are from platform data when available, otherwise estimated from engagement." />
+        </div>
         <div className="flex bg-gray-100 rounded-lg p-0.5 self-start sm:self-auto">
           <button
             onClick={() => handleModeChange("volume")}
@@ -392,10 +427,12 @@ export default function ActivityChart({
         <div className="flex items-center gap-1.5 sm:gap-2">
           <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500"></span>
           <span className="text-[10px] sm:text-xs text-gray-600">Views</span>
+          <InfoIcon tooltip="Total content views. Direct from platform APIs when available, otherwise estimated as ~15x engagement." />
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2">
           <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-500"></span>
           <span className="text-[10px] sm:text-xs text-gray-600">Mentions</span>
+          <InfoIcon tooltip="Number of posts matching your search query on this date." />
         </div>
       </div>
     </div>

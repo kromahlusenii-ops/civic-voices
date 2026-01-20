@@ -388,37 +388,55 @@ export default function TopicsTable({
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/50">
               <th className="text-left px-3 sm:px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Topic
+                <span className="flex items-center">
+                  Topic
+                  <InfoIcon tooltip="Key themes identified by AI from the content" />
+                </span>
               </th>
               {/* Hide views on mobile */}
               <th
                 className="hidden sm:table-cell text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
                 onClick={() => handleSort("views")}
               >
-                Est. views
-                <SortIndicator field="views" />
+                <span className="flex items-center justify-end">
+                  Views
+                  <InfoIcon tooltip="Total views from posts related to this topic" />
+                  <SortIndicator field="views" />
+                </span>
               </th>
               {/* Hide likes on mobile */}
               <th
                 className="hidden sm:table-cell text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
                 onClick={() => handleSort("likes")}
               >
-                Est. likes
-                <SortIndicator field="likes" />
+                <span className="flex items-center justify-end">
+                  Likes
+                  <InfoIcon tooltip="Total likes from posts related to this topic" />
+                  <SortIndicator field="likes" />
+                </span>
               </th>
               <th className="text-center px-2 sm:px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Resonance
+                <span className="flex items-center justify-center">
+                  Resonance
+                  <InfoIcon tooltip="How well this topic performed vs average. High = 1.5x+ avg engagement, Medium = 0.75x-1.5x, Low = below 0.75x" />
+                </span>
               </th>
               <th className="text-center px-2 sm:px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-24 sm:w-32">
-                Sentiment
+                <span className="flex items-center justify-center">
+                  Sentiment
+                  <InfoIcon tooltip="Positive vs negative sentiment ratio from AI-classified posts about this topic" />
+                </span>
               </th>
               {/* Hide date on mobile */}
               <th
                 className="hidden sm:table-cell text-right px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-700"
                 onClick={() => handleSort("date")}
               >
-                Date
-                <SortIndicator field="date" />
+                <span className="flex items-center justify-end">
+                  Latest
+                  <InfoIcon tooltip="Most recent post date for this topic" />
+                  <SortIndicator field="date" />
+                </span>
               </th>
             </tr>
           </thead>
@@ -585,11 +603,26 @@ export default function TopicsTable({
   );
 }
 
+// Helper function to calculate resonance based on engagement rate
+function calculateResonance(
+  totalEngagement: number,
+  postCount: number,
+  allPostsAvgEngagement: number
+): "Low" | "Medium" | "High" {
+  if (postCount === 0) return "Low";
+  const avgEngagement = totalEngagement / postCount;
+
+  // Compare to overall average engagement
+  if (avgEngagement >= allPostsAvgEngagement * 1.5) return "High";
+  if (avgEngagement >= allPostsAvgEngagement * 0.75) return "Medium";
+  return "Low";
+}
+
 // Helper function to generate topic data from themes and posts
 export function generateTopicsFromThemes(
   themes: string[],
-  totalViews: number,
-  totalLikes: number,
+  _totalViews: number,
+  _totalLikes: number,
   topicAnalysis?: TopicAnalysis[],
   posts?: Post[]
 ): TopicData[] {
@@ -614,32 +647,18 @@ export function generateTopicsFromThemes(
     topicAnalysis?.map(ta => [ta.topic.toLowerCase(), ta]) || []
   );
 
+  // Calculate overall average engagement for resonance comparison
+  const allPostsTotalEngagement = posts?.reduce((sum, p) =>
+    sum + (p.engagement.likes || 0) + (p.engagement.comments || 0) + (p.engagement.shares || 0), 0
+  ) || 0;
+  const allPostsAvgEngagement = posts && posts.length > 0
+    ? allPostsTotalEngagement / posts.length
+    : 0;
+
   return themes.map((theme, index) => {
     const icon =
       themeIcons[theme.toLowerCase()] ||
       themeIcons.default;
-
-    // Distribute views and likes among themes
-    const viewShare = (Math.random() * 0.3 + 0.1) * totalViews;
-    const likeShare = (Math.random() * 0.3 + 0.1) * totalLikes;
-
-    // Random resonance
-    const resonanceOptions: ("Low" | "Medium" | "High")[] = [
-      "Low",
-      "Medium",
-      "High",
-    ];
-    const resonance =
-      resonanceOptions[Math.floor(Math.random() * resonanceOptions.length)];
-
-    // Random sentiment distribution
-    const sentimentPositive = Math.floor(Math.random() * 80 + 10);
-    const sentimentNegative = 100 - sentimentPositive;
-
-    // Random date within last 24 hours
-    const hoursAgo = Math.floor(Math.random() * 24);
-    const date = new Date();
-    date.setHours(date.getHours() - hoursAgo);
 
     // Get topic analysis for this theme
     const analysis = analysisMap.get(theme.toLowerCase());
@@ -649,33 +668,90 @@ export function generateTopicsFromThemes(
     if (analysis?.postIds && postsMap.size > 0) {
       topicPosts = analysis.postIds
         .map(id => postsMap.get(id))
-        .filter((p): p is Post => p !== undefined)
-        .slice(0, 4);
+        .filter((p): p is Post => p !== undefined);
     }
 
-    // Fallback: if no posts from analysis, use first 4 posts
+    // Fallback: if no posts from analysis, try text matching
     if (topicPosts.length === 0 && posts && posts.length > 0) {
-      // Rotate posts for different topics to show variety
-      const startIndex = (index * 4) % posts.length;
-      topicPosts = posts.slice(startIndex, startIndex + 4);
-      if (topicPosts.length < 4) {
-        topicPosts = [...topicPosts, ...posts.slice(0, 4 - topicPosts.length)];
+      const themeLower = theme.toLowerCase();
+      const themeWords = themeLower.split(/\s+/);
+
+      topicPosts = posts.filter(post => {
+        const textLower = post.text.toLowerCase();
+        // Match if any word from theme appears in post
+        return themeWords.some(word => word.length > 3 && textLower.includes(word));
+      });
+
+      // If still no matches, use a subset based on index
+      if (topicPosts.length === 0) {
+        const startIndex = (index * 4) % posts.length;
+        topicPosts = posts.slice(startIndex, startIndex + 4);
+        if (topicPosts.length < 4) {
+          topicPosts = [...topicPosts, ...posts.slice(0, 4 - topicPosts.length)];
+        }
       }
     }
+
+    // Calculate real metrics from topic posts
+    let totalViews = 0;
+    let totalLikes = 0;
+    let totalEngagement = 0;
+    let positiveCount = 0;
+    let negativeCount = 0;
+    let neutralCount = 0;
+    let mostRecentDate = new Date(0);
+
+    topicPosts.forEach(post => {
+      totalViews += post.engagement.views || 0;
+      totalLikes += post.engagement.likes || 0;
+      totalEngagement += (post.engagement.likes || 0) +
+                         (post.engagement.comments || 0) +
+                         (post.engagement.shares || 0);
+
+      // Count sentiment from post data
+      const sentiment = (post as Post & { sentiment?: string }).sentiment;
+      if (sentiment === "positive") positiveCount++;
+      else if (sentiment === "negative") negativeCount++;
+      else neutralCount++;
+
+      // Track most recent post
+      const postDate = new Date(post.createdAt);
+      if (postDate > mostRecentDate) {
+        mostRecentDate = postDate;
+      }
+    });
+
+    // Calculate sentiment percentages (include neutral as partial positive/negative)
+    const totalSentiment = positiveCount + negativeCount + neutralCount;
+    let sentimentPositive = 50;
+    let sentimentNegative = 50;
+
+    if (totalSentiment > 0) {
+      // Neutral posts split 50/50 between positive and negative for visualization
+      const neutralHalf = neutralCount / 2;
+      sentimentPositive = Math.round(((positiveCount + neutralHalf) / totalSentiment) * 100);
+      sentimentNegative = 100 - sentimentPositive;
+    }
+
+    // Calculate resonance based on engagement
+    const resonance = calculateResonance(totalEngagement, topicPosts.length, allPostsAvgEngagement);
+
+    // Use most recent post date, or current date if no posts
+    const date = mostRecentDate.getTime() > 0 ? mostRecentDate : new Date();
 
     return {
       id: `topic-${index}`,
       name: theme,
       icon,
-      views: Math.round(viewShare),
-      likes: Math.round(likeShare),
+      views: totalViews,
+      likes: totalLikes,
       resonance,
       sentimentPositive,
       sentimentNegative,
       date,
       postsOverview: analysis?.postsOverview,
       commentsOverview: analysis?.commentsOverview,
-      posts: topicPosts,
+      posts: topicPosts.slice(0, 4), // Limit to 4 for display
     };
   });
 }

@@ -1,7 +1,40 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import type { Post, CredibilityTier } from "@/lib/types/api";
+
+// Info icon component
+function InfoIcon({ tooltip }: { tooltip: string }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  return (
+    <div className="relative inline-block">
+      <button
+        className="ml-1 text-gray-400 hover:text-gray-600 focus:outline-none"
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        aria-label="More information"
+      >
+        <svg
+          className="h-3.5 w-3.5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <circle cx="12" cy="12" r="10" strokeWidth="2" />
+          <path strokeWidth="2" d="M12 16v-4m0-4h.01" />
+        </svg>
+      </button>
+      {showTooltip && (
+        <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg whitespace-nowrap max-w-xs">
+          {tooltip}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface TopVoicesProps {
   posts: Post[];
@@ -222,6 +255,7 @@ export default function TopVoices({ posts, limit = 5, onViewAll }: TopVoicesProp
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-gray-700">Verified Voices</h3>
           <span className="text-xs text-gray-400">Credible sources on this topic</span>
+          <InfoIcon tooltip="Accounts with verification badges, official status, or recognized credibility (news outlets, journalists, experts). Ranked by credibility tier, then by engagement." />
         </div>
         {onViewAll && (
           <button

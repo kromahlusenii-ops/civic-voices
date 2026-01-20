@@ -122,7 +122,7 @@ export default function EmotionsBreakdown({
           <h3 className="text-sm font-semibold text-gray-800">
             Emotions breakdown
           </h3>
-          <InfoIcon tooltip="Distribution of emotional tones detected in the content" />
+          <InfoIcon tooltip="Derived from AI sentiment classification: Positive → Joy (70%) + Surprise (30%). Negative → Anger (40%) + Sadness (40%) + Fear (20%). Neutral posts stay neutral." />
         </div>
       </div>
 
