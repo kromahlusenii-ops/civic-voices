@@ -3,35 +3,35 @@
 import Link from "next/link";
 import { useEffect, useState, useRef, Fragment } from "react";
 
-// Updated live voices - local government focused
+// Updated live voices - e-commerce brand focused
 const LIVE_VOICES = [
-  { platform: "Nextdoor", handle: "Oak Park Neighbor", text: "Has anyone else noticed the water pressure issues on Elm Street? Third time this month.", sentiment: "negative", time: "2m ago", engagement: "47" },
-  { platform: "Reddit", handle: "u/charlotte_resident", text: "The new bus route changes are actually working well for my commute to uptown. Finally!", sentiment: "positive", time: "5m ago", engagement: "234" },
-  { platform: "TikTok", handle: "@denverlocal", text: "POV: you try to find parking downtown after they removed 200 spaces for the bike lane 😭", sentiment: "negative", time: "8m ago", engagement: "12K" },
-  { platform: "X", handle: "@austinparent", text: "School rezoning meeting was a disaster. Nobody from the district could answer basic questions.", sentiment: "negative", time: "12m ago", engagement: "892" },
-  { platform: "Reddit", handle: "u/raleigh_cyclist", text: "Greenway extension is finally open! Great work by parks dept getting this done.", sentiment: "positive", time: "15m ago", engagement: "1.1K" },
-  { platform: "Nextdoor", handle: "Downtown Durham", text: "Why wasn't there any notice about the street closure today? Had to reroute my entire morning.", sentiment: "negative", time: "18m ago", engagement: "89" },
+  { platform: "TikTok", handle: "@skincare_obsessed", text: "Just tried that new serum from @glowbrand and my skin has never looked better. 10/10 would buy again", sentiment: "positive", time: "2m ago", engagement: "45K" },
+  { platform: "Reddit", handle: "u/shopify_seller", text: "Anyone else notice conversion rates tanking after that algorithm change? My store went from 3% to 1.2%", sentiment: "negative", time: "5m ago", engagement: "234" },
+  { platform: "X", handle: "@ecom_founder", text: "Hot take: Most DTC brands are spending 80% on acquisition and 0% on actually listening to customers", sentiment: "neutral", time: "8m ago", engagement: "1.2K" },
+  { platform: "YouTube", handle: "Honest Reviews", text: "Unboxing this viral Shopify brand everyone's talking about... packaging is mid tbh", sentiment: "negative", time: "12m ago", engagement: "89K" },
+  { platform: "Reddit", handle: "u/dtc_marketing", text: "Finally found a brand that actually responds to customer feedback. Rare W in ecommerce", sentiment: "positive", time: "15m ago", engagement: "567" },
+  { platform: "TikTok", handle: "@beauty_finds", text: "POV: you order from a Shopify store and shipping takes 3 weeks. Never again.", sentiment: "negative", time: "18m ago", engagement: "234K" },
 ];
 
-// Trending local topics
+// Trending e-commerce topics
 const TRENDING_TOPICS = [
-  { topic: "parking changes", change: "+34%", platform: "Nextdoor" },
-  { topic: "school rezoning", change: "+52%", platform: "Reddit" },
-  { topic: "water main break", change: "+28%", platform: "X" },
-  { topic: "transit schedule", change: "+41%", platform: "TikTok" },
-  { topic: "council meeting", change: "+19%", platform: "YouTube" },
-  { topic: "road construction", change: "+23%", platform: "Nextdoor" },
-  { topic: "park renovation", change: "+15%", platform: "Reddit" },
-  { topic: "utility rates", change: "+37%", platform: "X" },
+  { topic: "shipping delays", change: "+34%", platform: "TikTok" },
+  { topic: "product quality", change: "+52%", platform: "Reddit" },
+  { topic: "customer service", change: "+28%", platform: "X" },
+  { topic: "unboxing experience", change: "+41%", platform: "YouTube" },
+  { topic: "return policy", change: "+19%", platform: "Reddit" },
+  { topic: "price vs value", change: "+23%", platform: "TikTok" },
+  { topic: "brand authenticity", change: "+15%", platform: "X" },
+  { topic: "sustainability claims", change: "+37%", platform: "Reddit" },
 ];
 
-// Platform status data - updated with Nextdoor
+// Platform status data - e-commerce focused
 const PLATFORM_STATUS = [
-  { name: "Nextdoor", posts: "890K", sentiment: 0.42, trend: "up" },
-  { name: "Reddit", posts: "1.1M", sentiment: 0.51, trend: "up" },
-  { name: "X", posts: "2.4M", sentiment: 0.38, trend: "down" },
-  { name: "TikTok", posts: "560K", sentiment: 0.35, trend: "up" },
-  { name: "YouTube", posts: "340K", sentiment: 0.45, trend: "stable" },
+  { name: "TikTok", posts: "2.1M", sentiment: 0.48, trend: "up" },
+  { name: "Reddit", posts: "890K", sentiment: 0.42, trend: "down" },
+  { name: "X", posts: "1.4M", sentiment: 0.45, trend: "up" },
+  { name: "YouTube", posts: "560K", sentiment: 0.51, trend: "up" },
+  { name: "Instagram", posts: "3.2M", sentiment: 0.55, trend: "stable" },
 ];
 
 // Platform icons
@@ -57,9 +57,9 @@ function PlatformIcon({ platform, className = "" }: { platform: string; classNam
         <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
       </svg>
     ),
-    Nextdoor: (
+    Instagram: (
       <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
+        <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
       </svg>
     ),
     Bluesky: (
@@ -92,7 +92,7 @@ function VoiceCard({ voice, delay = 0 }: { voice: typeof LIVE_VOICES[0]; delay?:
     Reddit: "bg-[#FF4500] text-white",
     TikTok: "bg-black text-white",
     YouTube: "bg-[#FF0000] text-white",
-    Nextdoor: "bg-[#00B246] text-white",
+    Instagram: "bg-gradient-to-tr from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white",
   };
   const platformColor = platformColors[voice.platform] || "bg-gray-800 text-white";
 
@@ -122,11 +122,11 @@ function VoiceCard({ voice, delay = 0 }: { voice: typeof LIVE_VOICES[0]; delay?:
 // News ticker component
 function NewsTicker() {
   return (
-    <div className="relative overflow-hidden bg-stone-900 text-stone-100 py-2 border-b-2 border-red-600">
+    <div className="relative overflow-hidden bg-stone-900 text-stone-100 py-2 border-b-2 border-violet-600">
       <div className="flex items-center">
         <div className="flex-shrink-0 px-4 border-r border-stone-700 flex items-center gap-2">
-          <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
-          <span className="text-[10px] font-mono font-bold tracking-wider text-red-500">LIVE</span>
+          <span className="w-2 h-2 bg-violet-600 rounded-full animate-pulse" />
+          <span className="text-[10px] font-mono font-bold tracking-wider text-violet-500">LIVE</span>
         </div>
         <div className="flex animate-marquee whitespace-nowrap">
           {[...TRENDING_TOPICS, ...TRENDING_TOPICS].map((item, i) => (
@@ -257,7 +257,7 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-stone-100 selection:bg-red-600 selection:text-white overflow-x-hidden">
+    <main className="min-h-screen bg-stone-100 selection:bg-violet-600 selection:text-white overflow-x-hidden">
       {/* Custom styles */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,wght@0,400;0,600;1,400&display=swap');
@@ -341,12 +341,12 @@ export default function Home() {
           <div className="flex h-14 items-center justify-between">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-stone-900 flex items-center justify-center">
-                <span className="text-stone-100 font-mono text-xs font-bold">CV</span>
+              <div className="w-8 h-8 bg-violet-600 flex items-center justify-center rounded">
+                <span className="text-white font-mono text-xs font-bold">BY</span>
               </div>
               <div>
-                <span className="font-display text-xl text-stone-900">Civic Voices</span>
-                <span className="hidden sm:inline text-[10px] font-mono text-stone-500 ml-2 tracking-wider">FOR CITIES</span>
+                <span className="font-display text-xl text-stone-900">Brand Yap</span>
+                <span className="hidden sm:inline text-[10px] font-mono text-stone-500 ml-2 tracking-wider">FOR SHOPIFY BRANDS</span>
               </div>
             </div>
 
@@ -360,7 +360,7 @@ export default function Home() {
               </Link>
               <Link
                 href="/search"
-                className="px-4 py-2 text-xs font-mono font-bold text-stone-100 bg-stone-900 hover:bg-red-600 transition-colors tracking-wider"
+                className="px-4 py-2 text-xs font-mono font-bold text-white bg-violet-600 hover:bg-violet-700 transition-colors tracking-wider rounded"
               >
                 TRY FREE →
               </Link>
@@ -377,23 +377,23 @@ export default function Home() {
             <div className="lg:col-span-7 animate-fade-in-up">
               {/* Badge */}
               <div className="flex items-center gap-4 mb-6">
-                <span className="px-3 py-1 bg-stone-900 text-stone-100 text-[10px] font-mono tracking-wider">
-                  SOCIAL LISTENING FOR CITIES
+                <span className="px-3 py-1 bg-violet-600 text-white text-[10px] font-mono tracking-wider rounded">
+                  SOCIAL LISTENING FOR SHOPIFY BRANDS
                 </span>
               </div>
 
               {/* Main Headline */}
               <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl text-stone-900 leading-[0.95] mb-6 tracking-tight">
-                Understand resident
+                Hear what customers
                 <br />
-                sentiment <span className="italic">in real time</span><span className="text-red-600">.</span>
+                say <span className="italic">about your brand</span><span className="text-violet-600">.</span>
               </h1>
 
               {/* Subhead - Editorial style */}
-              <div className="border-l-4 border-stone-900 pl-4 mb-8">
+              <div className="border-l-4 border-violet-600 pl-4 mb-8">
                 <p className="font-body text-xl sm:text-2xl text-stone-700 leading-relaxed">
-                  Search public conversations about your city across Reddit, X, TikTok, Nextdoor, and more.
-                  See what&apos;s brewing before it becomes a crisis.
+                  Search real conversations about your Shopify brand across TikTok, Reddit, YouTube, and X.
+                  See what customers love, hate, and wish you&apos;d fix.
                 </p>
               </div>
 
@@ -401,9 +401,9 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row gap-4 mb-4">
                 <Link
                   href="/search"
-                  className="inline-flex items-center justify-center px-8 py-4 font-mono text-sm font-bold text-stone-100 bg-stone-900 hover:bg-red-600 transition-all duration-300 tracking-wider group"
+                  className="inline-flex items-center justify-center px-8 py-4 font-mono text-sm font-bold text-white bg-violet-600 hover:bg-violet-700 transition-all duration-300 tracking-wider group rounded"
                 >
-                  TRY A SEARCH FREE
+                  SEARCH YOUR BRAND FREE
                   <svg className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
@@ -416,21 +416,21 @@ export default function Home() {
 
             {/* Right Column - Live Feed Preview */}
             <div className="lg:col-span-5 animate-fade-in-up-delay">
-              <div className="bg-white border-2 border-stone-900 shadow-[8px_8px_0px_0px_rgba(28,25,23,1)]">
+              <div className="bg-white border-2 border-stone-900 shadow-[8px_8px_0px_0px_rgba(124,58,237,0.3)]">
                 {/* Feed Header */}
                 <div className="flex items-center justify-between px-4 py-3 border-b-2 border-stone-900 bg-stone-50">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
-                    <span className="text-[10px] font-mono font-bold tracking-wider">LIVE RESIDENT FEED</span>
+                    <span className="w-2 h-2 bg-violet-600 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-mono font-bold tracking-wider">LIVE BRAND MENTIONS</span>
                   </div>
                   <span className="text-[10px] font-mono text-stone-500">
-                    Your city, all platforms
+                    Your brand, all platforms
                   </span>
                 </div>
 
                 {/* Featured Voice */}
-                <div className="p-4 border-b border-stone-200 bg-red-50/30">
-                  <div className="text-[10px] font-mono text-red-600 font-bold mb-2 tracking-wider">TRENDING NOW</div>
+                <div className="p-4 border-b border-stone-200 bg-violet-50/30">
+                  <div className="text-[10px] font-mono text-violet-600 font-bold mb-2 tracking-wider">TRENDING NOW</div>
                   <div className="space-y-1 transition-all duration-500">
                     <p className="font-body text-lg text-stone-800 italic leading-relaxed">
                       &ldquo;{LIVE_VOICES[currentVoiceIndex].text}&rdquo;
@@ -453,9 +453,9 @@ export default function Home() {
                 </div>
 
                 {/* Feed Footer */}
-                <div className="px-4 py-3 border-t-2 border-stone-900 bg-stone-900 text-stone-100">
-                  <Link href="/search" className="flex items-center justify-center gap-2 text-[10px] font-mono tracking-wider hover:text-red-400 transition-colors">
-                    SEARCH YOUR CITY
+                <div className="px-4 py-3 border-t-2 border-stone-900 bg-violet-600 text-white">
+                  <Link href="/search" className="flex items-center justify-center gap-2 text-[10px] font-mono tracking-wider hover:text-violet-200 transition-colors">
+                    SEARCH YOUR BRAND
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -472,17 +472,17 @@ export default function Home() {
         <div className={`relative z-10 mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 transition-all duration-700 ${problemVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-center mb-12">
             <h2 className="font-display text-4xl sm:text-5xl text-stone-900 leading-tight">
-              Right now, in your city<span className="text-red-600">.</span>
+              Right now, about your brand<span className="text-violet-600">.</span>
             </h2>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { platform: "Reddit", issue: "Rent up 40% in 2 years and the city does nothing", subreddit: "r/YourCity", engagement: "847 upvotes" },
-              { platform: "Nextdoor", issue: "Traffic on Main St is unbearable since they closed Oak Ave", subreddit: "Downtown", engagement: "156 comments" },
-              { platform: "TikTok", issue: "Why is there NO affordable housing being built here??", subreddit: "@local_renter", engagement: "34K views" },
+              { platform: "TikTok", issue: "This brand's shipping is SO slow. 3 weeks for a $60 product??", subreddit: "@disappointed_buyer", engagement: "234K views" },
+              { platform: "Reddit", issue: "Their customer service ghosted me after my order arrived damaged", subreddit: "r/Shopify", engagement: "847 upvotes" },
+              { platform: "YouTube", issue: "Honest review: the quality does NOT match the price point", subreddit: "Product Reviews", engagement: "45K views" },
             ].map((item) => (
-              <div key={item.issue} className="bg-stone-50 p-6 border-l-4 border-red-600">
+              <div key={item.issue} className="bg-stone-50 p-6 border-l-4 border-red-500">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="font-mono text-xs font-bold text-stone-500">{item.platform}</span>
                   <span className="text-stone-300">•</span>
@@ -495,7 +495,7 @@ export default function Home() {
           </div>
 
           <p className="text-center mt-10 font-body text-lg text-stone-600">
-            Do you know what residents are saying about <span className="font-semibold text-stone-900">your</span> city?
+            Do you know what customers are saying about <span className="font-semibold text-stone-900">your</span> brand?
           </p>
         </div>
       </section>
@@ -506,54 +506,54 @@ export default function Home() {
           <div className={`transition-all duration-700 ${personasVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">WHO IT&apos;S FOR</div>
             <h2 className="font-display text-4xl sm:text-5xl text-stone-900 mb-12">
-              Built for the people
+              Built for brands that
               <br />
-              who speak for cities<span className="text-red-600">.</span>
+              actually care about customers<span className="text-violet-600">.</span>
             </h2>
 
             <div className="grid md:grid-cols-3 gap-8">
-              {/* City & County Communications Teams */}
-              <div className="bg-white p-8 border border-stone-200 hover:border-stone-900 transition-colors">
-                <div className="w-12 h-12 bg-stone-900 flex items-center justify-center mb-6">
+              {/* Shopify Brand Founders */}
+              <div className="bg-white p-8 border border-stone-200 hover:border-violet-600 transition-colors">
+                <div className="w-12 h-12 bg-violet-600 flex items-center justify-center mb-6 rounded">
                   <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
-                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">CITY & COUNTY COMMUNICATIONS</h3>
-                <p className="font-body text-lg text-stone-800 mb-4 font-semibold">See complaints before they become crises.</p>
+                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">SHOPIFY BRAND FOUNDERS</h3>
+                <p className="font-body text-lg text-stone-800 mb-4 font-semibold">Know what customers really think.</p>
                 <p className="font-body text-stone-600 leading-relaxed">
-                  A water main breaks. A policy change drops. A council member says something controversial.
-                  Know how residents are reacting across Reddit, Nextdoor, X, and TikTok—in minutes, not days.
+                  Reviews only tell part of the story. See the unfiltered conversations happening on TikTok, Reddit, and YouTube
+                  about your products, shipping, and customer experience.
                 </p>
               </div>
 
-              {/* Public Affairs & Government Relations */}
-              <div className="bg-white p-8 border border-stone-200 hover:border-stone-900 transition-colors">
-                <div className="w-12 h-12 bg-stone-900 flex items-center justify-center mb-6">
+              {/* E-commerce Marketing Teams */}
+              <div className="bg-white p-8 border border-stone-200 hover:border-violet-600 transition-colors">
+                <div className="w-12 h-12 bg-violet-600 flex items-center justify-center mb-6 rounded">
                   <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
-                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">PUBLIC AFFAIRS & GOV RELATIONS</h3>
-                <p className="font-body text-lg text-stone-800 mb-4 font-semibold">Know what residents actually care about.</p>
+                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">E-COMMERCE MARKETING TEAMS</h3>
+                <p className="font-body text-lg text-stone-800 mb-4 font-semibold">Find your next viral moment.</p>
                 <p className="font-body text-stone-600 leading-relaxed">
-                  Track public sentiment on local issues—housing, transit, development, public safety.
-                  Walk into the council meeting knowing what&apos;s on people&apos;s minds.
+                  Discover UGC creators talking about your brand. Find complaints to turn into content.
+                  Spot trends before your competitors do.
                 </p>
               </div>
 
-              {/* Regional PR & Communications Agencies */}
-              <div className="bg-white p-8 border border-stone-200 hover:border-stone-900 transition-colors">
-                <div className="w-12 h-12 bg-stone-900 flex items-center justify-center mb-6">
+              {/* DTC Agencies */}
+              <div className="bg-white p-8 border border-stone-200 hover:border-violet-600 transition-colors">
+                <div className="w-12 h-12 bg-violet-600 flex items-center justify-center mb-6 rounded">
                   <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                   </svg>
                 </div>
-                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">REGIONAL PR & COMMS AGENCIES</h3>
-                <p className="font-body text-lg text-stone-800 mb-4 font-semibold">Research any city or issue in seconds.</p>
+                <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">DTC & SHOPIFY AGENCIES</h3>
+                <p className="font-body text-lg text-stone-800 mb-4 font-semibold">Research any brand in seconds.</p>
                 <p className="font-body text-stone-600 leading-relaxed">
-                  Stop manually scrolling through 6 platforms for each client. Search once, see everything,
-                  export what you need.
+                  Stop manually scrolling through platforms for client research. Search once, see everything,
+                  export insights for your next strategy deck.
                 </p>
               </div>
             </div>
@@ -569,30 +569,30 @@ export default function Home() {
             <h2 className="font-display text-4xl sm:text-5xl text-white mb-4">
               Every platform where
               <br />
-              residents talk<span className="text-red-600">.</span> One search<span className="text-red-600">.</span>
+              customers talk<span className="text-violet-500">.</span> One search<span className="text-violet-500">.</span>
             </h2>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {[
-              { name: "Nextdoor", desc: "Where neighbors actually complain", comingSoon: true },
-              { name: "Reddit", desc: "Local subreddits (r/Charlotte, r/Denver, r/Austin, etc.)", comingSoon: false },
-              { name: "X", desc: "Real-time reactions and local journalists", comingSoon: false },
-              { name: "TikTok", desc: "Where rants go viral", comingSoon: false },
-              { name: "YouTube", desc: "Local news comments and city council recordings", comingSoon: false },
-              { name: "Bluesky", desc: "Emerging platform", comingSoon: false },
+              { name: "TikTok", desc: "Where products go viral (or get destroyed)", comingSoon: false },
+              { name: "Reddit", desc: "r/Shopify, r/ecommerce, niche subreddits", comingSoon: false },
+              { name: "YouTube", desc: "Unboxings, reviews, and honest takes", comingSoon: false },
+              { name: "X", desc: "Real-time reactions and brand callouts", comingSoon: false },
+              { name: "Instagram", desc: "Stories, comments, and tagged posts", comingSoon: true },
+              { name: "Bluesky", desc: "Emerging platform for DTC conversation", comingSoon: false },
             ].map((platform) => (
               <div
                 key={platform.name}
                 className={`p-6 border transition-colors ${
                   platform.comingSoon
-                    ? 'bg-emerald-900/30 border-emerald-500 hover:bg-emerald-900/50'
+                    ? 'bg-violet-900/30 border-violet-500 hover:bg-violet-900/50'
                     : 'bg-stone-800/50 border-stone-700 hover:border-stone-500'
                 }`}
               >
                 <div className="flex items-center gap-3 mb-2">
                   <div className={`w-8 h-8 rounded flex items-center justify-center ${
-                    platform.comingSoon ? 'bg-emerald-500' : 'bg-stone-700'
+                    platform.comingSoon ? 'bg-violet-500' : 'bg-stone-700'
                   }`}>
                     <PlatformIcon platform={platform.name} className="w-4 h-4 text-white" />
                   </div>
@@ -615,20 +615,20 @@ export default function Home() {
           <h2 className="font-display text-4xl sm:text-5xl text-stone-900 mb-12">
             From search to insight
             <br />
-            in seconds<span className="text-red-600">.</span>
+            in seconds<span className="text-violet-600">.</span>
           </h2>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { title: "Cross-platform search", desc: "Search 8 platforms at once—including Nextdoor", icon: "🔍" },
-              { title: "Sentiment analysis", desc: "See if residents are angry, supportive, or mixed", icon: "📊" },
-              { title: "Trend detection", desc: "Spot emerging complaints before they blow up", icon: "📈" },
-              { title: "Geographic filtering", desc: "Focus on your city, county, or region", icon: "📍" },
-              { title: "Topic tracking", desc: "Monitor ongoing issues (housing, transit, public safety)", icon: "🎯" },
-              { title: "Message testing", desc: "Test comms with synthetic audiences before you post", icon: "🧪" },
-              { title: "CSV export", desc: "Download results for reports or council briefings", icon: "📥" },
+              { title: "Cross-platform search", desc: "Search 6+ platforms at once for any brand or product", icon: "🔍" },
+              { title: "Sentiment analysis", desc: "See if customers are happy, frustrated, or somewhere in between", icon: "📊" },
+              { title: "Trend detection", desc: "Spot viral moments and emerging complaints early", icon: "📈" },
+              { title: "Creator discovery", desc: "Find influencers and UGC creators talking about you", icon: "🎯" },
+              { title: "Competitor tracking", desc: "See what customers say about competing brands", icon: "👀" },
+              { title: "Message testing", desc: "Test new product ideas with synthetic audiences before launch", icon: "🧪" },
+              { title: "CSV export", desc: "Download results for team reports or agency decks", icon: "📥" },
             ].map((feature) => (
-              <div key={feature.title} className="p-6 border border-stone-200 hover:border-stone-900 transition-colors">
+              <div key={feature.title} className="p-6 border border-stone-200 hover:border-violet-600 transition-colors">
                 <div className="text-2xl mb-3">{feature.icon}</div>
                 <h3 className="font-mono text-sm font-bold text-stone-900 mb-2">{feature.title}</h3>
                 <p className="font-body text-stone-600">{feature.desc}</p>
@@ -644,9 +644,9 @@ export default function Home() {
           <div className="text-center mb-12">
             <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">HOW IT WORKS</div>
             <h2 className="font-display text-4xl sm:text-5xl text-stone-900">
-              Three steps<span className="text-red-600">.</span>
+              Three steps<span className="text-violet-600">.</span>
               <br />
-              Know what your city is saying<span className="text-red-600">.</span>
+              Know what customers think<span className="text-violet-600">.</span>
             </h2>
           </div>
 
@@ -654,22 +654,22 @@ export default function Home() {
             {[
               {
                 step: "1",
-                title: "Search any local issue",
-                desc: "Type a topic, policy, or complaint. Plain English works."
+                title: "Search your brand",
+                desc: "Type your brand name, product, or any topic. Plain English works."
               },
               {
                 step: "2",
-                title: "See results across all platforms",
-                desc: "Nextdoor posts, Reddit threads, TikTok videos, X posts—filtered by sentiment, recency, and engagement."
+                title: "See every conversation",
+                desc: "TikTok videos, Reddit threads, YouTube comments, tweets—filtered by sentiment and engagement."
               },
               {
                 step: "3",
-                title: "Act before it escalates",
-                desc: "Respond to concerns. Brief leadership. Get ahead of the story."
+                title: "Act on real feedback",
+                desc: "Fix issues customers mention. Double down on what they love. Find creators to partner with."
               },
             ].map((item) => (
               <div key={item.step} className="text-center">
-                <div className="w-16 h-16 bg-stone-900 text-white font-display text-3xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-16 h-16 bg-violet-600 text-white font-display text-3xl flex items-center justify-center mx-auto mb-6 rounded">
                   {item.step}
                 </div>
                 <h3 className="font-mono text-sm font-bold text-stone-900 mb-3 tracking-wider">{item.title.toUpperCase()}</h3>
@@ -685,35 +685,35 @@ export default function Home() {
         <div className={`relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 transition-all duration-700 ${useCasesVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">USE CASES</div>
           <h2 className="font-display text-4xl sm:text-5xl text-stone-900 mb-12">
-            What city comms teams
+            What Shopify brands
             <br />
-            use Civic Voices for<span className="text-red-600">.</span>
+            use Brand Yap for<span className="text-violet-600">.</span>
           </h2>
 
           <div className="grid md:grid-cols-2 gap-8">
             {[
               {
-                title: "Crisis monitoring",
-                desc: "A boil water notice went out. See how residents are reacting in real time across Nextdoor, Reddit, and X."
+                title: "Product feedback mining",
+                desc: "See what customers actually say about your products—not just in reviews, but in honest TikToks and Reddit threads."
               },
               {
-                title: "Policy rollout tracking",
-                desc: "New parking rules, zoning changes, transit schedules. Know what's confusing people before the complaints flood 311."
+                title: "Shipping & CX monitoring",
+                desc: "Spot complaints about shipping times, damaged packages, or customer service before they become a pattern."
               },
               {
-                title: "Council meeting prep",
-                desc: "See what issues are trending in your city this week. Walk in prepared."
+                title: "Competitor intelligence",
+                desc: "See what customers love and hate about competing brands. Find gaps you can fill."
               },
               {
-                title: "Reputation tracking",
-                desc: "Is sentiment about your city improving or declining? Track it over time."
+                title: "Creator discovery",
+                desc: "Find TikTokers and YouTubers already talking about your brand—or brands like yours."
               },
               {
-                title: "Message testing",
-                desc: "Test your announcement with synthetic audiences before it goes live. See what resonates and what backfires."
+                title: "Launch monitoring",
+                desc: "Track real-time reactions when you drop a new product, run a sale, or change your pricing."
               },
             ].map((useCase) => (
-              <div key={useCase.title} className="border-l-4 border-stone-900 pl-6 py-2">
+              <div key={useCase.title} className="border-l-4 border-violet-600 pl-6 py-2">
                 <h3 className="font-mono text-sm font-bold text-stone-900 mb-2">{useCase.title}</h3>
                 <p className="font-body text-stone-600 leading-relaxed">{useCase.desc}</p>
               </div>
@@ -727,7 +727,7 @@ export default function Home() {
         <div className={`relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 transition-all duration-700 ${differentiationVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="text-center mb-12">
             <h2 className="font-display text-4xl sm:text-5xl text-white">
-              This isn&apos;t brand monitoring<span className="text-red-600">.</span>
+              This isn&apos;t enterprise social listening<span className="text-violet-500">.</span>
             </h2>
           </div>
 
@@ -735,26 +735,26 @@ export default function Home() {
             <div className="grid grid-cols-2 gap-px bg-stone-700">
               {/* Headers */}
               <div className="bg-stone-800 p-4">
-                <span className="font-mono text-xs font-bold text-stone-400 tracking-wider">GENERIC SOCIAL LISTENING</span>
+                <span className="font-mono text-xs font-bold text-stone-400 tracking-wider">SPROUT/BRANDWATCH</span>
               </div>
-              <div className="bg-emerald-900/50 p-4">
-                <span className="font-mono text-xs font-bold text-emerald-400 tracking-wider">CIVIC VOICES</span>
+              <div className="bg-violet-900/50 p-4">
+                <span className="font-mono text-xs font-bold text-violet-400 tracking-wider">BRAND YAP</span>
               </div>
 
               {/* Rows */}
               {[
-                { generic: "Built for tracking brand mentions", civic: "Built for tracking resident sentiment" },
-                { generic: "No Nextdoor", civic: "Nextdoor included" },
-                { generic: "Optimized for marketers", civic: "Optimized for government comms" },
-                { generic: "National/global focus", civic: "Local and regional focus" },
-                { generic: "Alert you when someone says your name", civic: "Let you search any local issue, anytime" },
+                { generic: "Built for enterprise marketing teams", civic: "Built for Shopify founders & DTC brands" },
+                { generic: "$500-2000+/month", civic: "Free to start, $99/mo for unlimited" },
+                { generic: "Weeks of onboarding", civic: "Search in 30 seconds" },
+                { generic: "Keyword tracking only", civic: "Search anything, anytime" },
+                { generic: "No TikTok or Reddit", civic: "TikTok, Reddit, YouTube, X + more" },
               ].map((row, i) => (
                 <Fragment key={i}>
                   <div className="bg-stone-800 p-4 flex items-center">
                     <span className="text-stone-400 font-body text-sm">{row.generic}</span>
                   </div>
-                  <div className="bg-emerald-900/30 p-4 flex items-center">
-                    <span className="text-emerald-200 font-body text-sm font-medium">{row.civic}</span>
+                  <div className="bg-violet-900/30 p-4 flex items-center">
+                    <span className="text-violet-200 font-body text-sm font-medium">{row.civic}</span>
                   </div>
                 </Fragment>
               ))}
@@ -774,10 +774,10 @@ export default function Home() {
                 Monitoring the
                 <br />
                 <span className="italic">entire</span> conversation
-                <span className="text-red-600">.</span>
+                <span className="text-violet-600">.</span>
               </h2>
               <p className="font-body text-lg text-stone-600 leading-relaxed mb-8">
-                Every platform. Every shift in sentiment—captured in real-time
+                Every platform. Every mention. Every shift in sentiment—captured in real-time
                 and organized for immediate insight.
               </p>
 
@@ -786,11 +786,11 @@ export default function Home() {
                 {[
                   { icon: "◉", label: "Real-time ingestion", desc: "Posts processed instantly" },
                   { icon: "◎", label: "Sentiment analysis", desc: "AI-powered classification" },
-                  { icon: "◈", label: "Trend detection", desc: "Emerging topics surfaced" },
-                  { icon: "◇", label: "Geographic filtering", desc: "Local focus built-in" },
+                  { icon: "◈", label: "Trend detection", desc: "Viral moments surfaced" },
+                  { icon: "◇", label: "Creator matching", desc: "Influencer discovery built-in" },
                 ].map((item, i) => (
-                  <div key={i} className="p-4 border border-stone-200 hover:border-stone-900 transition-colors group">
-                    <div className="text-2xl text-stone-300 group-hover:text-red-600 transition-colors mb-2">{item.icon}</div>
+                  <div key={i} className="p-4 border border-stone-200 hover:border-violet-600 transition-colors group">
+                    <div className="text-2xl text-stone-300 group-hover:text-violet-600 transition-colors mb-2">{item.icon}</div>
                     <div className="font-mono text-xs font-bold text-stone-900 mb-1">{item.label}</div>
                     <div className="text-[10px] font-mono text-stone-500">{item.desc}</div>
                   </div>
@@ -799,7 +799,7 @@ export default function Home() {
             </div>
 
             {/* Right - Status Board */}
-            <div className="bg-white border-2 border-stone-900 shadow-[8px_8px_0px_0px_rgba(28,25,23,1)]">
+            <div className="bg-white border-2 border-stone-900 shadow-[8px_8px_0px_0px_rgba(124,58,237,0.3)]">
               <div className="px-4 py-3 border-b-2 border-stone-900 bg-stone-50">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-mono font-bold tracking-wider">PLATFORM STATUS BOARD</span>
@@ -823,15 +823,15 @@ export default function Home() {
           <div className="text-center mb-12">
             <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">PRICING</div>
             <h2 className="font-display text-4xl sm:text-5xl text-stone-900">
-              Transparent pricing<span className="text-red-600">.</span>
+              Built for Shopify budgets<span className="text-violet-600">.</span>
               <br />
-              Start free<span className="text-red-600">.</span>
+              Start free<span className="text-violet-600">.</span>
             </h2>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Free */}
-            <div className="bg-stone-50 border border-stone-200 p-6">
+            <div className="bg-stone-50 border border-stone-200 p-6 rounded-lg">
               <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">FREE</div>
               <div className="font-display text-4xl text-stone-900 mb-4">$0<span className="text-lg text-stone-500">/mo</span></div>
               <ul className="space-y-2 mb-6">
@@ -845,42 +845,42 @@ export default function Home() {
                   <span className="text-emerald-600">✓</span> All platforms
                 </li>
               </ul>
-              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
+              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors rounded">
                 START FREE →
               </Link>
             </div>
 
             {/* Pro */}
-            <div className="bg-stone-900 text-white border-2 border-stone-900 p-6 relative">
-              <div className="absolute -top-3 left-4 px-2 py-1 bg-red-600 text-[10px] font-mono font-bold tracking-wider">
+            <div className="bg-violet-600 text-white border-2 border-violet-600 p-6 relative rounded-lg">
+              <div className="absolute -top-3 left-4 px-2 py-1 bg-amber-400 text-[10px] font-mono font-bold tracking-wider text-stone-900 rounded">
                 POPULAR
               </div>
-              <div className="font-mono text-xs font-bold text-stone-400 tracking-wider mb-2">PRO</div>
-              <div className="font-display text-4xl text-white mb-4">$99<span className="text-lg text-stone-400">/mo</span></div>
+              <div className="font-mono text-xs font-bold text-violet-200 tracking-wider mb-2">PRO</div>
+              <div className="font-display text-4xl text-white mb-4">$99<span className="text-lg text-violet-200">/mo</span></div>
               <ul className="space-y-2 mb-6">
-                <li className="text-sm text-stone-300 flex items-start gap-2">
-                  <span className="text-emerald-400">✓</span> Unlimited searches
+                <li className="text-sm text-violet-100 flex items-start gap-2">
+                  <span className="text-emerald-300">✓</span> Unlimited searches
                 </li>
-                <li className="text-sm text-stone-300 flex items-start gap-2">
-                  <span className="text-emerald-400">✓</span> Advanced filtering
+                <li className="text-sm text-violet-100 flex items-start gap-2">
+                  <span className="text-emerald-300">✓</span> Advanced filtering
                 </li>
-                <li className="text-sm text-stone-300 flex items-start gap-2">
-                  <span className="text-emerald-400">✓</span> Synthetic audience testing
+                <li className="text-sm text-violet-100 flex items-start gap-2">
+                  <span className="text-emerald-300">✓</span> Synthetic audience testing
                 </li>
-                <li className="text-sm text-stone-300 flex items-start gap-2">
-                  <span className="text-emerald-400">✓</span> Topic tracking
+                <li className="text-sm text-violet-100 flex items-start gap-2">
+                  <span className="text-emerald-300">✓</span> Competitor tracking
                 </li>
-                <li className="text-sm text-stone-300 flex items-start gap-2">
-                  <span className="text-emerald-400">✓</span> CSV export
+                <li className="text-sm text-violet-100 flex items-start gap-2">
+                  <span className="text-emerald-300">✓</span> CSV export
                 </li>
               </ul>
-              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 bg-white hover:bg-red-600 hover:text-white transition-colors">
+              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-violet-600 bg-white hover:bg-violet-100 transition-colors rounded">
                 START FREE, UPGRADE ANYTIME →
               </Link>
             </div>
 
             {/* Team */}
-            <div className="bg-stone-50 border border-stone-200 p-6">
+            <div className="bg-stone-50 border border-stone-200 p-6 rounded-lg">
               <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">TEAM</div>
               <div className="font-display text-4xl text-stone-900 mb-4">$499<span className="text-lg text-stone-500">/mo</span></div>
               <ul className="space-y-2 mb-6">
@@ -897,30 +897,30 @@ export default function Home() {
                   <span className="text-emerald-600">✓</span> Priority support
                 </li>
               </ul>
-              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
+              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors rounded">
                 CONTACT US →
               </Link>
             </div>
 
-            {/* Enterprise */}
-            <div className="bg-stone-50 border border-stone-200 p-6">
-              <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">ENTERPRISE / AGENCY</div>
+            {/* Agency */}
+            <div className="bg-stone-50 border border-stone-200 p-6 rounded-lg">
+              <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">AGENCY</div>
               <div className="font-display text-4xl text-stone-900 mb-4">Custom</div>
               <ul className="space-y-2 mb-6">
                 <li className="text-sm text-stone-600 flex items-start gap-2">
                   <span className="text-emerald-600">✓</span> Unlimited seats
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Multiple cities/clients
+                  <span className="text-emerald-600">✓</span> Multiple brands/clients
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Custom integrations
+                  <span className="text-emerald-600">✓</span> White-label reports
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
                   <span className="text-emerald-600">✓</span> Dedicated support
                 </li>
               </ul>
-              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
+              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors rounded">
                 TALK TO US →
               </Link>
             </div>
@@ -934,43 +934,43 @@ export default function Home() {
           <div className="text-center mb-12">
             <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">FAQ</div>
             <h2 className="font-display text-4xl sm:text-5xl text-stone-900">
-              Questions<span className="text-red-600">?</span>
+              Questions<span className="text-violet-600">?</span>
             </h2>
           </div>
 
-          <div className="bg-white border border-stone-200 p-6 sm:p-8">
+          <div className="bg-white border border-stone-200 p-6 sm:p-8 rounded-lg">
             <FAQItem
-              question="Who is Civic Voices for?"
-              answer="City and county communications teams, public affairs professionals, and PR agencies that work with local government clients."
+              question="Who is Brand Yap for?"
+              answer="Shopify brand founders, e-commerce marketing teams, and DTC agencies who want to know what customers are really saying about their brands online."
             />
             <FAQItem
               question="What platforms do you search?"
-              answer="Reddit, X, TikTok, YouTube, Nextdoor, Facebook, Bluesky, and Threads."
+              answer="TikTok, Reddit, YouTube, X, Bluesky, and more. Instagram support is coming soon."
             />
             <FAQItem
               question="How is this different from Sprout Social or Brandwatch?"
-              answer="Those tools are built for brand marketers tracking mentions of their company. Civic Voices is built for government comms teams tracking resident sentiment on local issues. We also include Nextdoor, which most tools don't."
+              answer="Those tools are built for enterprise marketing teams with big budgets and long onboarding. Brand Yap is built for Shopify brands—affordable, instant, and focused on the platforms where e-commerce customers actually talk (TikTok, Reddit, YouTube)."
             />
             <FAQItem
-              question="Can I track ongoing issues?"
-              answer="Yes. Set up topic tracking to monitor issues like 'housing,' 'transit,' or 'public safety' in your area over time."
+              question="Can I track competitors?"
+              answer="Yes. Search any brand name, product, or topic. See what customers are saying about your competitors too."
             />
             <FAQItem
               question="What's synthetic audience testing?"
-              answer="Test your message on AI-generated audience segments before you post. See how different groups might react to your announcement."
+              answer="Test your product descriptions, ad copy, or marketing messages on AI-generated audience segments before you launch. See how different customer types might react."
             />
             <FAQItem
               question="Is there a free trial?"
-              answer="Yes. 10 free searches, no credit card required."
+              answer="Yes. 10 free searches, no credit card required. Just start searching."
             />
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section ref={ctaRef} className="py-20 lg:py-32 bg-stone-900 grain relative overflow-hidden">
+      <section ref={ctaRef} className="py-20 lg:py-32 bg-violet-600 grain relative overflow-hidden">
         {/* Background decoration */}
-        <div className="absolute inset-0 opacity-5">
+        <div className="absolute inset-0 opacity-10">
           <div className="absolute top-0 left-0 w-full h-full" style={{
             backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 50px, rgba(255,255,255,0.1) 50px, rgba(255,255,255,0.1) 51px)`,
           }} />
@@ -978,25 +978,25 @@ export default function Home() {
 
         <div className={`relative z-10 mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center transition-all duration-700 ${ctaVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl text-white leading-tight mb-6">
-            Know what your
+            Know what customers
             <br />
-            residents are saying<span className="text-red-600">.</span>
+            really think<span className="text-violet-200">.</span>
           </h2>
-          <p className="font-body text-xl text-stone-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Search any local issue. See results in seconds. Free to start.
+          <p className="font-body text-xl text-violet-100 max-w-2xl mx-auto mb-10 leading-relaxed">
+            Search your brand. See every conversation. Free to start.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/search"
-              className="inline-flex items-center justify-center px-10 py-5 font-mono text-sm font-bold text-stone-900 bg-white hover:bg-red-600 hover:text-white transition-all duration-300 tracking-wider group"
+              className="inline-flex items-center justify-center px-10 py-5 font-mono text-sm font-bold text-violet-600 bg-white hover:bg-violet-100 transition-all duration-300 tracking-wider group rounded"
             >
-              TRY A SEARCH FREE
+              SEARCH YOUR BRAND FREE
               <svg className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>
             </Link>
           </div>
-          <p className="mt-8 text-[10px] font-mono text-stone-600">
+          <p className="mt-8 text-[10px] font-mono text-violet-200">
             NO CREDIT CARD REQUIRED • NO SALES CALL
           </p>
         </div>
@@ -1009,13 +1009,13 @@ export default function Home() {
             {/* Logo Column */}
             <div className="col-span-2">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-stone-900 flex items-center justify-center">
-                  <span className="text-stone-100 font-mono text-xs font-bold">CV</span>
+                <div className="w-8 h-8 bg-violet-600 flex items-center justify-center rounded">
+                  <span className="text-white font-mono text-xs font-bold">BY</span>
                 </div>
-                <span className="font-display text-xl text-stone-900">Civic Voices</span>
+                <span className="font-display text-xl text-stone-900">Brand Yap</span>
               </div>
               <p className="font-body text-stone-600 leading-relaxed mb-4">
-                Social listening for cities.
+                Social listening for Shopify brands.
               </p>
               <div className="flex gap-4">
                 {["X", "LinkedIn"].map((social) => (
@@ -1050,10 +1050,10 @@ export default function Home() {
           {/* Bottom Bar */}
           <div className="pt-8 border-t border-stone-300 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-[10px] font-mono text-stone-500">
-              © {currentYear || "2025"} CIVIC VOICES. ALL RIGHTS RESERVED.
+              © {currentYear || "2025"} BRAND YAP. ALL RIGHTS RESERVED.
             </p>
             <p className="text-[10px] font-mono text-stone-400">
-              SOCIAL LISTENING FOR CITIES
+              SOCIAL LISTENING FOR SHOPIFY BRANDS
             </p>
           </div>
         </div>
