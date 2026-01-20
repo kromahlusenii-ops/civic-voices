@@ -38,6 +38,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       })
     }
 
+    // Get share token from query params (for shared reports)
+    const { searchParams } = new URL(request.url)
+    const shareToken = searchParams.get("token")
+
     // Parse request body first
     let body: ChatRequest
     try {
@@ -71,8 +75,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // If not owner or not authenticated, try to access as a shared report
-    if (!reportData) {
-      reportData = await getReportForSharing(reportId)
+    if (!reportData && shareToken) {
+      reportData = await getReportForSharing(reportId, shareToken)
     }
 
     if (!reportData) {

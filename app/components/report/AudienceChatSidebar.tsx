@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { useAudienceChat } from "@/lib/hooks/useAudienceChat"
 import ChatMessage from "./ChatMessage"
 import ChatInput from "./ChatInput"
@@ -30,6 +31,10 @@ export default function AudienceChatSidebar({
   onScrollToPost,
 }: AudienceChatSidebarProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+
+  // Get share token from URL (for shared reports)
+  const shareToken = useMemo(() => searchParams.get("token"), [searchParams])
 
   // Get access token when sidebar opens
   useEffect(() => {
@@ -45,7 +50,7 @@ export default function AudienceChatSidebar({
     sendMessage,
     clearHistory,
     exportConversation,
-  } = useAudienceChat(reportData.report.id, accessToken)
+  } = useAudienceChat(reportData.report.id, accessToken, shareToken)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 

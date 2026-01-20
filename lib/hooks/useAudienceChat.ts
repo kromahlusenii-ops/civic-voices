@@ -21,7 +21,8 @@ function generateId(): string {
 
 export function useAudienceChat(
   reportId: string,
-  accessToken: string | null
+  accessToken: string | null,
+  shareToken?: string | null
 ): UseAudienceChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [status, setStatus] = useState<ChatStatus>("idle")
@@ -85,7 +86,13 @@ export function useAudienceChat(
           headers.Authorization = `Bearer ${accessToken}`
         }
 
-        const response = await fetch(`/api/report/${reportId}/chat`, {
+        // Build URL with optional share token
+        let chatUrl = `/api/report/${reportId}/chat`
+        if (shareToken) {
+          chatUrl += `?token=${encodeURIComponent(shareToken)}`
+        }
+
+        const response = await fetch(chatUrl, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -188,7 +195,7 @@ export function useAudienceChat(
         )
       }
     },
-    [reportId, accessToken, messages]
+    [reportId, accessToken, shareToken, messages]
   )
 
   const clearHistory = useCallback(() => {
