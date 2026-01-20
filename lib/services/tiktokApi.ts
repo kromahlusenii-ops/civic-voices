@@ -8,10 +8,12 @@ import { extractPronouns } from "../utils/pronounDetection";
 
 export class TikTokApiService {
   private apiKey: string;
+  private accountKey?: string;
   private apiUrl: string;
 
-  constructor(apiKey: string, apiUrl: string = "https://api.tikapi.io") {
+  constructor(apiKey: string, apiUrl: string = "https://api.tikapi.io", accountKey?: string) {
     this.apiKey = apiKey;
+    this.accountKey = accountKey;
     this.apiUrl = apiUrl;
   }
 
@@ -36,14 +38,18 @@ export class TikTokApiService {
       params.append("cursor", String(options.cursor));
     }
 
+    const headers: Record<string, string> = {
+      "X-API-KEY": this.apiKey,
+      "Content-Type": "application/json",
+    };
+
+    if (this.accountKey) {
+      headers["X-ACCOUNT-KEY"] = this.accountKey;
+    }
+
     const response = await fetch(
       `${this.apiUrl}/public/search/general?${params.toString()}`,
-      {
-        headers: {
-          "X-API-KEY": this.apiKey,
-          "Content-Type": "application/json",
-        },
-      }
+      { headers }
     );
 
     if (!response.ok) {

@@ -317,16 +317,17 @@ export async function POST(request: NextRequest) {
       searchPromises.push(xSearch());
     }
 
-    // TikTok search promise - prefer SociaVault over TikAPI
+    // TikTok search promise - query both SociaVault and TikAPI in parallel
     if (sources.includes("tiktok")) {
       const tiktokSearch = async () => {
-        try {
-          // Prefer SociaVault API for TikTok
-          if (config.sociaVault.apiKey) {
-            const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey);
+        const tiktokApiPromises: Promise<{ posts: Post[]; source: string; rawCount: number }>[] = [];
+
+        // SociaVault TikTok search
+        if (config.sociaVault.apiKey) {
+          const sociaVaultPromise = (async () => {
+            const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey!);
             const tiktokQuery = SociaVaultApiService.getBaseQuery(query);
 
-            // Wrap with retry-on-empty to handle flaky API responses
             const tiktokResults = await withRetryOnEmpty(
               () => withRetry(
                 () => withTimeout(
@@ -344,80 +345,109 @@ export async function POST(request: NextRequest) {
               }
             );
 
-            let tiktokPosts = sociaVaultService.transformTikTokToPosts(tiktokResults);
-            tiktokPosts = SociaVaultApiService.filterByTimeRange(tiktokPosts, timeFilter);
+            let posts = sociaVaultService.transformTikTokToPosts(tiktokResults);
+            posts = SociaVaultApiService.filterByTimeRange(posts, timeFilter);
 
             if (SociaVaultApiService.hasBooleanQuery(query)) {
-              tiktokPosts = SociaVaultApiService.filterByBooleanQuery(tiktokPosts, query);
+              posts = SociaVaultApiService.filterByBooleanQuery(posts, query);
             }
 
-            const rawVideoCount = tiktokResults.data?.length || 0;
-            console.log('[TikTok SociaVault] Raw:', rawVideoCount, 'Filtered:', tiktokPosts.length, 'TimeFilter:', timeFilter);
+            const rawCount = tiktokResults.data?.length || 0;
+            console.log('[TikTok SociaVault] Raw:', rawCount, 'Filtered:', posts.length, 'TimeFilter:', timeFilter);
 
-            allPosts.push(...tiktokPosts);
-            platformCounts.tiktok = tiktokPosts.length;
+            return { posts, source: 'SociaVault', rawCount };
+          })();
+          tiktokApiPromises.push(sociaVaultPromise);
+        }
 
-            if (tiktokPosts.length === 0 && rawVideoCount === 0) {
-              warnings.push("TikTok returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
-            }
-            return;
-          }
+        // TikAPI search (requires both apiKey and accountKey)
+        if (config.tiktok.apiKey && config.tiktok.accountKey) {
+          const tikApiPromise = (async () => {
+            const tiktokService = new TikTokApiService(
+              config.tiktok.apiKey!,
+              config.tiktok.apiUrl,
+              config.tiktok.accountKey
+            );
 
-          // Fallback to TikAPI if SociaVault not configured
-          if (!config.tiktok.apiKey) {
-            console.warn("TikTok API: Neither SociaVault nor TikAPI key configured");
-            platformCounts.tiktok = 0;
-            return;
-          }
+            const tiktokQuery = TikTokApiService.getBaseQuery(query);
 
-          const tiktokService = new TikTokApiService(
-            config.tiktok.apiKey,
-            config.tiktok.apiUrl
-          );
-
-          const tiktokQuery = TikTokApiService.getBaseQuery(query);
-
-          // Wrap with retry-on-empty to handle flaky API responses
-          const tiktokResults = await withRetryOnEmpty(
-            () => withRetry(
-              () => withTimeout(
-                tiktokService.searchVideos(tiktokQuery, { count: 50 }),
-                30000,
-                "TikTok API"
+            const tiktokResults = await withRetryOnEmpty(
+              () => withRetry(
+                () => withTimeout(
+                  tiktokService.searchVideos(tiktokQuery, { count: 50 }),
+                  30000,
+                  "TikTok TikAPI"
+                ),
+                { retries: 2, delay: 1500, name: "TikTok TikAPI" }
               ),
-              { retries: 2, delay: 1500, name: "TikTok API" }
-            ),
-            {
-              isEmpty: (result) => !result.videos || result.videos.length === 0,
-              maxEmptyRetries: 3,
-              emptyRetryDelay: 2000,
-              name: "TikTok API",
+              {
+                isEmpty: (result) => !result.videos || result.videos.length === 0,
+                maxEmptyRetries: 3,
+                emptyRetryDelay: 2000,
+                name: "TikTok TikAPI",
+              }
+            );
+
+            let posts = tiktokService.transformToPosts(tiktokResults);
+            posts = TikTokApiService.filterByTimeRange(posts, timeFilter);
+
+            if (TikTokApiService.hasBooleanQuery(query)) {
+              posts = TikTokApiService.filterByBooleanQuery(posts, query);
             }
-          );
 
-          let tiktokPosts = tiktokService.transformToPosts(tiktokResults);
+            const rawCount = tiktokResults.videos?.length || 0;
+            console.log('[TikTok TikAPI] Raw:', rawCount, 'Filtered:', posts.length, 'TimeFilter:', timeFilter);
 
-          tiktokPosts = TikTokApiService.filterByTimeRange(tiktokPosts, timeFilter);
+            return { posts, source: 'TikAPI', rawCount };
+          })();
+          tiktokApiPromises.push(tikApiPromise);
+        }
 
-          if (TikTokApiService.hasBooleanQuery(query)) {
-            tiktokPosts = TikTokApiService.filterByBooleanQuery(tiktokPosts, query);
-          }
-
-          const rawVideoCount = tiktokResults.videos?.length || 0;
-          console.log('[TikTok TikAPI] Raw:', rawVideoCount, 'Filtered:', tiktokPosts.length, 'TimeFilter:', timeFilter);
-
-          allPosts.push(...tiktokPosts);
-          platformCounts.tiktok = tiktokPosts.length;
-
-          // Warn if TikTok returned no results after all retries
-          if (tiktokPosts.length === 0 && rawVideoCount === 0) {
-            warnings.push("TikTok returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
-          }
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          console.error("TikTok API error:", errorMessage);
+        // If no TikTok APIs configured
+        if (tiktokApiPromises.length === 0) {
+          console.warn("TikTok API: Neither SociaVault nor TikAPI (with account key) configured");
           platformCounts.tiktok = 0;
-          warnings.push(`TikTok search failed: ${errorMessage}`);
+          return;
+        }
+
+        // Run all TikTok API calls in parallel
+        const results = await Promise.allSettled(tiktokApiPromises);
+
+        // Merge and deduplicate results (prefer earlier results for duplicates)
+        const seenIds = new Set<string>();
+        const mergedPosts: Post[] = [];
+        let totalRawCount = 0;
+        const tiktokWarnings: string[] = [];
+
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            totalRawCount += result.value.rawCount;
+            for (const post of result.value.posts) {
+              if (!seenIds.has(post.id)) {
+                seenIds.add(post.id);
+                mergedPosts.push(post);
+              }
+            }
+          } else {
+            const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason);
+            console.error("TikTok API error:", errorMessage);
+            tiktokWarnings.push(`TikTok search failed: ${errorMessage}`);
+          }
+        }
+
+        console.log('[TikTok Combined] Total unique posts:', mergedPosts.length, 'from', results.filter(r => r.status === 'fulfilled').length, 'APIs');
+
+        allPosts.push(...mergedPosts);
+        platformCounts.tiktok = mergedPosts.length;
+
+        // Add warnings
+        if (tiktokWarnings.length > 0 && mergedPosts.length === 0) {
+          // Only show warnings if we got no results at all
+          warnings.push(...tiktokWarnings);
+        }
+
+        if (mergedPosts.length === 0 && totalRawCount === 0 && tiktokWarnings.length === 0) {
+          warnings.push("TikTok returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
         }
       };
       searchPromises.push(tiktokSearch());
@@ -447,8 +477,12 @@ export async function POST(request: NextRequest) {
               { retries: 2, delay: 1500, name: "Reddit SociaVault API" }
             ),
             {
-              // SociaVault Reddit returns { data: { posts: [...] } }
-              isEmpty: (result) => !result.data?.posts || result.data.posts.length === 0,
+              // SociaVault Reddit returns { data: { posts: { "0": {...}, "1": {...} } } } - object with numeric keys
+              isEmpty: (result) => {
+                const posts = result.data?.posts;
+                if (!posts) return true;
+                return Array.isArray(posts) ? posts.length === 0 : Object.keys(posts).length === 0;
+              },
               maxEmptyRetries: 3,
               emptyRetryDelay: 2000,
               name: "Reddit SociaVault API",
@@ -462,7 +496,8 @@ export async function POST(request: NextRequest) {
             redditPosts = SociaVaultApiService.filterByBooleanQuery(redditPosts, query);
           }
 
-          const rawPostCount = redditResults.data?.posts?.length || 0;
+          const postsData = redditResults.data?.posts;
+          const rawPostCount = postsData ? (Array.isArray(postsData) ? postsData.length : Object.keys(postsData).length) : 0;
           console.log('[Reddit SociaVault] Raw:', rawPostCount, 'Filtered:', redditPosts.length, 'TimeFilter:', timeFilter);
 
           allPosts.push(...redditPosts);

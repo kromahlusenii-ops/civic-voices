@@ -10,6 +10,7 @@ const mockConfig = {
   },
   tiktok: {
     apiKey: "test-tiktok-api-key",
+    accountKey: "test-tiktok-account-key",
     apiUrl: "https://api.tikapi.io",
   },
   sociaVault: {

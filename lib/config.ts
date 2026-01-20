@@ -46,9 +46,10 @@ interface Config {
     rapidApiKey?: string;  // The Old Bird V2 API via RapidAPI (unofficial)
   };
 
-  // TikTok API
+  // TikTok API (TikAPI.io)
   tiktok: {
     apiKey?: string;
+    accountKey?: string;  // Required by TikAPI for authenticated requests
     apiUrl?: string;
   };
 
@@ -157,6 +158,7 @@ function loadConfig(): Config {
 
     tiktok: {
       apiKey: getOptionalEnv('TIKTOK_API_KEY'),
+      accountKey: getOptionalEnv('TIKTOK_ACCOUNT_KEY'),
       apiUrl: getOptionalEnv('TIKTOK_API_URL'),
     },
 

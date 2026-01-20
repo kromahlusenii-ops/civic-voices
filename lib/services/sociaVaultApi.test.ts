@@ -25,10 +25,10 @@ describe("SociaVaultApiService", () => {
   });
 
   describe("TikTok search", () => {
-    it("calls correct endpoint with keyword parameter", async () => {
+    it("calls correct endpoint with query parameter", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ data: [], hasMore: false }),
+        json: () => Promise.resolve({ success: true, data: { search_item_list: {} } }),
       });
 
       await service.searchTikTokByKeyword("test query");
@@ -37,14 +37,14 @@ describe("SociaVaultApiService", () => {
       const [url, options] = mockFetch.mock.calls[0];
 
       expect(url).toContain("/tiktok/search/keyword");
-      expect(url).toContain("keyword=test+query");
+      expect(url).toContain("query=test+query"); // API uses 'query' parameter
       expect(options.headers["X-API-Key"]).toBe("test-api-key");
     });
 
     it("includes cursor parameter when provided", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ data: [], hasMore: false }),
+        json: () => Promise.resolve({ success: true, data: { search_item_list: {} } }),
       });
 
       await service.searchTikTokByKeyword("test", { cursor: "abc123" });
@@ -56,7 +56,7 @@ describe("SociaVaultApiService", () => {
     it("includes count parameter when provided", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ data: [], hasMore: false }),
+        json: () => Promise.resolve({ success: true, data: { search_item_list: {} } }),
       });
 
       await service.searchTikTokByKeyword("test", { count: 30 });
@@ -66,30 +66,42 @@ describe("SociaVaultApiService", () => {
     });
 
     it("paginates through multiple pages", async () => {
-      // First page with hasMore=true
+      // First page with has_more=true (using raw API format)
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          data: [{ id: "1", desc: "Video 1" }],
-          hasMore: true,
-          cursor: "cursor1",
+          success: true,
+          data: {
+            success: true,
+            search_item_list: { "0": { aweme_info: { id: "1", desc: "Video 1" } } },
+            has_more: true,
+            cursor: "cursor1",
+          },
         }),
       });
-      // Second page with hasMore=true
+      // Second page with has_more=true
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          data: [{ id: "2", desc: "Video 2" }],
-          hasMore: true,
-          cursor: "cursor2",
+          success: true,
+          data: {
+            success: true,
+            search_item_list: { "0": { aweme_info: { id: "2", desc: "Video 2" } } },
+            has_more: true,
+            cursor: "cursor2",
+          },
         }),
       });
-      // Third page with hasMore=false
+      // Third page with has_more=false
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          data: [{ id: "3", desc: "Video 3" }],
-          hasMore: false,
+          success: true,
+          data: {
+            success: true,
+            search_item_list: { "0": { aweme_info: { id: "3", desc: "Video 3" } } },
+            has_more: false,
+          },
         }),
       });
 
@@ -106,8 +118,12 @@ describe("SociaVaultApiService", () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
-          data: [{ id: "1" }],
-          hasMore: false,
+          success: true,
+          data: {
+            success: true,
+            search_item_list: { "0": { aweme_info: { id: "1" } } },
+            has_more: false,
+          },
         }),
       });
 

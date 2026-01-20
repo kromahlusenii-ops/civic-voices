@@ -42,6 +42,19 @@ interface SociaVaultTikTokVideo {
   };
 }
 
+// Raw API response: { data: { search_item_list: { "0": { aweme_info: {...} } } } }
+interface SociaVaultTikTokRawResponse {
+  success?: boolean;
+  data?: {
+    success?: boolean;
+    search_item_list?: Record<string, { aweme_info: SociaVaultTikTokVideo }>;
+    cursor?: string;
+    has_more?: boolean;
+  };
+  credits_used?: number;
+}
+
+// Normalized response used internally
 interface SociaVaultTikTokSearchResponse {
   data?: SociaVaultTikTokVideo[];
   cursor?: string;
@@ -53,10 +66,11 @@ interface SociaVaultRedditPost {
   id?: string;
   title?: string;
   selftext?: string;
-  body?: string; // SociaVault uses 'body' instead of 'selftext'
+  body?: string; // Some responses use 'body' instead of 'selftext'
   author?: string;
   subreddit?: string;
-  created_utc?: number;
+  created?: number; // Unix timestamp
+  created_utc?: number; // Alternative timestamp field
   score?: number;
   num_comments?: number;
   url?: string;
@@ -66,12 +80,16 @@ interface SociaVaultRedditPost {
   upvote_ratio?: number;
 }
 
-// SociaVault Reddit search returns { data: { posts: [...] } }
+// SociaVault Reddit search returns { data: { posts: { "0": {...}, "1": {...} } } }
+// Posts is an object with numeric keys, not an array
 interface SociaVaultRedditSearchResponse {
+  success?: boolean;
   data?: {
-    posts?: SociaVaultRedditPost[];
+    success?: boolean;
+    posts?: Record<string, SociaVaultRedditPost> | SociaVaultRedditPost[];
+    after?: string;
   };
-  after?: string;
+  creditsUsed?: number;
 }
 
 export class SociaVaultApiService {
@@ -115,14 +133,14 @@ export class SociaVaultApiService {
 
   /**
    * Search TikTok videos by keyword (single page)
-   * Uses the /tiktok/search/keyword endpoint for keyword-based search
+   * Uses the /tiktok/search/keyword endpoint with 'query' parameter
    */
   async searchTikTokByKeyword(
     keyword: string,
     options: { cursor?: string; count?: number } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
     const params: Record<string, string> = {
-      keyword: keyword,
+      query: keyword, // API uses 'query' not 'keyword'
     };
 
     if (options.cursor) {
@@ -134,7 +152,19 @@ export class SociaVaultApiService {
       params.count = String(options.count);
     }
 
-    return this.fetchApi<SociaVaultTikTokSearchResponse>("/tiktok/search/keyword", params);
+    const rawResponse = await this.fetchApi<SociaVaultTikTokRawResponse>("/tiktok/search/keyword", params);
+
+    // Normalize response: extract videos from search_item_list object
+    const searchList = rawResponse.data?.search_item_list;
+    const videos: SociaVaultTikTokVideo[] = searchList
+      ? Object.values(searchList).map(item => item.aweme_info).filter(Boolean)
+      : [];
+
+    return {
+      data: videos,
+      cursor: rawResponse.data?.cursor,
+      hasMore: rawResponse.data?.has_more,
+    };
   }
 
   /**
@@ -337,12 +367,21 @@ export class SociaVaultApiService {
 
   /**
    * Transform SociaVault Reddit response to common Post format
-   * SociaVault returns { data: { posts: [...] } } structure
+   * SociaVault returns { data: { posts: { "0": {...}, "1": {...} } } } - object with numeric keys
    */
   transformRedditToPosts(data: SociaVaultRedditSearchResponse): Post[] {
-    // Handle the nested structure: data.posts
-    const posts = data.data?.posts;
-    if (!posts || posts.length === 0) {
+    // Handle the nested structure: data.posts (can be object or array)
+    const postsData = data.data?.posts;
+    if (!postsData) {
+      return [];
+    }
+
+    // Convert object with numeric keys to array if needed
+    const posts: SociaVaultRedditPost[] = Array.isArray(postsData)
+      ? postsData
+      : Object.values(postsData);
+
+    if (posts.length === 0) {
       return [];
     }
 
@@ -377,13 +416,16 @@ export class SociaVaultApiService {
           thumbnail = undefined;
         }
 
+        // Use created or created_utc (API returns 'created')
+        const timestamp = post.created || post.created_utc;
+
         return {
           id: postId,
           text,
           author,
           authorHandle: `u/${author}`,
-          createdAt: post.created_utc
-            ? new Date(post.created_utc * 1000).toISOString()
+          createdAt: timestamp
+            ? new Date(timestamp * 1000).toISOString()
             : new Date().toISOString(),
           platform: "reddit" as const,
           engagement: {
