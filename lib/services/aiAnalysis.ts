@@ -117,6 +117,13 @@ CRITICAL INSTRUCTIONS FOR QUALITY:
 4. DO NOT mention usernames or handles - focus on WHAT is being said, not WHO said it
 5. Each postsOverview and commentsOverview should feel like it could ONLY be written about THIS specific dataset
 
+LANGUAGE AWARENESS - AAVE & Slang:
+Many posts use AAVE (African American Vernacular English) or internet slang. Interpret these correctly:
+- POSITIVE expressions: "fire/🔥" (excellent), "slay/ate that" (did well), "goated/GOAT" (greatest), "bussin" (really good), "hits different" (uniquely great), "valid" (approved), "W" (win), "periodt" (emphatic yes), "snatched" (looks great), "iconic/legend" (praise), "stan" (strong fan), "understood the assignment" (perfect execution)
+- NEGATIVE expressions: "mid" (mediocre), "cap" (lying), "L" (loss/failure), "sus" (suspicious), "ratio'd" (publicly corrected/overwhelmed)
+- NEUTRAL modifiers: "no cap/deadass/fr fr" (emphasis), "lowkey/highkey" (degree), "bet" (agreement), "it's giving..." (resembles)
+When analyzing sentiment, understand the ACTUAL meaning behind slang expressions rather than taking them literally
+
 For topicAnalysis, provide SPECIFIC analysis for each keyTheme:
 - postsOverview: Summarize the ACTUAL arguments, claims, or perspectives from the posts. Quote specific phrases and reference concrete examples. Use **bold** for 2-3 key insights.
 - commentsOverview: Describe SPECIFIC reactions from comments - what exactly are people saying? Quote memorable replies. What questions are they asking? What are they agreeing/disagreeing with? Use **bold** for key reactions.

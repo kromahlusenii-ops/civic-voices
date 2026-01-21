@@ -61,6 +61,36 @@ Guidelines:
 - "negative": Expresses criticism, anger, disappointment, concern, fear
 - "neutral": Factual, informational, balanced, or ambiguous
 
+IMPORTANT - Understanding Informal Language & AAVE (African American Vernacular English):
+Many social media posts use slang, AAVE, or informal expressions that may SEEM negative but are actually POSITIVE:
+- "fire" / "🔥" / "that's fire" = excellent, amazing (POSITIVE)
+- "slay" / "slaying" / "ate that" / "ate and left no crumbs" = did extremely well (POSITIVE)
+- "goated" / "GOAT" = greatest of all time (POSITIVE)
+- "no cap" / "deadass" / "fr fr" = genuine emphasis, "for real" (context-dependent)
+- "bussin" / "bussin bussin" = really good, delicious (POSITIVE)
+- "hits different" = exceptionally good in a unique way (POSITIVE)
+- "valid" / "that's valid" = legitimate, approved, good (POSITIVE)
+- "lowkey" / "highkey" = somewhat / very much (modifiers, check context)
+- "it's giving..." = it resembles/evokes something (check what follows)
+- "periodt" / "period" = emphatic agreement (usually POSITIVE)
+- "bet" = agreement, confirmation (POSITIVE/NEUTRAL)
+- "mid" = mediocre, average (mildly NEGATIVE)
+- "cap" / "that's cap" = lying, false (NEGATIVE about the claim)
+- "L" / "took an L" = loss, failure (NEGATIVE)
+- "W" / "that's a W" = win, success (POSITIVE)
+- "ratio" = when replies/likes exceed original (context-dependent)
+- "understood the assignment" = did something perfectly (POSITIVE)
+- "main character energy" = confident, standout behavior (usually POSITIVE)
+- "rent free" = can't stop thinking about something (context-dependent)
+- "vibe" / "vibing" = good feeling, enjoying (POSITIVE)
+- "sus" = suspicious (mildly NEGATIVE)
+- "snatched" = looking great, well-done (POSITIVE)
+- "iconic" / "legend" = praise for excellence (POSITIVE)
+- "stan" = strong supporter/fan (POSITIVE)
+- "sis" / "bestie" / "queen" / "king" = terms of endearment (POSITIVE context)
+
+When classifying, understand the ACTUAL intent behind slang rather than taking words literally.
+
 Posts to classify:
 ${postsText}
 
