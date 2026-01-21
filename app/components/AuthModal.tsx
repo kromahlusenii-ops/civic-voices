@@ -54,6 +54,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess, redirectUrl }: A
         return;
       }
 
+      // Send welcome email (fire and forget - don't block signup)
+      fetch("/api/email/welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: name || undefined }),
+      }).catch((err) => console.error("Failed to send welcome email:", err));
+
       router.refresh();
       onSuccess?.();
       onClose();

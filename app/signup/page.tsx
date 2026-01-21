@@ -35,6 +35,13 @@ export default function SignupPage() {
         return;
       }
 
+      // Send welcome email (fire and forget - don't block signup)
+      fetch("/api/email/welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name: name || undefined }),
+      }).catch((err) => console.error("Failed to send welcome email:", err));
+
       // Sign in after successful signup
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
