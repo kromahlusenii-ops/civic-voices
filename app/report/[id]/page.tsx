@@ -222,6 +222,7 @@ export default function ReportPage() {
 
   // Track if initial load has happened
   const hasLoadedRef = useRef(false);
+  const hasSuccessfullyLoadedRef = useRef(false); // Track if report was successfully loaded
   const hasTriggeredInsightsRef = useRef(false);
   const insightsPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -271,7 +272,8 @@ export default function ReportPage() {
           }
 
           // No auth and no valid share - show login (but not for silent/background fetches)
-          if (!shareToken && !options?.silent) {
+          // Don't show auth modal if report was already successfully loaded
+          if (!shareToken && !options?.silent && !hasSuccessfullyLoadedRef.current) {
             console.log('[Report] Showing auth modal after all retries exhausted');
             setShowAuthModal(true);
             setIsLoading(false);
@@ -293,8 +295,11 @@ export default function ReportPage() {
 
       const data = await response.json();
       console.log(`[Report] Data received, posts: ${data.posts?.length || 0}, status: ${data.report?.status}`);
+      hasSuccessfullyLoadedRef.current = true; // Mark as successfully loaded
       setReportData(data);
       setIsOwner(data.isOwner === true);
+      // Close auth modal on successful load (handles race conditions)
+      setShowAuthModal(false);
     } catch (err) {
       console.error('[Report] Error:', err);
       if (!options?.silent) {
