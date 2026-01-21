@@ -85,7 +85,9 @@ export async function POST(request: NextRequest) {
     // Determine the base URL from request headers or environment
     const host = request.headers.get("host") || "localhost:3000"
     const protocol = host.includes("localhost") ? "http" : "https"
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `${protocol}://${host}`
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (
+      process.env.NODE_ENV === "production" ? "https://civicvoices.ai" : `${protocol}://${host}`
+    )
 
     // Create checkout session with trial
     const checkoutSession = await stripe.checkout.sessions.create({

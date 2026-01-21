@@ -89,6 +89,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Determine the base URL from request headers or environment
+    const host = request.headers.get("host") || "localhost:3000"
+    const protocol = host.includes("localhost") ? "http" : "https"
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (
+      process.env.NODE_ENV === "production" ? "https://civicvoices.ai" : `${protocol}://${host}`
+    )
+
     // Create checkout session for one-time payment
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -107,8 +114,8 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/search?credits=purchased`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/search?credits=canceled`,
+      success_url: `${baseUrl}/search?credits=purchased`,
+      cancel_url: `${baseUrl}/search?credits=canceled`,
       metadata: {
         userId: user.id,
         credits: credits.toString(),
