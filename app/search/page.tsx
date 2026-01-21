@@ -19,7 +19,6 @@ import SettingsModal from "../../components/SettingsModal";
 import ReportProgressModal from "../components/ReportProgressModal";
 import TrialModal from "../components/modals/TrialModal";
 import CreditsModal from "../components/modals/CreditsModal";
-import SearchProgressLoader from "../components/SearchProgressLoader";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "../contexts/ToastContext";
@@ -146,14 +145,6 @@ function SearchPageContent() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [showLocalComingSoon, setShowLocalComingSoon] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [useStreamingSearch, setUseStreamingSearch] = useState(true); // Enable progress storytelling (setter kept for future settings toggle)
-  const [streamingSearchParams, setStreamingSearchParams] = useState<{
-    query: string;
-    sources: string[];
-    timeRange: string;
-    language: string;
-  } | null>(null);
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
   const hasExecutedAuthCallbackSearch = useRef(false);
@@ -320,22 +311,11 @@ function SearchPageContent() {
     setIsSearching(true);
     setSearchError(null);
 
-    // Use streaming search with progress storytelling
-    if (useStreamingSearch) {
-      setStreamingSearchParams({
-        query,
-        sources,
-        timeRange: currentTimeRange,
-        language: currentLanguage,
-      });
-      return; // SearchProgressLoader will handle the rest
-    }
-
     try {
       // Convert URL time_range to API timeFilter
       const apiTimeFilter = TIME_RANGE_TO_API[currentTimeRange] || "3m";
 
-      // Call the real search API (non-streaming fallback)
+      // Call the real search API
       const response = await fetch("/api/search", {
         method: "POST",
         headers: {
@@ -454,108 +434,6 @@ function SearchPageContent() {
   const executeSearch = async (query: string) => {
     await executeSearchWithFilters(query, selectedSources, timeRange, language);
   };
-
-  // Handle streaming search completion
-  const handleStreamingSearchComplete = useCallback(async (data: Record<string, unknown>) => {
-    const posts = data.posts as Post[];
-    const query = data.query as string;
-    const aiAnalysis = data.aiAnalysis as AIAnalysis | undefined;
-    const summary = data.summary as { timeRange: { start: string; end: string } } | undefined;
-    const warnings = data.warnings as string[] | undefined;
-
-    // Calculate total mentions from aggregated engagement
-    const totalMentions = calculateTotalMentions(posts);
-
-    // Transform streaming response to SearchResults format
-    const results: SearchResults = {
-      query,
-      posts,
-      totalMentions,
-      qualityBadge: getMentionsBadge(totalMentions),
-      dateRange: {
-        start: summary?.timeRange?.start?.split("T")[0] || new Date().toISOString().split("T")[0],
-        end: summary?.timeRange?.end?.split("T")[0] || new Date().toISOString().split("T")[0],
-      },
-      aiAnalysis: aiAnalysis || null,
-      keyThemes: aiAnalysis?.keyThemes || [],
-      warnings,
-    };
-
-    setSearchResults(results);
-    setStreamingSearchParams(null);
-    setIsSearching(false);
-    setPendingSearch(false);
-
-    // Auto-save search to database if authenticated
-    if (isAuthenticated && user && streamingSearchParams) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          const saveResponse = await fetch("/api/search/save", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              queryText: query,
-              sources: streamingSearchParams.sources,
-              filters: { timeFilter: streamingSearchParams.timeRange, language: streamingSearchParams.language },
-              totalResults: posts.length,
-              posts: posts.map((post) => ({
-                id: post.id,
-                text: post.text,
-                author: post.author,
-                authorHandle: post.authorHandle,
-                authorAvatar: post.authorAvatar,
-                platform: post.platform,
-                url: post.url,
-                thumbnail: post.thumbnail,
-                createdAt: post.createdAt,
-                engagement: post.engagement,
-              })),
-            }),
-          });
-
-          if (saveResponse.ok) {
-            const saveData = await saveResponse.json();
-            setSearchResults((prev) => prev ? { ...prev, searchId: saveData.searchId } : null);
-          }
-
-          // Deduct credits
-          await fetch("/api/billing/deduct", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              action: "search",
-              description: `Search: ${query}`,
-            }),
-          });
-          refreshBilling();
-        }
-      } catch (err) {
-        console.error("Failed to save search or deduct credits:", err);
-      }
-    }
-  }, [isAuthenticated, user, streamingSearchParams, refreshBilling]);
-
-  // Handle streaming search error
-  const handleStreamingSearchError = useCallback((error: string) => {
-    setSearchError(error);
-    setStreamingSearchParams(null);
-    setIsSearching(false);
-    setPendingSearch(false);
-  }, []);
-
-  // Handle streaming search cancel
-  const handleStreamingSearchCancel = useCallback(() => {
-    setStreamingSearchParams(null);
-    setIsSearching(false);
-    setPendingSearch(false);
-  }, []);
 
   const handleStartResearch = () => {
     if (!searchQuery.trim()) return;
@@ -1135,19 +1013,8 @@ function SearchPageContent() {
           </div>
         )}
 
-        {/* Loading State - Progress Storytelling */}
-        {isSearching && streamingSearchParams && (
-          <SearchProgressLoader
-            query={streamingSearchParams.query}
-            sources={streamingSearchParams.sources}
-            onComplete={handleStreamingSearchComplete}
-            onError={handleStreamingSearchError}
-            onCancel={handleStreamingSearchCancel}
-          />
-        )}
-
-        {/* Loading State - Simple Fallback (non-streaming) */}
-        {isSearching && !streamingSearchParams && (
+        {/* Loading State - Centered */}
+        {isSearching && (
           <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4" role="status" aria-live="polite" aria-busy="true">
             <div className="w-full max-w-2xl">
               {/* Query Badge */}
