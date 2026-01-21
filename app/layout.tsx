@@ -19,7 +19,7 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "Civic Voices | Social Listening for Cities",
   description: "Understand resident sentiment in real time. Search what residents are saying across X, TikTok, YouTube, and more.",
-  metadataBase: new URL('https://civic-voices-six.vercel.app'),
+  metadataBase: new URL('https://civicvoices.ai'),
   openGraph: {
     title: "Civic Voices - Social Listening for Cities",
     description: "Understand resident sentiment in real time. Search what residents are saying across X, TikTok, YouTube, and more.",

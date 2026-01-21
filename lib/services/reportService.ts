@@ -78,9 +78,9 @@ function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return process.env.NEXT_PUBLIC_APP_URL;
   }
-  // Production default - use the Vercel deployment URL
+  // Production default - use the official domain
   if (process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production") {
-    return "https://civic-voices-six.vercel.app";
+    return "https://civicvoices.ai";
   }
   // For preview deployments, use VERCEL_URL
   if (process.env.VERCEL_URL) {
