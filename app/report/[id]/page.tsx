@@ -225,6 +225,8 @@ export default function ReportPage() {
   const hasSuccessfullyLoadedRef = useRef(false); // Track if report was successfully loaded
   const hasTriggeredInsightsRef = useRef(false);
   const insightsPollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track auth state via ref (avoids stale closure issues in retry chains)
+  const isAuthenticatedRef = useRef(isAuthenticated);
 
   // Fetch report data from API
   const fetchReportData = useCallback(async (options?: { silent?: boolean; retryCount?: number }) => {
@@ -272,10 +274,17 @@ export default function ReportPage() {
           }
 
           // No auth and no valid share - show login (but not for silent/background fetches)
-          // Don't show auth modal if report was already successfully loaded
-          if (!shareToken && !options?.silent && !hasSuccessfullyLoadedRef.current) {
+          // Don't show auth modal if: report already loaded, OR user is authenticated (stale closure check via ref)
+          if (!shareToken && !options?.silent && !hasSuccessfullyLoadedRef.current && !isAuthenticatedRef.current) {
             console.log('[Report] Showing auth modal after all retries exhausted');
             setShowAuthModal(true);
+            setIsLoading(false);
+            return;
+          }
+          // If authenticated but still got 401, might be a transient error - just show error instead of modal
+          if (!shareToken && !options?.silent && isAuthenticatedRef.current) {
+            console.log('[Report] Auth exists but got 401 - showing error instead of modal');
+            setError("Unable to load report. Please try refreshing the page.");
             setIsLoading(false);
             return;
           }
@@ -340,6 +349,18 @@ export default function ReportPage() {
       fetchReportData();
     }
   }, [authLoading, isAuthenticated, fetchReportData]);
+
+  // Keep auth ref updated (for stale closure access in retry chains)
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated;
+    // If auth becomes available and modal is showing, close it and retry
+    if (isAuthenticated && showAuthModal) {
+      console.log('[Report] Auth became available, closing modal and retrying');
+      setShowAuthModal(false);
+      hasLoadedRef.current = false; // Allow retry
+      fetchReportData();
+    }
+  }, [isAuthenticated, showAuthModal, fetchReportData]);
 
   // Handle successful auth
   const handleAuthSuccess = () => {
