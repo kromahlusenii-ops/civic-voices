@@ -133,7 +133,68 @@ describe("SociaVaultApiService", () => {
       expect(result.data).toHaveLength(1);
     });
 
-    it("transforms TikTok response to Post format", () => {
+    it("transforms TikTok response with actual API snake_case format", () => {
+      // This test uses the ACTUAL API response structure (snake_case)
+      // to catch API contract mismatches early
+      const response = {
+        data: [
+          {
+            aweme_id: "7329876543210987654",  // Real API uses aweme_id
+            desc: "Test video description #trending",
+            create_time: 1737590400,
+            author: {
+              uid: "123456789",
+              unique_id: "testuser",           // Real API uses snake_case
+              nickname: "Test User",
+              avatar_larger: { url_list: ["https://example.com/avatar.jpg"] },  // Nested structure
+              signature: "Bio text",
+              verified: true,
+              follower_count: 10000,           // Real API uses snake_case
+              following_count: 500,
+            },
+            statistics: {                      // Real API uses 'statistics' not 'stats'
+              digg_count: 5000,                // Real API uses snake_case
+              comment_count: 200,
+              share_count: 100,
+              play_count: 50000,
+            },
+            video: {
+              cover: { url_list: ["https://example.com/cover.jpg"] },  // Nested structure
+              origin_cover: { url_list: ["https://example.com/origin_cover.jpg"] },
+            },
+          },
+        ],
+      };
+
+      const posts = service.transformTikTokToPosts(response);
+
+      expect(posts).toHaveLength(1);
+      expect(posts[0]).toMatchObject({
+        id: "7329876543210987654",
+        text: "Test video description #trending",
+        author: "Test User",
+        authorHandle: "@testuser",
+        authorAvatar: "https://example.com/avatar.jpg",
+        platform: "tiktok",
+        engagement: {
+          likes: 5000,
+          comments: 200,
+          shares: 100,
+          views: 50000,
+        },
+        url: "https://www.tiktok.com/@testuser/video/7329876543210987654",
+        thumbnail: "https://example.com/origin_cover.jpg",
+      });
+      expect(posts[0].authorMetadata).toMatchObject({
+        followersCount: 10000,
+        followingCount: 500,
+        isVerified: true,
+        bio: "Bio text",
+      });
+    });
+
+    it("transforms TikTok response with legacy camelCase format (backwards compatibility)", () => {
+      // This test ensures backwards compatibility with old format
       const response = {
         data: [
           {

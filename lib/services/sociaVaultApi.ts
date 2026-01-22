@@ -63,29 +63,41 @@ function validateRedditPostSchema(post: Record<string, unknown>, index: number):
   }
 }
 
-// SociaVault TikTok response types
+// SociaVault TikTok response types - matches actual API snake_case format
 interface SociaVaultTikTokVideo {
-  id: string;
+  aweme_id?: string;  // API uses aweme_id, not id
+  id?: string;        // Keep for backwards compatibility
   desc?: string;
-  create_time?: number; // API uses snake_case
+  create_time?: number;
   author?: {
-    id?: string;
-    uniqueId?: string;
+    uid?: string;
+    unique_id?: string;   // API uses snake_case
+    uniqueId?: string;    // Keep for backwards compatibility
     nickname?: string;
-    avatarLarger?: string;
+    avatar_larger?: { url_list?: string[] };  // Nested structure
+    avatarLarger?: string;  // Keep for backwards compatibility
     signature?: string;
     verified?: boolean;
-    followerCount?: number;
-    followingCount?: number;
+    follower_count?: number;
+    followerCount?: number;  // Keep for backwards compatibility
+    following_count?: number;
+    followingCount?: number;  // Keep for backwards compatibility
   };
-  stats?: {
+  statistics?: {  // API uses statistics, not stats
+    digg_count?: number;
+    comment_count?: number;
+    share_count?: number;
+    play_count?: number;
+  };
+  stats?: {  // Keep for backwards compatibility
     diggCount?: number;
     shareCount?: number;
     commentCount?: number;
     playCount?: number;
   };
   video?: {
-    cover?: string;
+    cover?: { url_list?: string[] } | string;
+    origin_cover?: { url_list?: string[] } | string;
     originCover?: string;
     dynamicCover?: string;
   };
@@ -361,35 +373,54 @@ export class SociaVaultApiService {
     });
 
     return data.data
-      .filter((video) => video && video.id)
+      .filter((video) => video && (video.aweme_id || video.id))
       .map((video) => {
         const author = video.author || {};
-        const stats = video.stats || {};
-        const videoId = String(video.id);
-        const authorId = String(author.uniqueId || "unknown");
+        // Support both statistics (new) and stats (old) field names
+        // Cast to a union type that includes all possible fields
+        const statistics = (video.statistics || video.stats || {}) as {
+          digg_count?: number; diggCount?: number;
+          comment_count?: number; commentCount?: number;
+          share_count?: number; shareCount?: number;
+          play_count?: number; playCount?: number;
+        };
+        // Support both aweme_id (new) and id (old)
+        const videoId = String(video.aweme_id || video.id);
+        // Support both unique_id (new) and uniqueId (old)
+        const authorId = String(author.unique_id || author.uniqueId || author.uid || "unknown");
         const authorName = String(author.nickname || authorId);
 
         // Extract author metadata for credibility scoring
         const authorMetadata = this.extractTikTokAuthorMetadata(author, authorId);
 
-        // Extract thumbnail
-        const thumbnail = video.video?.originCover || video.video?.cover || video.video?.dynamicCover;
+        // Extract thumbnail - handle nested url_list structure
+        const coverData = video.video?.origin_cover || video.video?.cover;
+        const thumbnail = typeof coverData === 'object' && coverData?.url_list?.[0]
+          ? coverData.url_list[0]
+          : (video.video?.originCover || video.video?.dynamicCover || (typeof coverData === 'string' ? coverData : undefined));
+
+        // Extract avatar - handle nested url_list structure
+        const avatarData = author.avatar_larger || author.avatarLarger;
+        const authorAvatar = typeof avatarData === 'object' && avatarData?.url_list?.[0]
+          ? avatarData.url_list[0]
+          : (typeof avatarData === 'string' ? avatarData : undefined);
 
         return {
           id: videoId,
           text: String(video.desc || ""),
           author: authorName,
           authorHandle: `@${authorId}`,
-          authorAvatar: author.avatarLarger,
+          authorAvatar,
           createdAt: video.create_time
             ? new Date(video.create_time * 1000).toISOString()
             : new Date().toISOString(),
           platform: "tiktok" as const,
           engagement: {
-            likes: Number(stats.diggCount || 0),
-            comments: Number(stats.commentCount || 0),
-            shares: Number(stats.shareCount || 0),
-            views: Number(stats.playCount || 0),
+            // Support both snake_case (new) and camelCase (old) field names
+            likes: Number(statistics.digg_count || statistics.diggCount || 0),
+            comments: Number(statistics.comment_count || statistics.commentCount || 0),
+            shares: Number(statistics.share_count || statistics.shareCount || 0),
+            views: Number(statistics.play_count || statistics.playCount || 0),
           },
           url: `https://www.tiktok.com/@${authorId}/video/${videoId}`,
           thumbnail,
@@ -411,8 +442,9 @@ export class SociaVaultApiService {
     const pronounResult = extractPronouns(bio);
 
     return {
-      followersCount: author.followerCount || undefined,
-      followingCount: author.followingCount || undefined,
+      // Support both snake_case (new) and camelCase (old) field names
+      followersCount: author.follower_count || author.followerCount || undefined,
+      followingCount: author.following_count || author.followingCount || undefined,
       isVerified: Boolean(author.verified),
       bio,
       profileUrl: `https://www.tiktok.com/@${authorId}`,

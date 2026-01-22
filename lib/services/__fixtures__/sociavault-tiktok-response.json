@@ -1,0 +1,44 @@
+{
+  "description": "Real SociaVault TikTok API response structure (recorded 2026-01-22)",
+  "note": "Update this fixture when API changes - use actual API response",
+  "data": {
+    "success": true,
+    "search_item_list": {
+      "0": {
+        "aweme_info": {
+          "aweme_id": "7329876543210987654",
+          "desc": "Test video description #trending",
+          "create_time": 1737590400,
+          "author": {
+            "uid": "123456789",
+            "unique_id": "testuser",
+            "nickname": "Test User",
+            "avatar_larger": {
+              "url_list": ["https://example.com/avatar.jpg"]
+            },
+            "signature": "Bio text here",
+            "verified": false,
+            "follower_count": 10000,
+            "following_count": 500
+          },
+          "statistics": {
+            "digg_count": 5000,
+            "comment_count": 200,
+            "share_count": 100,
+            "play_count": 50000
+          },
+          "video": {
+            "cover": {
+              "url_list": ["https://example.com/cover.jpg"]
+            },
+            "origin_cover": {
+              "url_list": ["https://example.com/origin_cover.jpg"]
+            }
+          }
+        }
+      }
+    },
+    "cursor": "30",
+    "has_more": true
+  }
+}
