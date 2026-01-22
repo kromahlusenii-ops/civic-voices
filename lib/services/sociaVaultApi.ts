@@ -606,6 +606,130 @@ export class SociaVaultApiService {
   }
 
   // ============================================
+  // Comment Methods
+  // ============================================
+
+  /**
+   * Get comments for a TikTok video
+   * Endpoint: /tiktok/comments?url=...
+   */
+  async getTikTokComments(videoUrl: string, maxComments: number = 30): Promise<Post[]> {
+    try {
+      const response = await this.fetchApi<{
+        comments?: Array<{
+          cid?: string;
+          text?: string;
+          user?: {
+            unique_id?: string;
+            uniqueId?: string;
+            nickname?: string;
+            avatar_thumb?: { url_list?: string[] };
+          };
+          create_time?: number;
+          digg_count?: number;
+          reply_comment_total?: number;
+        }>;
+        has_more?: number;
+        cursor?: number;
+      }>("/tiktok/comments", { url: videoUrl });
+
+      if (!response.comments || response.comments.length === 0) {
+        return [];
+      }
+
+      return response.comments.slice(0, maxComments).map((comment) => {
+        const authorId = comment.user?.unique_id || comment.user?.uniqueId || "unknown";
+        return {
+          id: comment.cid || `tiktok-comment-${Date.now()}`,
+          text: comment.text || "",
+          author: comment.user?.nickname || authorId,
+          authorHandle: `@${authorId}`,
+          authorAvatar: comment.user?.avatar_thumb?.url_list?.[0],
+          createdAt: comment.create_time
+            ? new Date(comment.create_time * 1000).toISOString()
+            : new Date().toISOString(),
+          platform: "tiktok" as const,
+          engagement: {
+            likes: comment.digg_count || 0,
+            comments: comment.reply_comment_total || 0,
+            shares: 0,
+          },
+          url: videoUrl,
+        };
+      });
+    } catch (error) {
+      console.error(`[SociaVault] Failed to fetch TikTok comments:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get comments for a Reddit post
+   * Endpoint: /reddit/comments?url=...
+   */
+  async getRedditComments(postUrl: string, maxComments: number = 30): Promise<Post[]> {
+    try {
+      const response = await this.fetchApi<{
+        data?: {
+          comments?: Record<string, {
+            id?: string;
+            body?: string;
+            author?: string;
+            created?: number;
+            created_utc?: number;
+            score?: number;
+            permalink?: string;
+          }> | Array<{
+            id?: string;
+            body?: string;
+            author?: string;
+            created?: number;
+            created_utc?: number;
+            score?: number;
+            permalink?: string;
+          }>;
+        };
+      }>("/reddit/comments", { url: postUrl });
+
+      const commentsData = response.data?.comments;
+      if (!commentsData) {
+        return [];
+      }
+
+      // Handle both object and array formats
+      const comments = Array.isArray(commentsData)
+        ? commentsData
+        : Object.values(commentsData);
+
+      return comments.slice(0, maxComments).map((comment) => {
+        const author = comment.author || "[deleted]";
+        const timestamp = comment.created || comment.created_utc;
+        return {
+          id: comment.id || `reddit-comment-${Date.now()}`,
+          text: comment.body || "",
+          author,
+          authorHandle: `u/${author}`,
+          createdAt: timestamp
+            ? new Date(timestamp * 1000).toISOString()
+            : new Date().toISOString(),
+          platform: "reddit" as const,
+          engagement: {
+            likes: comment.score || 0,
+            comments: 0,
+            shares: 0,
+          },
+          url: comment.permalink
+            ? `https://www.reddit.com${comment.permalink}`
+            : postUrl,
+        };
+      });
+    } catch (error) {
+      console.error(`[SociaVault] Failed to fetch Reddit comments:`, error);
+      return [];
+    }
+  }
+
+  // ============================================
   // Static Utility Methods
   // ============================================
 

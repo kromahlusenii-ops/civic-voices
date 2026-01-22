@@ -664,6 +664,119 @@ export async function POST(request: NextRequest) {
       return cleanPost;
     });
 
+    // Fetch comments for top posts to include in AI analysis
+    interface PostCommentData {
+      parentId: string;
+      platform: string;
+      comments: Post[];
+    }
+    const commentsData: PostCommentData[] = [];
+
+    // Only fetch comments if we have posts and an API key for the AI analysis
+    if (config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
+      const MAX_POSTS_FOR_COMMENTS = 5; // Fetch comments for top 5 posts per platform
+      const MAX_COMMENTS_PER_POST = 15;
+
+      // Group posts by platform and take top N from each
+      const postsByPlatform: Record<string, Post[]> = {};
+      for (const post of cleanedPosts) {
+        if (!postsByPlatform[post.platform]) {
+          postsByPlatform[post.platform] = [];
+        }
+        if (postsByPlatform[post.platform].length < MAX_POSTS_FOR_COMMENTS) {
+          postsByPlatform[post.platform].push(post);
+        }
+      }
+
+      // Fetch comments in parallel for all platforms
+      const commentPromises: Promise<void>[] = [];
+
+      // X/Twitter comments
+      if (postsByPlatform.x && config.x.rapidApiKey) {
+        const xProvider = new XRapidApiProvider({ apiKey: config.x.rapidApiKey });
+        for (const post of postsByPlatform.x) {
+          commentPromises.push(
+            (async () => {
+              try {
+                const comments = await xProvider.getTweetReplies(post.id, MAX_COMMENTS_PER_POST);
+                if (comments.length > 0) {
+                  commentsData.push({ parentId: post.id, platform: "x", comments });
+                }
+              } catch (e) {
+                console.error(`[Comments] Failed to fetch X comments for ${post.id}:`, e);
+              }
+            })()
+          );
+        }
+      }
+
+      // YouTube comments
+      if (postsByPlatform.youtube && config.providers.youtube?.apiKey) {
+        const youtubeProvider = new YouTubeProvider({ apiKey: config.providers.youtube.apiKey });
+        for (const post of postsByPlatform.youtube) {
+          commentPromises.push(
+            (async () => {
+              try {
+                const comments = await youtubeProvider.getVideoComments(post.id, MAX_COMMENTS_PER_POST);
+                if (comments.length > 0) {
+                  commentsData.push({ parentId: post.id, platform: "youtube", comments });
+                }
+              } catch (e) {
+                console.error(`[Comments] Failed to fetch YouTube comments for ${post.id}:`, e);
+              }
+            })()
+          );
+        }
+      }
+
+      // TikTok comments (via SociaVault)
+      if (postsByPlatform.tiktok && config.sociaVault.apiKey) {
+        const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey);
+        for (const post of postsByPlatform.tiktok) {
+          commentPromises.push(
+            (async () => {
+              try {
+                const comments = await sociaVaultService.getTikTokComments(post.url, MAX_COMMENTS_PER_POST);
+                if (comments.length > 0) {
+                  commentsData.push({ parentId: post.id, platform: "tiktok", comments });
+                }
+              } catch (e) {
+                console.error(`[Comments] Failed to fetch TikTok comments for ${post.id}:`, e);
+              }
+            })()
+          );
+        }
+      }
+
+      // Reddit comments (via SociaVault)
+      if (postsByPlatform.reddit && config.sociaVault.apiKey) {
+        const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey);
+        for (const post of postsByPlatform.reddit) {
+          commentPromises.push(
+            (async () => {
+              try {
+                const comments = await sociaVaultService.getRedditComments(post.url, MAX_COMMENTS_PER_POST);
+                if (comments.length > 0) {
+                  commentsData.push({ parentId: post.id, platform: "reddit", comments });
+                }
+              } catch (e) {
+                console.error(`[Comments] Failed to fetch Reddit comments for ${post.id}:`, e);
+              }
+            })()
+          );
+        }
+      }
+
+      // Wait for all comment fetches with a timeout
+      try {
+        await withTimeout(Promise.all(commentPromises), 20000, "Comment fetching");
+      } catch (e) {
+        console.error("[Comments] Comment fetching timed out or failed:", e);
+      }
+
+      console.log(`[Comments] Fetched comments for ${commentsData.length} posts across platforms`);
+    }
+
     let aiAnalysis: AIAnalysis | undefined;
     if (config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
       try {
@@ -673,7 +786,7 @@ export async function POST(request: NextRequest) {
             timeRange: timeFilter,
             language: language || "all",
             sources,
-          }),
+          }, commentsData.length > 0 ? commentsData : undefined),
           45000,
           "AI Analysis"
         );
