@@ -25,11 +25,20 @@ export const metadata: Metadata = {
     description: "Understand resident sentiment in real time. Search what residents are saying across X, TikTok, YouTube, and more.",
     siteName: "Civic Voices",
     type: "website",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Civic Voices - Social Listening for Cities",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Civic Voices - Social Listening for Cities",
     description: "Understand resident sentiment in real time. Search what residents are saying across X, TikTok, YouTube, and more.",
+    images: ["/twitter-image"],
   },
 };
 
