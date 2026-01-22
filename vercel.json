@@ -1,5 +1,17 @@
 {
   "functions": {
+    "app/api/report/start/stream/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/report/start/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/report/[id]/chat/route.ts": {
+      "maxDuration": 60
+    },
+    "app/api/report/[id]/insights/route.ts": {
+      "maxDuration": 60
+    },
     "app/api/report/[id]/pdf/route.ts": {
       "maxDuration": 60
     },
