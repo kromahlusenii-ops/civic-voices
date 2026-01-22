@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
             const tiktokResults = await withRetryOnEmpty(
               () => withRetry(
                 () => withTimeout(
-                  sociaVaultService.searchTikTokVideos(tiktokQuery, { timeFilter }),
+                  sociaVaultService.searchTikTokVideos(tiktokQuery, { timeFilter, maxPages: 5 }),
                   30000,
                   "TikTok SociaVault API"
                 ),
@@ -470,7 +470,7 @@ export async function POST(request: NextRequest) {
           const redditResults = await withRetryOnEmpty(
             () => withRetry(
               () => withTimeout(
-                sociaVaultService.searchRedditPosts(redditQuery, { limit: 100, timeFilter }),
+                sociaVaultService.searchRedditPosts(redditQuery, { limit: 250, timeFilter }),
                 30000,
                 "Reddit SociaVault API"
               ),
