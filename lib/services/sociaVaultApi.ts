@@ -132,12 +132,31 @@ export class SociaVaultApiService {
   // ============================================
 
   /**
+   * Map timeFilter to SociaVault date_posted parameter
+   * 0 = All Time, 1 = Yesterday, 7 = This Week, 30 = This Month, 90 = Last 3 Months, 180 = Last 6 Months
+   */
+  static getDatePostedValue(timeFilter: string): string {
+    switch (timeFilter) {
+      case "7d":
+        return "7";
+      case "30d":
+        return "30";
+      case "3m":
+        return "90";
+      case "12m":
+        return "0"; // No exact match, use all time
+      default:
+        return "30"; // Default to last month
+    }
+  }
+
+  /**
    * Search TikTok videos by keyword (single page)
    * Uses the /tiktok/search/keyword endpoint with 'query' parameter
    */
   async searchTikTokByKeyword(
     keyword: string,
-    options: { cursor?: string; count?: number } = {}
+    options: { cursor?: string; count?: number; datePosted?: string } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
     const params: Record<string, string> = {
       query: keyword, // API uses 'query' not 'keyword'
@@ -150,6 +169,11 @@ export class SociaVaultApiService {
     // Try to request more results per page
     if (options.count) {
       params.count = String(options.count);
+    }
+
+    // Add date filter
+    if (options.datePosted) {
+      params.date_posted = options.datePosted;
     }
 
     const rawResponse = await this.fetchApi<SociaVaultTikTokRawResponse>("/tiktok/search/keyword", params);
@@ -172,10 +196,11 @@ export class SociaVaultApiService {
    */
   async searchTikTokByKeywordPaginated(
     keyword: string,
-    options: { maxPages?: number; count?: number } = {}
+    options: { maxPages?: number; count?: number; datePosted?: string } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
     const maxPages = options.maxPages || 3; // Default to 3 pages
     const count = options.count || 30; // Request 30 per page if supported
+    const datePosted = options.datePosted;
 
     const allVideos: SociaVaultTikTokVideo[] = [];
     let cursor: string | undefined;
@@ -183,7 +208,7 @@ export class SociaVaultApiService {
     let pagesLoaded = 0;
 
     while (hasMore && pagesLoaded < maxPages) {
-      const result = await this.searchTikTokByKeyword(keyword, { cursor, count });
+      const result = await this.searchTikTokByKeyword(keyword, { cursor, count, datePosted });
 
       if (result.data && result.data.length > 0) {
         allVideos.push(...result.data);
@@ -236,12 +261,18 @@ export class SociaVaultApiService {
    */
   async searchTikTokVideos(
     query: string,
-    options: { maxPages?: number } = {}
+    options: { maxPages?: number; timeFilter?: string } = {}
   ): Promise<SociaVaultTikTokSearchResponse> {
+    // Convert timeFilter to date_posted value
+    const datePosted = options.timeFilter
+      ? SociaVaultApiService.getDatePostedValue(options.timeFilter)
+      : undefined;
+
     // Use paginated search to get more results
     return this.searchTikTokByKeywordPaginated(query, {
       maxPages: options.maxPages || 3,
-      count: 30
+      count: 30,
+      datePosted
     });
   }
 

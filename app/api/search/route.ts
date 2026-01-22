@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
             const tiktokResults = await withRetryOnEmpty(
               () => withRetry(
                 () => withTimeout(
-                  sociaVaultService.searchTikTokVideos(tiktokQuery),
+                  sociaVaultService.searchTikTokVideos(tiktokQuery, { timeFilter }),
                   30000,
                   "TikTok SociaVault API"
                 ),
