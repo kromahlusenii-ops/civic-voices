@@ -4,7 +4,7 @@ import { getLoopsClient, isLoopsEnabled, LOOPS_TEMPLATES } from "@/lib/loops"
 import type { AlertFrequency } from "@prisma/client"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 300 // 5 minutes max for cron
+export const maxDuration = 60 // 1 minute max for Vercel Hobby plan
 
 // Verify cron secret (Vercel sends this header)
 function verifyCronSecret(request: NextRequest): boolean {
