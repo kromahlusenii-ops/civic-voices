@@ -59,15 +59,28 @@ const TruthSocialIcon = () => (
   </svg>
 );
 
-const SOURCES: Source[] = [
+const NextdoorIcon = () => (
+  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" />
+  </svg>
+);
+
+// Global sources (default mode)
+const GLOBAL_SOURCES: Source[] = [
+  { id: "reddit", name: "Reddit", enabled: true, icon: <RedditIcon /> },
   { id: "x", name: "X", enabled: true, icon: <XIcon /> },
   { id: "youtube", name: "YouTube", enabled: true, icon: <YouTubeIcon /> },
   { id: "tiktok", name: "TikTok", enabled: true, icon: <TikTokIcon /> },
   { id: "bluesky", name: "Bluesky", enabled: true, icon: <BlueskyIcon /> },
-  { id: "truthsocial", name: "Truth Social", enabled: false, icon: <TruthSocialIcon /> }, // Blocked by Cloudflare
-  { id: "reddit", name: "Reddit", enabled: true, icon: <RedditIcon /> },
+  { id: "truthsocial", name: "Truth Social", enabled: false, icon: <TruthSocialIcon /> },
   { id: "instagram", name: "Instagram", enabled: false, icon: <InstagramIcon /> },
   { id: "linkedin", name: "LinkedIn", enabled: false, icon: <LinkedInIcon /> },
+];
+
+// Local sources (local search mode)
+const LOCAL_SOURCES: Source[] = [
+  { id: "reddit", name: "Reddit", enabled: true, icon: <RedditIcon /> },
+  { id: "nextdoor", name: "Nextdoor", enabled: false, icon: <NextdoorIcon /> },
 ];
 
 interface SourceFilterProps {
@@ -75,6 +88,7 @@ interface SourceFilterProps {
   onSourcesChange: (sources: string[]) => void;
   updateUrlParams?: boolean;
   className?: string;
+  isLocalSearch?: boolean;
 }
 
 export default function SourceFilter({
@@ -82,11 +96,15 @@ export default function SourceFilter({
   onSourcesChange,
   updateUrlParams = false,
   className = "",
+  isLocalSearch = false,
 }: SourceFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Use appropriate sources based on search mode
+  const activeSources = isLocalSearch ? LOCAL_SOURCES : GLOBAL_SOURCES;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -117,7 +135,7 @@ export default function SourceFilter({
   }, [selectedSources, updateUrlParams, searchParams, router]);
 
   const toggleSource = (sourceId: string): void => {
-    const source = SOURCES.find((s) => s.id === sourceId);
+    const source = activeSources.find((s) => s.id === sourceId);
     if (!source?.enabled) {
       return;
     }
@@ -132,7 +150,7 @@ export default function SourceFilter({
 
   const getPrimarySource = (): Source | undefined => {
     const primaryId = selectedSources[0];
-    return SOURCES.find((s) => s.id === primaryId);
+    return activeSources.find((s) => s.id === primaryId);
   };
 
   const getButtonLabel = (): string => {
@@ -184,7 +202,7 @@ export default function SourceFilter({
           role="menu"
           aria-orientation="vertical"
         >
-          {SOURCES.map((source) => {
+          {activeSources.map((source) => {
             const isSelected = selectedSources.includes(source.id);
             const isDisabled = !source.enabled;
 
@@ -242,3 +260,9 @@ export default function SourceFilter({
     </div>
   );
 }
+
+// Export default source IDs for consumers
+export const DEFAULT_GLOBAL_SOURCES = ["reddit"];
+export const DEFAULT_LOCAL_SOURCES = ["reddit"];
+export const ALL_GLOBAL_SOURCE_IDS = GLOBAL_SOURCES.filter(s => s.enabled).map(s => s.id);
+export const ALL_LOCAL_SOURCE_IDS = LOCAL_SOURCES.filter(s => s.enabled).map(s => s.id);

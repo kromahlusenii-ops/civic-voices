@@ -112,7 +112,7 @@ function SearchPageContent() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get("message") || "");
   const [selectedSources, setSelectedSources] = useState<string[]>(() => {
     const sources = searchParams.getAll("sources");
-    return sources.length > 0 ? sources : ["youtube", "tiktok"];
+    return sources.length > 0 ? sources : ["reddit"];
   });
   const [timeRange, setTimeRange] = useState(() => {
     const urlTimeRange = searchParams.get("time_range");
@@ -152,6 +152,13 @@ function SearchPageContent() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [showLocalComingSoon, setShowLocalComingSoon] = useState(false);
+
+  // When switching to local search, reset sources to Reddit only
+  useEffect(() => {
+    if (searchScope === "local") {
+      setSelectedSources(["reddit"]);
+    }
+  }, [searchScope]);
 
   const postsContainerRef = useRef<HTMLDivElement>(null);
   const hasExecutedAuthCallbackSearch = useRef(false);
@@ -444,12 +451,6 @@ function SearchPageContent() {
 
   const handleStartResearch = () => {
     if (!searchQuery.trim()) return;
-
-    // If local scope is selected, show coming soon instead of executing search
-    if (searchScope === "local") {
-      setShowLocalComingSoon(true);
-      return;
-    }
 
     // Update URL with current search state
     updateUrlParams({
@@ -1011,6 +1012,7 @@ function SearchPageContent() {
                     selectedSources={selectedSources}
                     onSourcesChange={setSelectedSources}
                     updateUrlParams={false}
+                    isLocalSearch={searchScope === "local"}
                   />
 
                   {/* Time Interval Filter */}
