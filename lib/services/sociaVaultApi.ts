@@ -541,8 +541,9 @@ export class SociaVaultApiService {
       : "month";
 
     // Fetch more posts to ensure we have enough after filtering
-    const targetPostsPerSubreddit = Math.max(100, (options.limit || 100) * 2);
-    const maxPagesPerSubreddit = 3; // Fetch up to 3 pages per subreddit
+    // For local search we want maximum data from each subreddit
+    const targetPostsPerSubreddit = Math.max(300, (options.limit || 100) * 3);
+    const maxPagesPerSubreddit = 5; // Fetch up to 5 pages per subreddit (500 posts max)
     const allPosts: Post[] = [];
 
     // Search each subreddit using the subreddit endpoint with pagination

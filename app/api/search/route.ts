@@ -484,10 +484,10 @@ export async function POST(request: NextRequest) {
 
             redditPosts = await withTimeout(
               sociaVaultService.searchRedditInSubreddits(redditQuery, subreddits, {
-                limit: 250,
+                limit: 500,
                 timeFilter,
               }),
-              45000,
+              120000, // 2 minutes for extensive local search
               "Reddit Local Search"
             );
 
