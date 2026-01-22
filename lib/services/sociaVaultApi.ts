@@ -190,7 +190,7 @@ export class SociaVaultApiService {
           hasAwemeInfo: !!firstItem?.aweme_info,
           awemeInfoKeys: firstItem?.aweme_info ? Object.keys(firstItem.aweme_info).slice(0, 15) : [],
           createTime: firstItem?.aweme_info?.createTime,
-          create_time: (firstItem?.aweme_info as Record<string, unknown>)?.create_time,
+          create_time: (firstItem?.aweme_info as unknown as Record<string, unknown>)?.create_time,
           rawItemKeys: Object.keys(firstItem || {}).slice(0, 10),
         }));
       }
