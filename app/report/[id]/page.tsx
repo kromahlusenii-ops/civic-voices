@@ -251,8 +251,17 @@ export default function ReportPage() {
       }
 
       // Try authenticated access if available
+      // On initial retries, give extra time for auth to initialize
       console.log(`[Report] Fetching report ${params.id}, retry: ${retryCount}, silent: ${!!options?.silent}`);
-      const token = await getAccessToken();
+      let token = await getAccessToken();
+
+      // If no token on first attempt, wait briefly and try once more
+      // This handles race condition where Supabase session is still initializing
+      if (!token && retryCount === 0) {
+        console.log('[Report] No token on first attempt, waiting for auth to initialize...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        token = await getAccessToken();
+      }
       console.log(`[Report] Got token: ${!!token}`);
       const headers: HeadersInit = {};
       if (token) {
@@ -342,12 +351,21 @@ export default function ReportPage() {
     }
 
     // Otherwise, try to fetch with auth
-    // Use getAccessToken() as source of truth (more reliable than isAuthenticated context state)
+    // On initial page load, Supabase auth may still be initializing even after authLoading=false
+    // Add a small delay on first load to let auth fully settle
     if (!hasLoadedRef.current) {
       console.log('[Report] Starting fetch with auth');
       hasLoadedRef.current = true;
       setShowAuthModal(false);
-      fetchReportData();
+
+      // Small delay on initial load to ensure Supabase session is fully ready
+      const isInitialLoad = !document.referrer || new URL(document.referrer).origin !== window.location.origin;
+      if (isInitialLoad) {
+        console.log('[Report] Initial page load detected, adding auth settle delay');
+        setTimeout(() => fetchReportData(), 300);
+      } else {
+        fetchReportData();
+      }
     }
   }, [authLoading, isAuthenticated, fetchReportData]);
 
