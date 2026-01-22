@@ -45,6 +45,9 @@ export interface SearchParams {
   locationFilter?: string;
   language?: string;
   sort?: SortOption;
+  // Local search parameters
+  state?: string;
+  city?: string;
 }
 
 export interface Post {

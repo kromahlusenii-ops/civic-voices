@@ -1,0 +1,470 @@
+{
+  "AL": {
+    "subreddits": ["Alabama", "Birmingham_AL"],
+    "cities": {
+      "birmingham": ["Birmingham_AL", "bhamnow"],
+      "montgomery": ["montgomery"],
+      "mobile": ["MobileAL"],
+      "huntsville": ["HuntsvilleAlabama"]
+    }
+  },
+  "AK": {
+    "subreddits": ["alaska"],
+    "cities": {
+      "anchorage": ["anchorage"],
+      "fairbanks": ["Fairbanks"],
+      "juneau": ["Juneau"]
+    }
+  },
+  "AZ": {
+    "subreddits": ["arizona"],
+    "cities": {
+      "phoenix": ["phoenix", "PHXList"],
+      "tucson": ["Tucson"],
+      "mesa": ["MesaAZ"],
+      "scottsdale": ["Scottsdale"],
+      "tempe": ["Tempe"]
+    }
+  },
+  "AR": {
+    "subreddits": ["Arkansas"],
+    "cities": {
+      "little-rock": ["LittleRock"],
+      "fayetteville": ["fayetteville"],
+      "fort-smith": ["FortSmith"]
+    }
+  },
+  "CA": {
+    "subreddits": ["California", "bayarea", "SoCal"],
+    "cities": {
+      "los-angeles": ["LosAngeles", "LAlist", "AskLosAngeles"],
+      "san-francisco": ["sanfrancisco", "AskSF", "bayarea"],
+      "san-diego": ["sandiego", "SanDiegan"],
+      "san-jose": ["SanJose", "bayarea"],
+      "sacramento": ["Sacramento"],
+      "oakland": ["oakland", "bayarea"],
+      "fresno": ["fresno"],
+      "long-beach": ["longbeach"],
+      "bakersfield": ["Bakersfield"],
+      "anaheim": ["orangecounty", "Anaheim"]
+    }
+  },
+  "CO": {
+    "subreddits": ["Colorado"],
+    "cities": {
+      "denver": ["Denver", "denverjobs"],
+      "colorado-springs": ["ColoradoSprings"],
+      "aurora": ["AuroraCO"],
+      "boulder": ["boulder"],
+      "fort-collins": ["FortCollins"]
+    }
+  },
+  "CT": {
+    "subreddits": ["Connecticut"],
+    "cities": {
+      "hartford": ["Hartford"],
+      "new-haven": ["newhaven"],
+      "stamford": ["Stamford"],
+      "bridgeport": ["Bridgeport"]
+    }
+  },
+  "DE": {
+    "subreddits": ["Delaware"],
+    "cities": {
+      "wilmington": ["WilmingtonDE"],
+      "dover": ["DoverDE"],
+      "newark": ["UDelaware"]
+    }
+  },
+  "DC": {
+    "subreddits": ["washingtondc", "nova", "DMV"],
+    "cities": {
+      "washington": ["washingtondc", "DCjobs", "DCents"]
+    }
+  },
+  "FL": {
+    "subreddits": ["florida"],
+    "cities": {
+      "miami": ["Miami", "FLGuns"],
+      "orlando": ["orlando"],
+      "tampa": ["tampa", "TampaBayLightning"],
+      "jacksonville": ["jacksonville"],
+      "fort-lauderdale": ["fortlauderdale"],
+      "st-petersburg": ["StPetersburgFL"],
+      "tallahassee": ["Tallahassee"],
+      "west-palm-beach": ["WestPalmBeach"]
+    }
+  },
+  "GA": {
+    "subreddits": ["Georgia"],
+    "cities": {
+      "atlanta": ["Atlanta", "AtlantaHawks"],
+      "savannah": ["savannah"],
+      "augusta": ["Augusta"],
+      "columbus": ["ColumbusGA"],
+      "macon": ["macon"]
+    }
+  },
+  "HI": {
+    "subreddits": ["Hawaii"],
+    "cities": {
+      "honolulu": ["Honolulu", "Hawaii"],
+      "pearl-city": ["Hawaii"],
+      "hilo": ["BigIsland"]
+    }
+  },
+  "ID": {
+    "subreddits": ["Idaho"],
+    "cities": {
+      "boise": ["Boise"],
+      "nampa": ["Idaho"],
+      "meridian": ["Idaho"]
+    }
+  },
+  "IL": {
+    "subreddits": ["Illinois"],
+    "cities": {
+      "chicago": ["chicago", "ChicagoSuburbs", "ChicagoJobs"],
+      "aurora": ["ChicagoSuburbs"],
+      "naperville": ["naperville", "ChicagoSuburbs"],
+      "springfield": ["SpringfieldIL"],
+      "rockford": ["rockford"],
+      "peoria": ["PeoriaIL"]
+    }
+  },
+  "IN": {
+    "subreddits": ["Indiana"],
+    "cities": {
+      "indianapolis": ["indianapolis", "indyblue"],
+      "fort-wayne": ["fortwayne"],
+      "evansville": ["evansville"],
+      "south-bend": ["SouthBend"]
+    }
+  },
+  "IA": {
+    "subreddits": ["Iowa"],
+    "cities": {
+      "des-moines": ["desmoines"],
+      "cedar-rapids": ["cedarrapids"],
+      "davenport": ["QuadCities"]
+    }
+  },
+  "KS": {
+    "subreddits": ["kansas"],
+    "cities": {
+      "wichita": ["wichita"],
+      "kansas-city": ["kansascity"],
+      "topeka": ["topeka"],
+      "overland-park": ["kansascity"]
+    }
+  },
+  "KY": {
+    "subreddits": ["Kentucky"],
+    "cities": {
+      "louisville": ["Louisville"],
+      "lexington": ["lexington"],
+      "bowling-green": ["BowlingGreen"]
+    }
+  },
+  "LA": {
+    "subreddits": ["Louisiana"],
+    "cities": {
+      "new-orleans": ["NewOrleans", "AskNOLA"],
+      "baton-rouge": ["batonrouge"],
+      "shreveport": ["shreveport"],
+      "lafayette": ["Acadiana"]
+    }
+  },
+  "ME": {
+    "subreddits": ["Maine"],
+    "cities": {
+      "portland": ["portlandme"],
+      "lewiston": ["Maine"],
+      "bangor": ["Maine"]
+    }
+  },
+  "MD": {
+    "subreddits": ["maryland"],
+    "cities": {
+      "baltimore": ["baltimore"],
+      "frederick": ["frederickmd"],
+      "rockville": ["MontgomeryCountyMD"],
+      "annapolis": ["Annapolis"]
+    }
+  },
+  "MA": {
+    "subreddits": ["Massachusetts", "boston"],
+    "cities": {
+      "boston": ["boston", "bostonjobs"],
+      "worcester": ["WorcesterMA"],
+      "springfield": ["SpringfieldMass"],
+      "cambridge": ["CambridgeMA", "boston"],
+      "lowell": ["Lowell"]
+    }
+  },
+  "MI": {
+    "subreddits": ["Michigan"],
+    "cities": {
+      "detroit": ["Detroit", "Detroit_D"],
+      "grand-rapids": ["grandrapids"],
+      "warren": ["Detroit"],
+      "ann-arbor": ["AnnArbor"],
+      "lansing": ["lansing"]
+    }
+  },
+  "MN": {
+    "subreddits": ["minnesota"],
+    "cities": {
+      "minneapolis": ["Minneapolis", "TwinCities"],
+      "st-paul": ["SaintPaul", "TwinCities"],
+      "rochester": ["rochestermn"],
+      "duluth": ["duluth"]
+    }
+  },
+  "MS": {
+    "subreddits": ["mississippi"],
+    "cities": {
+      "jackson": ["jacksonms"],
+      "gulfport": ["gulfport"],
+      "biloxi": ["Biloxi"]
+    }
+  },
+  "MO": {
+    "subreddits": ["missouri"],
+    "cities": {
+      "kansas-city": ["kansascity"],
+      "st-louis": ["StLouis"],
+      "springfield": ["springfieldMO"],
+      "columbia": ["columbiamo"]
+    }
+  },
+  "MT": {
+    "subreddits": ["Montana"],
+    "cities": {
+      "billings": ["Billings"],
+      "missoula": ["missoula"],
+      "great-falls": ["GreatFalls"]
+    }
+  },
+  "NE": {
+    "subreddits": ["Nebraska"],
+    "cities": {
+      "omaha": ["Omaha"],
+      "lincoln": ["lincoln"],
+      "bellevue": ["Omaha"]
+    }
+  },
+  "NV": {
+    "subreddits": ["Nevada"],
+    "cities": {
+      "las-vegas": ["vegas", "LasVegas", "vegaslocals"],
+      "henderson": ["vegas"],
+      "reno": ["Reno"],
+      "north-las-vegas": ["vegas"]
+    }
+  },
+  "NH": {
+    "subreddits": ["newhampshire"],
+    "cities": {
+      "manchester": ["ManchesterNH"],
+      "nashua": ["nashua"],
+      "concord": ["newhampshire"]
+    }
+  },
+  "NJ": {
+    "subreddits": ["newjersey"],
+    "cities": {
+      "newark": ["Newark"],
+      "jersey-city": ["jerseycity"],
+      "paterson": ["newjersey"],
+      "elizabeth": ["newjersey"],
+      "trenton": ["Trenton"]
+    }
+  },
+  "NM": {
+    "subreddits": ["NewMexico"],
+    "cities": {
+      "albuquerque": ["Albuquerque"],
+      "santa-fe": ["SantaFe"],
+      "las-cruces": ["LasCruces"]
+    }
+  },
+  "NY": {
+    "subreddits": ["newyork"],
+    "cities": {
+      "new-york-city": ["nyc", "AskNYC", "newyorkcity"],
+      "buffalo": ["Buffalo"],
+      "rochester": ["Rochester"],
+      "yonkers": ["nyc"],
+      "syracuse": ["Syracuse"],
+      "albany": ["Albany"]
+    }
+  },
+  "NC": {
+    "subreddits": ["NorthCarolina"],
+    "cities": {
+      "charlotte": ["Charlotte"],
+      "raleigh": ["raleigh", "triangle"],
+      "greensboro": ["gso"],
+      "durham": ["bullcity", "triangle"],
+      "winston-salem": ["winstonsalem"]
+    }
+  },
+  "ND": {
+    "subreddits": ["northdakota"],
+    "cities": {
+      "fargo": ["fargo"],
+      "bismarck": ["bismarck"],
+      "grand-forks": ["GrandForks"]
+    }
+  },
+  "OH": {
+    "subreddits": ["Ohio"],
+    "cities": {
+      "columbus": ["Columbus"],
+      "cleveland": ["Cleveland"],
+      "cincinnati": ["cincinnati"],
+      "toledo": ["toledo"],
+      "akron": ["akron"],
+      "dayton": ["dayton"]
+    }
+  },
+  "OK": {
+    "subreddits": ["oklahoma"],
+    "cities": {
+      "oklahoma-city": ["okc"],
+      "tulsa": ["tulsa"],
+      "norman": ["normanok"]
+    }
+  },
+  "OR": {
+    "subreddits": ["Oregon"],
+    "cities": {
+      "portland": ["Portland", "askportland"],
+      "eugene": ["Eugene"],
+      "salem": ["SALEM"],
+      "bend": ["Bend"]
+    }
+  },
+  "PA": {
+    "subreddits": ["Pennsylvania"],
+    "cities": {
+      "philadelphia": ["philadelphia", "Phillyscoreboard"],
+      "pittsburgh": ["pittsburgh"],
+      "allentown": ["lehighvalley"],
+      "erie": ["Erie"],
+      "harrisburg": ["centralpa"]
+    }
+  },
+  "RI": {
+    "subreddits": ["RhodeIsland"],
+    "cities": {
+      "providence": ["providence"],
+      "warwick": ["RhodeIsland"],
+      "cranston": ["RhodeIsland"]
+    }
+  },
+  "SC": {
+    "subreddits": ["southcarolina"],
+    "cities": {
+      "charleston": ["Charleston"],
+      "columbia": ["ColumbiaSC"],
+      "north-charleston": ["Charleston"],
+      "greenville": ["greenville"]
+    }
+  },
+  "SD": {
+    "subreddits": ["SouthDakota"],
+    "cities": {
+      "sioux-falls": ["SiouxFalls"],
+      "rapid-city": ["RapidCity"],
+      "aberdeen": ["SouthDakota"]
+    }
+  },
+  "TN": {
+    "subreddits": ["Tennessee"],
+    "cities": {
+      "nashville": ["nashville"],
+      "memphis": ["memphis"],
+      "knoxville": ["Knoxville"],
+      "chattanooga": ["Chattanooga"]
+    }
+  },
+  "TX": {
+    "subreddits": ["texas"],
+    "cities": {
+      "houston": ["houston"],
+      "san-antonio": ["sanantonio"],
+      "dallas": ["Dallas", "askdfw"],
+      "austin": ["Austin", "austinjobs"],
+      "fort-worth": ["FortWorth", "Dallas"],
+      "el-paso": ["ElPaso"],
+      "arlington": ["arlington"],
+      "plano": ["plano", "Dallas"],
+      "corpus-christi": ["corpus"]
+    }
+  },
+  "UT": {
+    "subreddits": ["Utah", "SaltLakeCity"],
+    "cities": {
+      "salt-lake-city": ["SaltLakeCity"],
+      "west-valley-city": ["SaltLakeCity"],
+      "provo": ["provo"],
+      "west-jordan": ["SaltLakeCity"]
+    }
+  },
+  "VT": {
+    "subreddits": ["vermont"],
+    "cities": {
+      "burlington": ["burlington"],
+      "south-burlington": ["burlington"],
+      "rutland": ["vermont"]
+    }
+  },
+  "VA": {
+    "subreddits": ["Virginia", "nova"],
+    "cities": {
+      "virginia-beach": ["VirginiaBeach", "HamptonRoads"],
+      "norfolk": ["norfolk", "HamptonRoads"],
+      "chesapeake": ["HamptonRoads"],
+      "richmond": ["rva"],
+      "arlington": ["nova", "Arlington"],
+      "alexandria": ["nova", "Alexandria"]
+    }
+  },
+  "WA": {
+    "subreddits": ["Washington"],
+    "cities": {
+      "seattle": ["Seattle", "SeattleWA"],
+      "spokane": ["Spokane"],
+      "tacoma": ["Tacoma"],
+      "vancouver": ["vancouverwa"],
+      "bellevue": ["bellevue", "Seattle"]
+    }
+  },
+  "WV": {
+    "subreddits": ["WestVirginia"],
+    "cities": {
+      "charleston": ["WestVirginia"],
+      "huntington": ["huntington"],
+      "morgantown": ["Morgantown"]
+    }
+  },
+  "WI": {
+    "subreddits": ["wisconsin"],
+    "cities": {
+      "milwaukee": ["milwaukee"],
+      "madison": ["madisonwi"],
+      "green-bay": ["GreenBay"],
+      "kenosha": ["Kenosha"]
+    }
+  },
+  "WY": {
+    "subreddits": ["wyoming"],
+    "cities": {
+      "cheyenne": ["Cheyenne"],
+      "casper": ["wyoming"],
+      "laramie": ["laramie"]
+    }
+  }
+}

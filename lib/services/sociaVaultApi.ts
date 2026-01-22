@@ -524,6 +524,70 @@ export class SociaVaultApiService {
   }
 
   /**
+   * Search Reddit posts within specific subreddits (for local search)
+   * Searches each subreddit and combines results
+   */
+  async searchRedditInSubreddits(
+    query: string,
+    subreddits: string[],
+    options: { limit?: number; timeFilter?: string } = {}
+  ): Promise<Post[]> {
+    if (subreddits.length === 0) {
+      return [];
+    }
+
+    const postsPerSubreddit = Math.ceil((options.limit || 100) / subreddits.length);
+    const allPosts: Post[] = [];
+
+    // Search each subreddit in parallel
+    const searchPromises = subreddits.map(async (subreddit) => {
+      try {
+        // Get posts from the subreddit
+        const response = await this.getSubredditPosts(subreddit, {
+          limit: postsPerSubreddit,
+        });
+
+        // Transform to Post format
+        const posts = this.transformRedditToPosts(response);
+
+        // Filter by query (client-side since subreddit endpoint doesn't support search)
+        const queryLower = query.toLowerCase();
+        const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
+
+        return posts.filter(post => {
+          const textLower = post.text.toLowerCase();
+          // Match if any query term is in the post text
+          return queryTerms.some(term => textLower.includes(term));
+        });
+      } catch (error) {
+        console.error(`[SociaVault] Error searching subreddit r/${subreddit}:`, error);
+        return [];
+      }
+    });
+
+    const results = await Promise.all(searchPromises);
+    for (const posts of results) {
+      allPosts.push(...posts);
+    }
+
+    // Apply time filter if specified
+    let filteredPosts = allPosts;
+    if (options.timeFilter) {
+      filteredPosts = SociaVaultApiService.filterByTimeRange(allPosts, options.timeFilter);
+    }
+
+    // Sort by engagement (likes + comments)
+    filteredPosts.sort((a, b) => {
+      const engagementA = (a.engagement.likes || 0) + (a.engagement.comments || 0);
+      const engagementB = (b.engagement.likes || 0) + (b.engagement.comments || 0);
+      return engagementB - engagementA;
+    });
+
+    // Limit total results
+    return filteredPosts.slice(0, options.limit || 100);
+  }
+
+  /**
    * Transform SociaVault Reddit response to common Post format
    * SociaVault returns { data: { posts: { "0": {...}, "1": {...} } } } - object with numeric keys
    */

@@ -9,6 +9,7 @@ import SociaVaultApiService from "@/lib/services/sociaVaultApi";
 import AIAnalysisService from "@/lib/services/aiAnalysis";
 import { config } from "@/lib/config";
 import type { SearchParams, SearchResponse, Post, AIAnalysis, SortOption } from "@/lib/types/api";
+import { getSubredditsForLocation } from "@/lib/utils/subredditLookup";
 import {
   processPostsCredibility,
   sortByRelevance,
@@ -202,9 +203,10 @@ async function withRetryOnEmpty<T>(
 export async function POST(request: NextRequest) {
   try {
     const body: SearchParams = await request.json();
-    const { query, sources, timeFilter, language, sort = 'relevance' } = body;
+    const { query, sources, timeFilter, language, sort = 'relevance', state, city } = body;
 
-    console.log('[Search API] Request:', { query, sources, timeFilter, language, sort });
+    const isLocalSearch = !!(state || city);
+    console.log('[Search API] Request:', { query, sources, timeFilter, language, sort, state, city, isLocalSearch });
 
     if (!query || !query.trim()) {
       return NextResponse.json(
@@ -466,46 +468,73 @@ export async function POST(request: NextRequest) {
           const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey);
           const redditQuery = SociaVaultApiService.getBaseQuery(query);
 
-          // Wrap with retry-on-empty to handle flaky API responses
-          const redditResults = await withRetryOnEmpty(
-            () => withRetry(
-              () => withTimeout(
-                sociaVaultService.searchRedditPosts(redditQuery, { limit: 250, timeFilter }),
-                30000,
-                "Reddit SociaVault API"
-              ),
-              { retries: 2, delay: 1500, name: "Reddit SociaVault API" }
-            ),
-            {
-              // SociaVault Reddit returns { data: { posts: { "0": {...}, "1": {...} } } } - object with numeric keys
-              isEmpty: (result) => {
-                const posts = result.data?.posts;
-                if (!posts) return true;
-                return Array.isArray(posts) ? posts.length === 0 : Object.keys(posts).length === 0;
-              },
-              maxEmptyRetries: 3,
-              emptyRetryDelay: 2000,
-              name: "Reddit SociaVault API",
-            }
-          );
+          let redditPosts: Post[];
 
-          let redditPosts = sociaVaultService.transformRedditToPosts(redditResults);
-          // Still apply client-side filtering as backup (API time filter is coarse)
-          redditPosts = SociaVaultApiService.filterByTimeRange(redditPosts, timeFilter);
+          // Use local search if state/city is provided
+          if (isLocalSearch && state) {
+            const subreddits = getSubredditsForLocation(state, city);
+            console.log(`[Reddit Local] Searching subreddits for ${city || state}:`, subreddits);
+
+            if (subreddits.length === 0) {
+              console.warn(`[Reddit Local] No subreddits found for ${city || state}`);
+              platformCounts.reddit = 0;
+              warnings.push(`No local subreddits found for the selected location. Try a national search instead.`);
+              return;
+            }
+
+            redditPosts = await withTimeout(
+              sociaVaultService.searchRedditInSubreddits(redditQuery, subreddits, {
+                limit: 250,
+                timeFilter,
+              }),
+              45000,
+              "Reddit Local Search"
+            );
+
+            console.log(`[Reddit Local] Found ${redditPosts.length} posts from ${subreddits.length} subreddits`);
+          } else {
+            // Standard global Reddit search
+            const redditResults = await withRetryOnEmpty(
+              () => withRetry(
+                () => withTimeout(
+                  sociaVaultService.searchRedditPosts(redditQuery, { limit: 250, timeFilter }),
+                  30000,
+                  "Reddit SociaVault API"
+                ),
+                { retries: 2, delay: 1500, name: "Reddit SociaVault API" }
+              ),
+              {
+                isEmpty: (result) => {
+                  const posts = result.data?.posts;
+                  if (!posts) return true;
+                  return Array.isArray(posts) ? posts.length === 0 : Object.keys(posts).length === 0;
+                },
+                maxEmptyRetries: 3,
+                emptyRetryDelay: 2000,
+                name: "Reddit SociaVault API",
+              }
+            );
+
+            redditPosts = sociaVaultService.transformRedditToPosts(redditResults);
+            redditPosts = SociaVaultApiService.filterByTimeRange(redditPosts, timeFilter);
+
+            const postsData = redditResults.data?.posts;
+            const rawPostCount = postsData ? (Array.isArray(postsData) ? postsData.length : Object.keys(postsData).length) : 0;
+            console.log('[Reddit SociaVault] Raw:', rawPostCount, 'Filtered:', redditPosts.length, 'TimeFilter:', timeFilter);
+          }
 
           if (SociaVaultApiService.hasBooleanQuery(query)) {
             redditPosts = SociaVaultApiService.filterByBooleanQuery(redditPosts, query);
           }
 
-          const postsData = redditResults.data?.posts;
-          const rawPostCount = postsData ? (Array.isArray(postsData) ? postsData.length : Object.keys(postsData).length) : 0;
-          console.log('[Reddit SociaVault] Raw:', rawPostCount, 'Filtered:', redditPosts.length, 'TimeFilter:', timeFilter);
-
           allPosts.push(...redditPosts);
           platformCounts.reddit = redditPosts.length;
 
-          if (redditPosts.length === 0 && rawPostCount === 0) {
-            warnings.push("Reddit returned no results after multiple attempts. The topic may have limited coverage or API is rate limited.");
+          if (redditPosts.length === 0) {
+            warnings.push(isLocalSearch
+              ? "No local Reddit posts found. The topic may have limited local coverage."
+              : "Reddit returned no results after multiple attempts. The topic may have limited coverage or API is rate limited."
+            );
           }
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);

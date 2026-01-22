@@ -547,6 +547,236 @@ describe("SociaVaultApiService", () => {
     });
   });
 
+  describe("searchRedditInSubreddits (local search)", () => {
+    it("returns empty array when no subreddits provided", async () => {
+      const result = await service.searchRedditInSubreddits("test query", []);
+      expect(result).toEqual([]);
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("searches each subreddit in parallel", async () => {
+      // Mock responses for each subreddit
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            data: {
+              posts: {
+                "0": {
+                  id: "post1",
+                  title: "Test climate post in California",
+                  author: "user1",
+                  subreddit: "California",
+                  created: Date.now() / 1000,
+                  score: 100,
+                  num_comments: 10,
+                },
+              },
+            },
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            data: {
+              posts: {
+                "0": {
+                  id: "post2",
+                  title: "Climate discussion in LA",
+                  author: "user2",
+                  subreddit: "LosAngeles",
+                  created: Date.now() / 1000,
+                  score: 200,
+                  num_comments: 20,
+                },
+              },
+            },
+          }),
+        });
+
+      const result = await service.searchRedditInSubreddits(
+        "climate",
+        ["California", "LosAngeles"]
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      // Both posts contain "climate" so both should be included
+      expect(result.length).toBe(2);
+    });
+
+    it("filters posts by query terms", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          data: {
+            posts: {
+              "0": {
+                id: "post1",
+                title: "Climate change is real",
+                author: "user1",
+                subreddit: "California",
+                created: Date.now() / 1000,
+                score: 100,
+                num_comments: 10,
+              },
+              "1": {
+                id: "post2",
+                title: "Best pizza in town",
+                author: "user2",
+                subreddit: "California",
+                created: Date.now() / 1000,
+                score: 50,
+                num_comments: 5,
+              },
+            },
+          },
+        }),
+      });
+
+      const result = await service.searchRedditInSubreddits("climate", ["California"]);
+
+      // Only the post about climate should be returned
+      expect(result.length).toBe(1);
+      expect(result[0].text).toContain("Climate");
+    });
+
+    it("sorts results by engagement (likes + comments)", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          data: {
+            posts: {
+              "0": {
+                id: "low",
+                title: "Low engagement climate post",
+                author: "user1",
+                subreddit: "California",
+                created: Date.now() / 1000,
+                score: 10,
+                num_comments: 5,
+              },
+              "1": {
+                id: "high",
+                title: "High engagement climate discussion",
+                author: "user2",
+                subreddit: "California",
+                created: Date.now() / 1000,
+                score: 500,
+                num_comments: 100,
+              },
+            },
+          },
+        }),
+      });
+
+      const result = await service.searchRedditInSubreddits("climate", ["California"]);
+
+      expect(result.length).toBe(2);
+      // Higher engagement should come first
+      expect(result[0].id).toBe("high");
+      expect(result[1].id).toBe("low");
+    });
+
+    it("limits total results", async () => {
+      const posts: Record<string, object> = {};
+      for (let i = 0; i < 10; i++) {
+        posts[String(i)] = {
+          id: `post${i}`,
+          title: `Climate post number ${i}`,
+          author: `user${i}`,
+          subreddit: "California",
+          created: Date.now() / 1000,
+          score: 100 - i,
+          num_comments: 10,
+        };
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: { posts } }),
+      });
+
+      const result = await service.searchRedditInSubreddits("climate", ["California"], {
+        limit: 5,
+      });
+
+      expect(result.length).toBe(5);
+    });
+
+    it("handles API errors gracefully for individual subreddits", async () => {
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            data: {
+              posts: {
+                "0": {
+                  id: "post1",
+                  title: "Climate post from working subreddit",
+                  author: "user1",
+                  subreddit: "California",
+                  created: Date.now() / 1000,
+                  score: 100,
+                  num_comments: 10,
+                },
+              },
+            },
+          }),
+        })
+        .mockRejectedValueOnce(new Error("API error for second subreddit"));
+
+      const result = await service.searchRedditInSubreddits(
+        "climate",
+        ["California", "LosAngeles"]
+      );
+
+      // Should return results from the working subreddit
+      expect(result.length).toBe(1);
+      expect(result[0].text).toContain("Climate post from working subreddit");
+    });
+
+    it("applies time filter to results", async () => {
+      const now = Date.now();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({
+          data: {
+            posts: {
+              "0": {
+                id: "recent",
+                title: "Recent climate post",
+                author: "user1",
+                subreddit: "California",
+                created: now / 1000 - 3 * 24 * 60 * 60, // 3 days ago
+                score: 100,
+                num_comments: 10,
+              },
+              "1": {
+                id: "old",
+                title: "Old climate post",
+                author: "user2",
+                subreddit: "California",
+                created: now / 1000 - 60 * 24 * 60 * 60, // 60 days ago
+                score: 50,
+                num_comments: 5,
+              },
+            },
+          },
+        }),
+      });
+
+      const result = await service.searchRedditInSubreddits(
+        "climate",
+        ["California"],
+        { timeFilter: "7d" }
+      );
+
+      // Only the recent post should be included
+      expect(result.length).toBe(1);
+      expect(result[0].id).toBe("recent");
+    });
+  });
+
   describe("static utility methods", () => {
     it("filters posts by time range", () => {
       const now = new Date();

@@ -239,7 +239,8 @@ function SearchPageContent() {
 
       // Execute the pending search
       setSearchQuery(pendingMessage);
-      executeSearchWithFilters(pendingMessage, selectedSources, timeRange, language);
+      const geoParams = searchScope === "local" ? { state: selectedState, city: selectedCity } : undefined;
+      executeSearchWithFilters(pendingMessage, selectedSources, timeRange, language, geoParams);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isAuthenticated, loading, isSearching, searchResults, router]);
@@ -280,7 +281,8 @@ function SearchPageContent() {
 
           // If we don't have search results yet, execute the search first
           if (!searchResults) {
-            executeSearchWithFilters(query, sources, savedTimeRange || timeRange, savedLanguage || language);
+            const geoParams = searchScope === "local" ? { state: selectedState, city: selectedCity } : undefined;
+            executeSearchWithFilters(query, sources, savedTimeRange || timeRange, savedLanguage || language, geoParams);
           }
 
           // Show a message that report will start after search
@@ -300,10 +302,11 @@ function SearchPageContent() {
     updateUrlParams({ time_range: value });
     // If there are existing results, re-run the search
     if (searchResults && searchQuery.trim()) {
-      executeSearchWithFilters(searchQuery, selectedSources, value, language);
+      const geoParams = searchScope === "local" ? { state: selectedState, city: selectedCity } : undefined;
+      executeSearchWithFilters(searchQuery, selectedSources, value, language, geoParams);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchResults, searchQuery, selectedSources, language, updateUrlParams]);
+  }, [searchResults, searchQuery, selectedSources, language, updateUrlParams, searchScope, selectedState, selectedCity]);
 
   // Handle language change
   const handleLanguageChange = useCallback((value: string) => {
@@ -311,16 +314,18 @@ function SearchPageContent() {
     updateUrlParams({ language: value });
     // If there are existing results, re-run the search
     if (searchResults && searchQuery.trim()) {
-      executeSearchWithFilters(searchQuery, selectedSources, timeRange, value);
+      const geoParams = searchScope === "local" ? { state: selectedState, city: selectedCity } : undefined;
+      executeSearchWithFilters(searchQuery, selectedSources, timeRange, value, geoParams);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchResults, searchQuery, selectedSources, timeRange, updateUrlParams]);
+  }, [searchResults, searchQuery, selectedSources, timeRange, updateUrlParams, searchScope, selectedState, selectedCity]);
 
   const executeSearchWithFilters = async (
     query: string,
     sources: string[],
     currentTimeRange: string,
-    currentLanguage: string
+    currentLanguage: string,
+    geoParams?: { state?: string | null; city?: string | null }
   ) => {
     setIsSearching(true);
     setSearchError(null);
@@ -329,18 +334,29 @@ function SearchPageContent() {
       // Convert URL time_range to API timeFilter
       const apiTimeFilter = TIME_RANGE_TO_API[currentTimeRange] || "3m";
 
+      // Build request body
+      const requestBody: Record<string, unknown> = {
+        query,
+        sources,
+        timeFilter: apiTimeFilter,
+        language: currentLanguage,
+      };
+
+      // Add geo params for local search
+      if (geoParams?.state) {
+        requestBody.state = geoParams.state;
+        if (geoParams?.city) {
+          requestBody.city = geoParams.city;
+        }
+      }
+
       // Call the real search API
       const response = await fetch("/api/search", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          query,
-          sources,
-          timeFilter: apiTimeFilter,
-          language: currentLanguage,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -446,7 +462,8 @@ function SearchPageContent() {
   };
 
   const executeSearch = async (query: string) => {
-    await executeSearchWithFilters(query, selectedSources, timeRange, language);
+    const geoParams = searchScope === "local" ? { state: selectedState, city: selectedCity } : undefined;
+    await executeSearchWithFilters(query, selectedSources, timeRange, language, geoParams);
   };
 
   const handleStartResearch = () => {
