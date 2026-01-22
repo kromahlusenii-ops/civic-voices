@@ -18,19 +18,26 @@ const BASE_URL = "https://api.sociavault.com/v1/scrape";
  * Schema validation helpers to catch API contract mismatches early
  */
 function validateTikTokVideoSchema(video: Record<string, unknown>, index: number): void {
-  const expectedFields = ['id', 'create_time', 'desc', 'author', 'stats'];
+  // Check for common field name alternatives
+  const idField = 'id' in video ? 'id' : ('aweme_id' in video ? 'aweme_id' : null);
+  const statsField = 'stats' in video ? 'stats' : ('statistics' in video ? 'statistics' : null);
 
-  // Check for common field name mismatches (camelCase vs snake_case)
-  if ('createTime' in video && !('create_time' in video)) {
-    console.warn(`[SociaVault Schema] Video ${index}: Found 'createTime' but expected 'create_time' - API may have changed`);
+  // Log field discovery for first video
+  if (index === 0) {
+    const actualFields = Object.keys(video).slice(0, 20);
+    console.log(`[SociaVault Schema] TikTok video fields: ${actualFields.join(', ')}`);
+
+    if (!idField) {
+      console.warn(`[SociaVault Schema] TikTok video missing ID field (tried: id, aweme_id)`);
+    }
+    if (!statsField) {
+      console.warn(`[SociaVault Schema] TikTok video missing stats field (tried: stats, statistics)`);
+    }
   }
 
-  // Log missing expected fields (only in first video to avoid spam)
-  if (index === 0) {
-    const missing = expectedFields.filter(f => !(f in video));
-    if (missing.length > 0) {
-      console.warn(`[SociaVault Schema] TikTok video missing expected fields: ${missing.join(', ')}`);
-    }
+  // Check for camelCase vs snake_case mismatches
+  if ('createTime' in video && !('create_time' in video)) {
+    console.warn(`[SociaVault Schema] Video ${index}: Found 'createTime' but expected 'create_time'`);
   }
 }
 
