@@ -139,7 +139,7 @@ describe("SociaVaultApiService", () => {
           {
             id: "12345",
             desc: "Test video description",
-            createTime: 1705320000, // 2024-01-15T10:00:00Z
+            create_time: 1705320000, // 2024-01-15T10:00:00Z
             author: {
               uniqueId: "testuser",
               nickname: "Test User",

@@ -18,7 +18,7 @@ const BASE_URL = "https://api.sociavault.com/v1/scrape";
 interface SociaVaultTikTokVideo {
   id: string;
   desc?: string;
-  createTime?: number;
+  create_time?: number; // API uses snake_case
   author?: {
     id?: string;
     uniqueId?: string;
@@ -188,10 +188,7 @@ export class SociaVaultApiService {
         const firstItem = searchList[firstKey];
         console.log('[SociaVault TikTok] Raw item structure:', JSON.stringify({
           hasAwemeInfo: !!firstItem?.aweme_info,
-          awemeInfoKeys: firstItem?.aweme_info ? Object.keys(firstItem.aweme_info).slice(0, 15) : [],
-          createTime: firstItem?.aweme_info?.createTime,
-          create_time: (firstItem?.aweme_info as unknown as Record<string, unknown>)?.create_time,
-          rawItemKeys: Object.keys(firstItem || {}).slice(0, 10),
+          create_time: firstItem?.aweme_info?.create_time,
         }));
       }
     }
@@ -301,13 +298,13 @@ export class SociaVaultApiService {
       return [];
     }
 
-    // Debug: Log first 3 raw createTime values
+    // Debug: Log first 3 raw create_time values
     const sampleRawTimes = data.data.slice(0, 3).map(v => ({
       id: v.id,
-      createTime: v.createTime,
-      asDate: v.createTime ? new Date(v.createTime * 1000).toISOString() : 'no timestamp'
+      create_time: v.create_time,
+      asDate: v.create_time ? new Date(v.create_time * 1000).toISOString() : 'no timestamp'
     }));
-    console.log('[SociaVault TikTok] Raw createTime samples:', JSON.stringify(sampleRawTimes));
+    console.log('[SociaVault TikTok] Raw create_time samples:', JSON.stringify(sampleRawTimes));
 
     return data.data
       .filter((video) => video && video.id)
@@ -330,8 +327,8 @@ export class SociaVaultApiService {
           author: authorName,
           authorHandle: `@${authorId}`,
           authorAvatar: author.avatarLarger,
-          createdAt: video.createTime
-            ? new Date(video.createTime * 1000).toISOString()
+          createdAt: video.create_time
+            ? new Date(video.create_time * 1000).toISOString()
             : new Date().toISOString(),
           platform: "tiktok" as const,
           engagement: {
