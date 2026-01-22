@@ -203,8 +203,12 @@ Respond ONLY with valid JSON, no additional text.`;
         return this.getFallbackAnalysis(query, posts);
       }
 
-      // Parse the JSON response
-      const analysis = JSON.parse(textContent.text) as AIAnalysis;
+      // Parse the JSON response with error recovery
+      const analysis = this.parseJsonResponse(textContent.text);
+      if (!analysis) {
+        console.error("AI analysis: Failed to parse JSON response");
+        return this.getFallbackAnalysis(query, posts);
+      }
       return analysis;
     } catch (error) {
       console.error("AI analysis error:", error);
@@ -270,6 +274,53 @@ Respond ONLY with valid JSON, no additional text.`;
     }
 
     return lines.join("\n");
+  }
+
+  /**
+   * Parse JSON response with error recovery
+   * Handles common issues like markdown code blocks and malformed JSON
+   */
+  private parseJsonResponse(text: string): AIAnalysis | null {
+    let jsonText = text.trim();
+
+    // Extract JSON from markdown code blocks if present
+    const jsonBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonBlockMatch) {
+      jsonText = jsonBlockMatch[1].trim();
+    }
+
+    // Try to find JSON object boundaries if there's extra text
+    const jsonStart = jsonText.indexOf('{');
+    const jsonEnd = jsonText.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      jsonText = jsonText.slice(jsonStart, jsonEnd + 1);
+    }
+
+    // Try parsing directly first
+    try {
+      return JSON.parse(jsonText) as AIAnalysis;
+    } catch (firstError) {
+      // Log the first error for debugging
+      console.warn("AI analysis: First JSON parse attempt failed:", firstError);
+
+      // Try fixing common issues
+      try {
+        // Remove trailing commas before } or ]
+        let fixedJson = jsonText.replace(/,\s*([}\]])/g, '$1');
+
+        // Fix unescaped newlines in strings (common Claude issue)
+        // This regex finds strings and escapes literal newlines within them
+        fixedJson = fixedJson.replace(/"([^"\\]|\\.)*"/g, (match) => {
+          return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+        });
+
+        return JSON.parse(fixedJson) as AIAnalysis;
+      } catch (secondError) {
+        console.error("AI analysis: JSON parse failed after fixes:", secondError);
+        console.error("AI analysis: Raw response (first 500 chars):", text.slice(0, 500));
+        return null;
+      }
+    }
   }
 
   private getFallbackAnalysis(query: string, posts: Post[]): AIAnalysis {
