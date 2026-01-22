@@ -19,7 +19,6 @@ const BASE_URL = "https://api.sociavault.com/v1/scrape";
  */
 function validateTikTokVideoSchema(video: Record<string, unknown>, index: number): void {
   const expectedFields = ['id', 'create_time', 'desc', 'author', 'stats'];
-  const actualFields = Object.keys(video);
 
   // Check for common field name mismatches (camelCase vs snake_case)
   if ('createTime' in video && !('create_time' in video)) {
