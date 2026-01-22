@@ -249,7 +249,7 @@ export async function GET(request: NextRequest) {
         )
 
         // Only send if there are results
-        console.log(`[Cron] Alert ${alert.id}: Search returned ${searchResult.totalPosts} posts, ${searchResult.topPosts.length} top posts`)
+        console.log(`[Cron] Alert ${alert.id}: Search returned ${searchResult.totalPosts} posts, ${searchResult.topPosts.length} top posts | Template ID: ${LOOPS_TEMPLATES.alertDigest}`)
 
         if (searchResult.totalPosts > 0) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -259,7 +259,7 @@ export async function GET(request: NextRequest) {
           // Send to each verified recipient
           for (const recipient of alert.recipients) {
             try {
-              await loops.sendTransactionalEmail({
+              const loopsResponse = await loops.sendTransactionalEmail({
                 transactionalId: LOOPS_TEMPLATES.alertDigest,
                 email: recipient.email,
                 dataVariables: {
@@ -276,7 +276,12 @@ export async function GET(request: NextRequest) {
                   frequency: alert.frequency.toLowerCase(),
                 },
               })
-              console.log(`[Cron] Sent digest to ${recipient.email} for alert ${alert.id}`)
+              console.log(`[Cron] Loops response for ${recipient.email}:`, JSON.stringify(loopsResponse))
+              if (loopsResponse.success) {
+                console.log(`[Cron] Successfully sent digest to ${recipient.email} for alert ${alert.id} (id: ${loopsResponse.id})`)
+              } else {
+                console.error(`[Cron] Loops reported failure for ${recipient.email}: ${loopsResponse.error}`)
+              }
             } catch (emailError) {
               console.error(
                 `[Cron] Failed to send email to ${recipient.email}:`,
