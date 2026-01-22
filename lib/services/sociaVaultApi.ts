@@ -111,6 +111,8 @@ export class SociaVaultApiService {
       if (value) url.searchParams.append(key, value);
     });
 
+    console.log(`[SociaVault] Request: ${url.toString()}`);
+
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
@@ -283,6 +285,14 @@ export class SociaVaultApiService {
     if (!data.data || data.data.length === 0) {
       return [];
     }
+
+    // Debug: Log first 3 raw createTime values
+    const sampleRawTimes = data.data.slice(0, 3).map(v => ({
+      id: v.id,
+      createTime: v.createTime,
+      asDate: v.createTime ? new Date(v.createTime * 1000).toISOString() : 'no timestamp'
+    }));
+    console.log('[SociaVault TikTok] Raw createTime samples:', JSON.stringify(sampleRawTimes));
 
     return data.data
       .filter((video) => video && video.id)
@@ -499,6 +509,15 @@ export class SociaVaultApiService {
         break;
       default:
         cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    }
+
+    // Debug: Log first 3 post dates for debugging
+    if (posts.length > 0) {
+      const sampleDates = posts.slice(0, 3).map(p => ({
+        createdAt: p.createdAt,
+        date: new Date(p.createdAt).toISOString()
+      }));
+      console.log(`[SociaVault] Filter cutoff: ${cutoffDate.toISOString()}, Sample post dates:`, JSON.stringify(sampleDates));
     }
 
     return posts.filter((post) => {
