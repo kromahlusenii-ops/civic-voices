@@ -77,14 +77,16 @@ async function runAlertSearch(
 ): Promise<{ totalPosts: number; topPosts: EmailPost[] }> {
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-    console.log(`[Cron] Running search for "${searchQuery}" on platforms: ${platforms.join(", ")} | App URL: ${appUrl}`)
+    // Convert platforms to lowercase (Prisma stores as YOUTUBE, but API expects youtube)
+    const sources = platforms.map(p => p.toLowerCase())
+    console.log(`[Cron] Running search for "${searchQuery}" on platforms: ${sources.join(", ")} | App URL: ${appUrl}`)
 
     const response = await fetch(`${appUrl}/api/search`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         query: searchQuery,
-        sources: platforms,
+        sources,
         timeFilter: "24h", // Last 24 hours for alerts
         sort: "relevance",
       }),
