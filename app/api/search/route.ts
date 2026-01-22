@@ -470,7 +470,7 @@ export async function POST(request: NextRequest) {
           const redditResults = await withRetryOnEmpty(
             () => withRetry(
               () => withTimeout(
-                sociaVaultService.searchReddit(redditQuery, { limit: 100 }),
+                sociaVaultService.searchRedditPosts(redditQuery, { limit: 100, timeFilter }),
                 30000,
                 "Reddit SociaVault API"
               ),
@@ -490,6 +490,7 @@ export async function POST(request: NextRequest) {
           );
 
           let redditPosts = sociaVaultService.transformRedditToPosts(redditResults);
+          // Still apply client-side filtering as backup (API time filter is coarse)
           redditPosts = SociaVaultApiService.filterByTimeRange(redditPosts, timeFilter);
 
           if (SociaVaultApiService.hasBooleanQuery(query)) {

@@ -270,6 +270,7 @@ describe("SociaVaultApiService", () => {
               title: "Link Post Title",
               author: "testuser",
               subreddit: "test",
+              created_utc: 1705320000,
               score: 50,
               num_comments: 10,
             },
@@ -331,6 +332,23 @@ describe("SociaVaultApiService", () => {
     it("detects boolean operators in query", () => {
       expect(SociaVaultApiService.hasBooleanQuery("climate AND change")).toBe(true);
       expect(SociaVaultApiService.hasBooleanQuery("simple query")).toBe(false);
+    });
+
+    it("maps timeFilter to TikTok date_posted values", () => {
+      expect(SociaVaultApiService.getDatePostedValue("7d")).toBe("7");
+      expect(SociaVaultApiService.getDatePostedValue("30d")).toBe("30");
+      expect(SociaVaultApiService.getDatePostedValue("3m")).toBe("90");
+      expect(SociaVaultApiService.getDatePostedValue("12m")).toBe("0");
+      expect(SociaVaultApiService.getDatePostedValue("unknown")).toBe("30"); // default
+    });
+
+    it("maps timeFilter to Reddit time values", () => {
+      expect(SociaVaultApiService.getRedditTimeValue("24h")).toBe("day");
+      expect(SociaVaultApiService.getRedditTimeValue("7d")).toBe("week");
+      expect(SociaVaultApiService.getRedditTimeValue("30d")).toBe("month");
+      expect(SociaVaultApiService.getRedditTimeValue("3m")).toBe("year");
+      expect(SociaVaultApiService.getRedditTimeValue("12m")).toBe("year");
+      expect(SociaVaultApiService.getRedditTimeValue("unknown")).toBe("month"); // default
     });
   });
 });

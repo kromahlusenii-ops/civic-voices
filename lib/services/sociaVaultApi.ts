@@ -14,6 +14,49 @@ import { extractPronouns } from "../utils/pronounDetection";
 
 const BASE_URL = "https://api.sociavault.com/v1/scrape";
 
+/**
+ * Schema validation helpers to catch API contract mismatches early
+ */
+function validateTikTokVideoSchema(video: Record<string, unknown>, index: number): void {
+  const expectedFields = ['id', 'create_time', 'desc', 'author', 'stats'];
+  const actualFields = Object.keys(video);
+
+  // Check for common field name mismatches (camelCase vs snake_case)
+  if ('createTime' in video && !('create_time' in video)) {
+    console.warn(`[SociaVault Schema] Video ${index}: Found 'createTime' but expected 'create_time' - API may have changed`);
+  }
+
+  // Log missing expected fields (only in first video to avoid spam)
+  if (index === 0) {
+    const missing = expectedFields.filter(f => !(f in video));
+    if (missing.length > 0) {
+      console.warn(`[SociaVault Schema] TikTok video missing expected fields: ${missing.join(', ')}`);
+    }
+  }
+}
+
+function validateRedditPostSchema(post: Record<string, unknown>, index: number): void {
+  // Check for timestamp field - Reddit can use 'created' or 'created_utc'
+  const hasTimestamp = 'created' in post || 'created_utc' in post;
+
+  // Check for common field name mismatches
+  if ('createdUtc' in post && !hasTimestamp) {
+    console.warn(`[SociaVault Schema] Reddit post ${index}: Found 'createdUtc' but expected 'created' or 'created_utc'`);
+  }
+
+  // Log missing critical fields (only in first post)
+  if (index === 0) {
+    const criticalFields = ['id', 'title', 'author'];
+    const missing = criticalFields.filter(f => !(f in post));
+    if (missing.length > 0) {
+      console.warn(`[SociaVault Schema] Reddit post missing critical fields: ${missing.join(', ')}`);
+    }
+    if (!hasTimestamp) {
+      console.warn(`[SociaVault Schema] Reddit post missing timestamp field (created or created_utc)`);
+    }
+  }
+}
+
 // SociaVault TikTok response types
 interface SociaVaultTikTokVideo {
   id: string;
@@ -111,8 +154,6 @@ export class SociaVaultApiService {
       if (value) url.searchParams.append(key, value);
     });
 
-    console.log(`[SociaVault] Request: ${url.toString()}`);
-
     const response = await fetch(url.toString(), {
       method: "GET",
       headers: {
@@ -134,7 +175,7 @@ export class SociaVaultApiService {
   // ============================================
 
   /**
-   * Map timeFilter to SociaVault date_posted parameter
+   * Map timeFilter to SociaVault date_posted parameter for TikTok
    * 0 = All Time, 1 = Yesterday, 7 = This Week, 30 = This Month, 90 = Last 3 Months, 180 = Last 6 Months
    */
   static getDatePostedValue(timeFilter: string): string {
@@ -149,6 +190,27 @@ export class SociaVaultApiService {
         return "0"; // No exact match, use all time
       default:
         return "30"; // Default to last month
+    }
+  }
+
+  /**
+   * Map timeFilter to SociaVault time parameter for Reddit
+   * Reddit accepts: "hour", "day", "week", "month", "year", "all"
+   */
+  static getRedditTimeValue(timeFilter: string): string {
+    switch (timeFilter) {
+      case "24h":
+        return "day";
+      case "7d":
+        return "week";
+      case "30d":
+        return "month";
+      case "3m":
+        return "year"; // No 3m option, use year as closest
+      case "12m":
+        return "year";
+      default:
+        return "month"; // Default to last month
     }
   }
 
@@ -180,18 +242,7 @@ export class SociaVaultApiService {
 
     const rawResponse = await this.fetchApi<SociaVaultTikTokRawResponse>("/tiktok/search/keyword", params);
 
-    // Debug: Log raw response structure to understand timestamp field location
     const searchList = rawResponse.data?.search_item_list;
-    if (searchList) {
-      const firstKey = Object.keys(searchList)[0];
-      if (firstKey) {
-        const firstItem = searchList[firstKey];
-        console.log('[SociaVault TikTok] Raw item structure:', JSON.stringify({
-          hasAwemeInfo: !!firstItem?.aweme_info,
-          create_time: firstItem?.aweme_info?.create_time,
-        }));
-      }
-    }
 
     // Normalize response: extract videos from search_item_list object
     const videos: SociaVaultTikTokVideo[] = searchList
@@ -298,13 +349,10 @@ export class SociaVaultApiService {
       return [];
     }
 
-    // Debug: Log first 3 raw create_time values
-    const sampleRawTimes = data.data.slice(0, 3).map(v => ({
-      id: v.id,
-      create_time: v.create_time,
-      asDate: v.create_time ? new Date(v.create_time * 1000).toISOString() : 'no timestamp'
-    }));
-    console.log('[SociaVault TikTok] Raw create_time samples:', JSON.stringify(sampleRawTimes));
+    // Schema validation for first few videos
+    data.data.slice(0, 3).forEach((video, index) => {
+      validateTikTokVideoSchema(video as unknown as Record<string, unknown>, index);
+    });
 
     return data.data
       .filter((video) => video && video.id)
@@ -419,6 +467,25 @@ export class SociaVaultApiService {
   }
 
   /**
+   * Search Reddit posts with timeFilter support
+   * Higher-level method that maps timeFilter to Reddit's time parameter
+   */
+  async searchRedditPosts(
+    query: string,
+    options: { limit?: number; timeFilter?: string } = {}
+  ): Promise<SociaVaultRedditSearchResponse> {
+    const time = options.timeFilter
+      ? SociaVaultApiService.getRedditTimeValue(options.timeFilter)
+      : "month";
+
+    return this.searchReddit(query, {
+      limit: options.limit || 100,
+      time,
+      sort: "relevance",
+    });
+  }
+
+  /**
    * Transform SociaVault Reddit response to common Post format
    * SociaVault returns { data: { posts: { "0": {...}, "1": {...} } } } - object with numeric keys
    */
@@ -437,6 +504,11 @@ export class SociaVaultApiService {
     if (posts.length === 0) {
       return [];
     }
+
+    // Schema validation for first few posts
+    posts.slice(0, 3).forEach((post, index) => {
+      validateRedditPostSchema(post as unknown as Record<string, unknown>, index);
+    });
 
     return posts
       .filter((post) => post && (post.id || post.url || post.title))
@@ -521,15 +593,6 @@ export class SociaVaultApiService {
         break;
       default:
         cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    }
-
-    // Debug: Log first 3 post dates for debugging
-    if (posts.length > 0) {
-      const sampleDates = posts.slice(0, 3).map(p => ({
-        createdAt: p.createdAt,
-        date: new Date(p.createdAt).toISOString()
-      }));
-      console.log(`[SociaVault] Filter cutoff: ${cutoffDate.toISOString()}, Sample post dates:`, JSON.stringify(sampleDates));
     }
 
     return posts.filter((post) => {
