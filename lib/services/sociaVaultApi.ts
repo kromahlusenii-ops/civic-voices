@@ -180,8 +180,23 @@ export class SociaVaultApiService {
 
     const rawResponse = await this.fetchApi<SociaVaultTikTokRawResponse>("/tiktok/search/keyword", params);
 
-    // Normalize response: extract videos from search_item_list object
+    // Debug: Log raw response structure to understand timestamp field location
     const searchList = rawResponse.data?.search_item_list;
+    if (searchList) {
+      const firstKey = Object.keys(searchList)[0];
+      if (firstKey) {
+        const firstItem = searchList[firstKey];
+        console.log('[SociaVault TikTok] Raw item structure:', JSON.stringify({
+          hasAwemeInfo: !!firstItem?.aweme_info,
+          awemeInfoKeys: firstItem?.aweme_info ? Object.keys(firstItem.aweme_info).slice(0, 15) : [],
+          createTime: firstItem?.aweme_info?.createTime,
+          create_time: (firstItem?.aweme_info as Record<string, unknown>)?.create_time,
+          rawItemKeys: Object.keys(firstItem || {}).slice(0, 10),
+        }));
+      }
+    }
+
+    // Normalize response: extract videos from search_item_list object
     const videos: SociaVaultTikTokVideo[] = searchList
       ? Object.values(searchList).map(item => item.aweme_info).filter(Boolean)
       : [];
