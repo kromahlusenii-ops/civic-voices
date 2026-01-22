@@ -824,7 +824,10 @@ export default function ReportPage() {
                 />
 
                 {/* Activity Chart - Full Width */}
-                <ActivityChart data={reportData.activityOverTime} />
+                <ActivityChart
+                  data={reportData.activityOverTime}
+                  sentimentData={reportData.metrics.sentimentBreakdown}
+                />
 
                 {/* Two Column: Emotions + Content Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full min-w-0">

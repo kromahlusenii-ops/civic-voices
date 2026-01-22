@@ -42,10 +42,17 @@ interface DataPoint {
   views?: number;
 }
 
+interface SentimentData {
+  positive: number;
+  negative: number;
+  neutral: number;
+}
+
 type ChartMode = "volume" | "sentiment";
 
 interface ActivityChartProps {
   data: DataPoint[];
+  sentimentData?: SentimentData;
   height?: number;
   mode?: ChartMode;
   onModeChange?: (mode: ChartMode) => void;
@@ -53,6 +60,7 @@ interface ActivityChartProps {
 
 export default function ActivityChart({
   data,
+  sentimentData,
   height = 280,
   mode = "volume",
   onModeChange,
@@ -390,49 +398,164 @@ export default function ActivityChart({
         </div>
       </div>
 
-      {/* Chart */}
-      <div ref={containerRef} className="relative w-full min-w-0 overflow-hidden">
-        <svg
-          ref={svgRef}
-          width="100%"
-          height={dimensions.height}
-          viewBox={dimensions.width > 0 ? `0 0 ${dimensions.width} ${dimensions.height}` : undefined}
-          preserveAspectRatio="xMidYMid meet"
-          style={{ maxWidth: '100%', display: 'block' }}
-        />
-        {tooltip?.show && (
-          <div
-            className="absolute pointer-events-none bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10"
-            style={{
-              left: tooltip.x,
-              top: tooltip.y,
-              transform: "translate(-50%, -100%)",
-            }}
-          >
-            <div className="font-medium mb-1">{formatDate(tooltip.date)}</div>
-            <div className="flex items-center gap-2 text-blue-300">
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-              {formatNumber(tooltip.views)} views
+      {/* Volume Chart */}
+      {activeMode === "volume" && (
+        <>
+          <div ref={containerRef} className="relative w-full min-w-0 overflow-hidden">
+            <svg
+              ref={svgRef}
+              width="100%"
+              height={dimensions.height}
+              viewBox={dimensions.width > 0 ? `0 0 ${dimensions.width} ${dimensions.height}` : undefined}
+              preserveAspectRatio="xMidYMid meet"
+              style={{ maxWidth: '100%', display: 'block' }}
+            />
+            {tooltip?.show && (
+              <div
+                className="absolute pointer-events-none bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10"
+                style={{
+                  left: tooltip.x,
+                  top: tooltip.y,
+                  transform: "translate(-50%, -100%)",
+                }}
+              >
+                <div className="font-medium mb-1">{formatDate(tooltip.date)}</div>
+                <div className="flex items-center gap-2 text-blue-300">
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  {formatNumber(tooltip.views)} views
+                </div>
+                <div className="flex items-center gap-2 text-orange-300">
+                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                  {tooltip.count} mentions
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Volume Legend */}
+          <div className="flex items-center justify-center gap-4 sm:gap-6 mt-3 sm:mt-4 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500"></span>
+              <span className="text-[10px] sm:text-xs text-gray-600">Views</span>
+              <InfoIcon tooltip="Total content views. Direct from platform APIs when available, otherwise estimated as ~15x engagement." />
             </div>
-            <div className="flex items-center gap-2 text-orange-300">
-              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-              {tooltip.count} mentions
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-500"></span>
+              <span className="text-[10px] sm:text-xs text-gray-600">Mentions</span>
+              <InfoIcon tooltip="Number of posts matching your search query on this date." />
             </div>
           </div>
-        )}
+        </>
+      )}
+
+      {/* Sentiment Chart */}
+      {activeMode === "sentiment" && sentimentData && (
+        <SentimentChart data={sentimentData} height={height} />
+      )}
+
+      {/* No sentiment data message */}
+      {activeMode === "sentiment" && !sentimentData && (
+        <div
+          className="flex items-center justify-center bg-gray-50 rounded-lg"
+          style={{ height }}
+        >
+          <p className="text-gray-500 text-sm">No sentiment data available</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Sentiment breakdown chart component
+function SentimentChart({ data, height }: { data: SentimentData; height: number }) {
+  const total = data.positive + data.negative + data.neutral;
+  if (total === 0) {
+    return (
+      <div
+        className="flex items-center justify-center bg-gray-50 rounded-lg"
+        style={{ height }}
+      >
+        <p className="text-gray-500 text-sm">No sentiment data available</p>
+      </div>
+    );
+  }
+
+  const positivePercent = Math.round((data.positive / total) * 100);
+  const negativePercent = Math.round((data.negative / total) * 100);
+  const neutralPercent = Math.round((data.neutral / total) * 100);
+
+  const sentimentItems = [
+    { label: "Positive", value: data.positive, percent: positivePercent, color: "bg-green-500", textColor: "text-green-600" },
+    { label: "Neutral", value: data.neutral, percent: neutralPercent, color: "bg-gray-400", textColor: "text-gray-600" },
+    { label: "Negative", value: data.negative, percent: negativePercent, color: "bg-red-500", textColor: "text-red-600" },
+  ];
+
+  return (
+    <div className="space-y-6" style={{ minHeight: height - 40 }}>
+      {/* Stacked bar */}
+      <div className="space-y-2">
+        <div className="flex h-8 rounded-full overflow-hidden">
+          {positivePercent > 0 && (
+            <div
+              className="bg-green-500 transition-all flex items-center justify-center"
+              style={{ width: `${positivePercent}%` }}
+            >
+              {positivePercent >= 10 && (
+                <span className="text-white text-xs font-medium">{positivePercent}%</span>
+              )}
+            </div>
+          )}
+          {neutralPercent > 0 && (
+            <div
+              className="bg-gray-400 transition-all flex items-center justify-center"
+              style={{ width: `${neutralPercent}%` }}
+            >
+              {neutralPercent >= 10 && (
+                <span className="text-white text-xs font-medium">{neutralPercent}%</span>
+              )}
+            </div>
+          )}
+          {negativePercent > 0 && (
+            <div
+              className="bg-red-500 transition-all flex items-center justify-center"
+              style={{ width: `${negativePercent}%` }}
+            >
+              {negativePercent >= 10 && (
+                <span className="text-white text-xs font-medium">{negativePercent}%</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Breakdown cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {sentimentItems.map((item) => (
+          <div key={item.label} className="bg-gray-50 rounded-lg p-4 text-center">
+            <div className={`text-2xl font-bold ${item.textColor}`}>
+              {item.percent}%
+            </div>
+            <div className="text-sm text-gray-600 mt-1">{item.label}</div>
+            <div className="text-xs text-gray-400 mt-0.5">
+              {formatNumber(item.value)} posts
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 sm:gap-6 mt-3 sm:mt-4 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500"></span>
-          <span className="text-[10px] sm:text-xs text-gray-600">Views</span>
-          <InfoIcon tooltip="Total content views. Direct from platform APIs when available, otherwise estimated as ~15x engagement." />
+      <div className="flex items-center justify-center gap-6 pt-3 border-t border-gray-100">
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-green-500"></span>
+          <span className="text-xs text-gray-600">Positive</span>
         </div>
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-500"></span>
-          <span className="text-[10px] sm:text-xs text-gray-600">Mentions</span>
-          <InfoIcon tooltip="Number of posts matching your search query on this date." />
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-gray-400"></span>
+          <span className="text-xs text-gray-600">Neutral</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-3 h-3 rounded-full bg-red-500"></span>
+          <span className="text-xs text-gray-600">Negative</span>
         </div>
       </div>
     </div>
