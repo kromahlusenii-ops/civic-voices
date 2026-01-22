@@ -665,7 +665,7 @@ export class SociaVaultApiService {
 
   /**
    * Get comments for a Reddit post
-   * Endpoint: /reddit/comments?url=...
+   * Endpoint: /reddit/post/comments?url=...
    */
   async getRedditComments(postUrl: string, maxComments: number = 30): Promise<Post[]> {
     try {
@@ -689,7 +689,7 @@ export class SociaVaultApiService {
             permalink?: string;
           }>;
         };
-      }>("/reddit/comments", { url: postUrl });
+      }>("/reddit/post/comments", { url: postUrl });
 
       const commentsData = response.data?.comments;
       if (!commentsData) {
