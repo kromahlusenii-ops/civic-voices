@@ -19,6 +19,7 @@ import {
   TopVoices,
   TopCreatorsByFollowing,
   ShareModal,
+  AlertButton,
   DashboardTabs,
   SocialPostGrid,
   MobileBottomNav,
@@ -204,7 +205,7 @@ const SOURCE_ICONS: Record<string, React.ReactNode> = {
 export default function ReportPage() {
   const router = useRouter();
   const params = useParams();
-  const { isAuthenticated, loading: authLoading, getAccessToken } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, getAccessToken } = useAuth();
   const { showToast } = useToast();
 
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -679,8 +680,8 @@ export default function ReportPage() {
 
                   {/* Desktop-only action buttons (moved to bottom nav on mobile) */}
                   <div className="hidden sm:flex items-center gap-2">
-                    {/* Download PDF Button */}
-                    {reportData.report.status === "COMPLETED" && (
+                    {/* Download PDF Button - only show for owner */}
+                    {isOwner && reportData.report.status === "COMPLETED" && (
                       <button
                         onClick={handleDownloadPDF}
                         disabled={isDownloadingPDF}
@@ -738,6 +739,16 @@ export default function ReportPage() {
                           />
                         </svg>
                       </button>
+                    )}
+                    {/* Alert Button - only show for owner */}
+                    {isOwner && user?.email && (
+                      <AlertButton
+                        reportId={reportData.report.id}
+                        searchQuery={reportData.report.query}
+                        platforms={reportData.report.sources}
+                        getAccessToken={getAccessToken}
+                        userEmail={user.email}
+                      />
                     )}
                   </div>
                 </div>

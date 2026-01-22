@@ -13,6 +13,8 @@ export { default as TopPosts } from "./TopPosts";
 export { default as TopVoices } from "./TopVoices";
 export { default as TopCreatorsByFollowing } from "./TopCreatorsByFollowing";
 export { default as ShareModal } from "./ShareModal";
+export { default as AlertButton } from "./AlertButton";
+export { default as AlertModal } from "./AlertModal";
 export { default as DashboardTabs } from "./DashboardTabs";
 export type { DashboardTab } from "./DashboardTabs";
 export { default as SocialPostCard } from "./SocialPostCard";

@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import AuthModal from "../components/AuthModal";
 import SearchHistoryModal from "../components/SearchHistoryModal";
 import SearchHistorySidebar from "../components/SearchHistorySidebar";
+import AlertHistorySidebar from "../components/AlertHistorySidebar";
 import QuerySuggestions from "../components/QuerySuggestions";
 import ScopeToggle, { type SearchScope } from "../components/ScopeToggle";
 import GeoFilters from "../components/GeoFilters";
@@ -124,6 +125,7 @@ function SearchPageContent() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSearchHistoryModal, setShowSearchHistoryModal] = useState(false);
   const [showSearchHistorySidebar, setShowSearchHistorySidebar] = useState(false);
+  const [showAlertHistorySidebar, setShowAlertHistorySidebar] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingSearch, setPendingSearch] = useState(false);
@@ -749,6 +751,12 @@ function SearchPageContent() {
         onClose={() => setShowSearchHistorySidebar(false)}
       />
 
+      {/* Alert History Sidebar */}
+      <AlertHistorySidebar
+        isOpen={showAlertHistorySidebar}
+        onClose={() => setShowAlertHistorySidebar(false)}
+      />
+
       {/* Settings Modal */}
       <SettingsModal
         isOpen={showSettingsModal}
@@ -833,6 +841,7 @@ function SearchPageContent() {
                 if (!isAuthenticated) {
                   setShowAuthModal(true);
                 } else {
+                  setShowAlertHistorySidebar(false);
                   setShowSearchHistorySidebar(!showSearchHistorySidebar);
                 }
               }}
@@ -842,6 +851,25 @@ function SearchPageContent() {
             >
               <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+
+            {/* Alert History */}
+            <button
+              onClick={() => {
+                if (!isAuthenticated) {
+                  setShowAuthModal(true);
+                } else {
+                  setShowSearchHistorySidebar(false);
+                  setShowAlertHistorySidebar(!showAlertHistorySidebar);
+                }
+              }}
+              aria-label="Email Alerts"
+              className={`flex h-10 w-10 items-center justify-center rounded-lg hover:bg-gray-100 ${showAlertHistorySidebar ? "bg-gray-100" : ""}`}
+              data-testid="alert-history-btn"
+            >
+              <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
             </button>
           </div>
@@ -896,7 +924,7 @@ function SearchPageContent() {
       </aside>
 
       {/* Main content */}
-      <main className={`flex-1 transition-all duration-300 lg:ml-16 ${showSearchHistorySidebar ? "lg:ml-80" : ""}`}>
+      <main className={`flex-1 transition-all duration-300 lg:ml-16 ${showSearchHistorySidebar || showAlertHistorySidebar ? "lg:ml-80" : ""}`}>
         {/* Local Coming Soon State */}
         {showLocalComingSoon && (
           <LocalComingSoon

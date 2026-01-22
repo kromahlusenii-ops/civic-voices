@@ -47,6 +47,7 @@ model User {
   sessions      Session[]
   trackedTopics TrackedTopic[]
   creditTransactions CreditTransaction[]
+  alerts        Alert[]
 
   @@index([firebaseUid])
   @@index([supabaseUid])
@@ -283,4 +284,56 @@ model CreditTransaction {
   @@index([userId])
   @@index([userId, createdAt(sort: Desc)])
   @@map("credit_transactions")
+}
+
+// Alert system for email notifications
+model Alert {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  searchQuery     String
+  platforms       String[] // ["reddit", "x", "tiktok", "instagram", "youtube"]
+
+  recipients      AlertRecipient[]
+
+  frequency       AlertFrequency @default(DAILY)
+  preferredTime   String         @default("09:00") // HH:MM in user's timezone
+  timezone        String         @default("America/New_York")
+  preferredDay    Int?           // 0 = Sunday, 6 = Saturday (for weekly)
+
+  isActive        Boolean  @default(true)
+  lastSentAt      DateTime?
+  nextScheduledAt DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([nextScheduledAt, isActive])
+  @@map("alerts")
+}
+
+model AlertRecipient {
+  id          String  @id @default(cuid())
+  alertId     String
+  alert       Alert   @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  email       String
+  isOwner     Boolean @default(false)
+  verified    Boolean @default(false)
+  verifyToken String? @unique
+
+  createdAt   DateTime @default(now())
+
+  @@unique([alertId, email])
+  @@index([alertId])
+  @@map("alert_recipients")
+}
+
+enum AlertFrequency {
+  INSTANTLY
+  HOURLY
+  DAILY
+  WEEKLY
 }
