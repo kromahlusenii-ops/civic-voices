@@ -343,6 +343,188 @@ describe("SociaVaultApiService", () => {
 
       expect(posts[0].text).toBe("Link Post Title");
     });
+
+    it("transforms Reddit response with actual API format (object with numeric keys)", () => {
+      // This test uses the ACTUAL API response structure
+      // SociaVault returns posts as object with numeric keys, not an array
+      const response = {
+        success: true,
+        data: {
+          success: true,
+          posts: {
+            "0": {
+              id: "abc123xyz",
+              title: "Test post about climate change policy",
+              selftext: "This is the body text discussing climate policy initiatives.",
+              author: "civic_researcher",
+              subreddit: "politics",
+              created: 1737590400,  // API uses 'created', not 'created_utc'
+              score: 1250,
+              num_comments: 347,
+              permalink: "/r/politics/comments/abc123xyz/test_post_about_climate_change_policy/",
+              thumbnail: "https://example.com/thumbnail.jpg",
+              is_video: false,
+              upvote_ratio: 0.89,
+            },
+            "1": {
+              id: "def456uvw",
+              title: "Link post with no body text",
+              author: "news_poster",
+              subreddit: "news",
+              created: 1737504000,
+              score: 532,
+              num_comments: 89,
+              permalink: "/r/news/comments/def456uvw/link_post_with_no_body_text/",
+              thumbnail: "default",  // Reddit placeholder values should be filtered
+              is_video: false,
+            },
+          },
+          after: "t3_def456uvw",
+        },
+        creditsUsed: 1,
+      };
+
+      const posts = service.transformRedditToPosts(response);
+
+      expect(posts).toHaveLength(2);
+
+      // First post with body text
+      expect(posts[0]).toMatchObject({
+        id: "abc123xyz",
+        text: "Test post about climate change policy\n\nThis is the body text discussing climate policy initiatives.",
+        author: "civic_researcher",
+        authorHandle: "u/civic_researcher",
+        platform: "reddit",
+        engagement: {
+          likes: 1250,
+          comments: 347,
+          shares: 125, // 10% of score
+        },
+        url: "https://www.reddit.com/r/politics/comments/abc123xyz/test_post_about_climate_change_policy/",
+        thumbnail: "https://example.com/thumbnail.jpg",
+      });
+      expect(posts[0].authorMetadata).toMatchObject({
+        profileUrl: "https://www.reddit.com/user/civic_researcher",
+      });
+
+      // Second post without body (link post)
+      expect(posts[1]).toMatchObject({
+        id: "def456uvw",
+        text: "Link post with no body text",
+        author: "news_poster",
+        authorHandle: "u/news_poster",
+        platform: "reddit",
+      });
+      // Thumbnail "default" should be filtered out
+      expect(posts[1].thumbnail).toBeUndefined();
+    });
+
+    it("handles selftext vs body field variations", () => {
+      // API can use either 'selftext' (Reddit native) or 'body' (SociaVault normalized)
+      const responseWithBody = {
+        data: {
+          posts: {
+            "0": {
+              id: "test1",
+              title: "Post Title",
+              body: "Content via body field",  // SociaVault uses 'body'
+              author: "user1",
+              subreddit: "test",
+              created: 1737590400,
+              score: 100,
+              num_comments: 10,
+            },
+          },
+        },
+      };
+
+      const responseWithSelftext = {
+        data: {
+          posts: {
+            "0": {
+              id: "test2",
+              title: "Post Title",
+              selftext: "Content via selftext field",  // Reddit native
+              author: "user2",
+              subreddit: "test",
+              created: 1737590400,
+              score: 100,
+              num_comments: 10,
+            },
+          },
+        },
+      };
+
+      const postsBody = service.transformRedditToPosts(responseWithBody);
+      const postsSelftext = service.transformRedditToPosts(responseWithSelftext);
+
+      expect(postsBody[0].text).toContain("Content via body field");
+      expect(postsSelftext[0].text).toContain("Content via selftext field");
+    });
+
+    it("handles created vs created_utc timestamp variations", () => {
+      // API can use either 'created' or 'created_utc'
+      const responseWithCreated = {
+        data: {
+          posts: {
+            "0": {
+              id: "test1",
+              title: "Post",
+              author: "user",
+              subreddit: "test",
+              created: 1737590400,  // Just 'created'
+              score: 100,
+              num_comments: 10,
+            },
+          },
+        },
+      };
+
+      const responseWithCreatedUtc = {
+        data: {
+          posts: {
+            "0": {
+              id: "test2",
+              title: "Post",
+              author: "user",
+              subreddit: "test",
+              created_utc: 1737504000,  // Just 'created_utc'
+              score: 100,
+              num_comments: 10,
+            },
+          },
+        },
+      };
+
+      const posts1 = service.transformRedditToPosts(responseWithCreated);
+      const posts2 = service.transformRedditToPosts(responseWithCreatedUtc);
+
+      // Both should parse the timestamp correctly
+      expect(new Date(posts1[0].createdAt).getTime()).toBe(1737590400 * 1000);
+      expect(new Date(posts2[0].createdAt).getTime()).toBe(1737504000 * 1000);
+    });
+
+    it("filters Reddit thumbnail placeholder values", () => {
+      const response = {
+        data: {
+          posts: {
+            "0": { id: "1", title: "T", author: "u", subreddit: "s", created: 1, score: 1, num_comments: 0, thumbnail: "self" },
+            "1": { id: "2", title: "T", author: "u", subreddit: "s", created: 1, score: 1, num_comments: 0, thumbnail: "default" },
+            "2": { id: "3", title: "T", author: "u", subreddit: "s", created: 1, score: 1, num_comments: 0, thumbnail: "nsfw" },
+            "3": { id: "4", title: "T", author: "u", subreddit: "s", created: 1, score: 1, num_comments: 0, thumbnail: "spoiler" },
+            "4": { id: "5", title: "T", author: "u", subreddit: "s", created: 1, score: 1, num_comments: 0, thumbnail: "https://example.com/real.jpg" },
+          },
+        },
+      };
+
+      const posts = service.transformRedditToPosts(response);
+
+      expect(posts[0].thumbnail).toBeUndefined();  // "self" filtered
+      expect(posts[1].thumbnail).toBeUndefined();  // "default" filtered
+      expect(posts[2].thumbnail).toBeUndefined();  // "nsfw" filtered
+      expect(posts[3].thumbnail).toBeUndefined();  // "spoiler" filtered
+      expect(posts[4].thumbnail).toBe("https://example.com/real.jpg");  // Real URL kept
+    });
   });
 
   describe("error handling", () => {

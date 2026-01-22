@@ -1,0 +1,41 @@
+{
+  "description": "Real SociaVault Reddit API response structure (recorded 2026-01-22)",
+  "note": "Update this fixture when API changes - use actual API response",
+  "success": true,
+  "data": {
+    "success": true,
+    "posts": {
+      "0": {
+        "id": "abc123xyz",
+        "title": "Test post about climate change policy",
+        "selftext": "This is the body text of the Reddit post discussing climate policy initiatives.",
+        "author": "civic_researcher",
+        "subreddit": "politics",
+        "created": 1737590400,
+        "created_utc": 1737590400,
+        "score": 1250,
+        "num_comments": 347,
+        "url": "https://www.reddit.com/r/politics/comments/abc123xyz/test_post_about_climate_change_policy/",
+        "permalink": "/r/politics/comments/abc123xyz/test_post_about_climate_change_policy/",
+        "thumbnail": "https://example.com/thumbnail.jpg",
+        "is_video": false,
+        "upvote_ratio": 0.89
+      },
+      "1": {
+        "id": "def456uvw",
+        "title": "Link post with no body text",
+        "author": "news_poster",
+        "subreddit": "news",
+        "created": 1737504000,
+        "score": 532,
+        "num_comments": 89,
+        "permalink": "/r/news/comments/def456uvw/link_post_with_no_body_text/",
+        "thumbnail": "default",
+        "is_video": false,
+        "upvote_ratio": 0.92
+      }
+    },
+    "after": "t3_def456uvw"
+  },
+  "creditsUsed": 1
+}
