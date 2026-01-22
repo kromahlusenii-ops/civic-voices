@@ -8,7 +8,7 @@ function InfoIcon({ tooltip }: { tooltip: string }) {
   const [showTooltip, setShowTooltip] = useState(false);
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block z-30">
       <button
         className="ml-1 text-gray-400 hover:text-gray-600 focus:outline-none"
         onMouseEnter={() => setShowTooltip(true)}
@@ -26,7 +26,7 @@ function InfoIcon({ tooltip }: { tooltip: string }) {
         </svg>
       </button>
       {showTooltip && (
-        <div className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg whitespace-nowrap max-w-xs">
+        <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg shadow-lg whitespace-normal max-w-[200px] sm:max-w-xs">
           {tooltip}
           <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
         </div>
@@ -50,12 +50,21 @@ interface SentimentData {
 
 type ChartMode = "volume" | "sentiment";
 
+export interface DataPointClickEvent {
+  date: string;
+  count: number;
+  views: number;
+  engagement: number;
+  formattedDate: string;
+}
+
 interface ActivityChartProps {
   data: DataPoint[];
   sentimentData?: SentimentData;
   height?: number;
   mode?: ChartMode;
   onModeChange?: (mode: ChartMode) => void;
+  onDataPointClick?: (event: DataPointClickEvent) => void;
 }
 
 export default function ActivityChart({
@@ -64,6 +73,7 @@ export default function ActivityChart({
   height = 280,
   mode = "volume",
   onModeChange,
+  onDataPointClick,
 }: ActivityChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -306,6 +316,17 @@ export default function ActivityChart({
       .on("mouseleave", function () {
         d3.select(this).transition().duration(100).attr("r", dotRadius);
         setTooltip(null);
+      })
+      .on("click", function (_event, d) {
+        if (onDataPointClick) {
+          onDataPointClick({
+            date: d.date,
+            count: d.count,
+            views: d.views,
+            engagement: d.engagement,
+            formattedDate: formatDate(d.date),
+          });
+        }
       });
 
     // Add dots for Mentions data points - larger on mobile for touch
@@ -336,6 +357,17 @@ export default function ActivityChart({
       .on("mouseleave", function () {
         d3.select(this).transition().duration(100).attr("r", dotRadius);
         setTooltip(null);
+      })
+      .on("click", function (_event, d) {
+        if (onDataPointClick) {
+          onDataPointClick({
+            date: d.date,
+            count: d.count,
+            views: d.views,
+            engagement: d.engagement,
+            formattedDate: formatDate(d.date),
+          });
+        }
       });
 
     // Find peak point and add star marker
@@ -353,7 +385,7 @@ export default function ActivityChart({
       .attr("font-size", "14px")
       .text("\u2B50");
 
-  }, [data, dimensions, activeMode]);
+  }, [data, dimensions, activeMode, onDataPointClick]);
 
   if (data.length === 0) {
     return (
@@ -367,10 +399,10 @@ export default function ActivityChart({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-visible">
       {/* Header with tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
-        <div className="flex items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4 overflow-visible">
+        <div className="flex items-center overflow-visible relative z-20">
           <h3 className="text-sm font-semibold text-gray-800">Activity over time</h3>
           <InfoIcon tooltip="Tracks views and post mentions over the search time period. Views are from platform data when available, otherwise estimated from engagement." />
         </div>
@@ -398,55 +430,71 @@ export default function ActivityChart({
         </div>
       </div>
 
-      {/* Volume Chart */}
-      {activeMode === "volume" && (
-        <>
-          <div ref={containerRef} className="relative w-full min-w-0 overflow-hidden">
-            <svg
-              ref={svgRef}
-              width="100%"
-              height={dimensions.height}
-              viewBox={dimensions.width > 0 ? `0 0 ${dimensions.width} ${dimensions.height}` : undefined}
-              preserveAspectRatio="xMidYMid meet"
-              style={{ maxWidth: '100%', display: 'block' }}
-            />
-            {tooltip?.show && (
-              <div
-                className="absolute pointer-events-none bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10"
-                style={{
-                  left: tooltip.x,
-                  top: tooltip.y,
-                  transform: "translate(-50%, -100%)",
-                }}
-              >
-                <div className="font-medium mb-1">{formatDate(tooltip.date)}</div>
-                <div className="flex items-center gap-2 text-blue-300">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  {formatNumber(tooltip.views)} views
-                </div>
-                <div className="flex items-center gap-2 text-orange-300">
-                  <span className="w-2 h-2 rounded-full bg-orange-500"></span>
-                  {tooltip.count} mentions
-                </div>
+      {/* Volume Chart - always mounted to preserve ref, hidden when not active */}
+      <div className={activeMode === "volume" ? "" : "hidden"}>
+        <div ref={containerRef} className="relative w-full min-w-0">
+          <svg
+            ref={svgRef}
+            width="100%"
+            height={dimensions.height}
+            viewBox={dimensions.width > 0 ? `0 0 ${dimensions.width} ${dimensions.height}` : undefined}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ maxWidth: '100%', display: 'block' }}
+          />
+          {tooltip?.show && (
+            <div
+              className="absolute pointer-events-none bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-50"
+              style={{
+                left: tooltip.x,
+                top: tooltip.y,
+                transform: "translate(-50%, -100%)",
+              }}
+            >
+              <div className="font-medium mb-1">{formatDate(tooltip.date)}</div>
+              <div className="flex items-center gap-2 text-blue-300">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                {formatNumber(tooltip.views)} views
               </div>
-            )}
-          </div>
+              <div className="flex items-center gap-2 text-orange-300">
+                <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+                {tooltip.count} mentions
+              </div>
+              {onDataPointClick && (
+                <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-gray-700 text-purple-300">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                  </svg>
+                  <span>Click for AI insight</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-          {/* Volume Legend */}
-          <div className="flex items-center justify-center gap-4 sm:gap-6 mt-3 sm:mt-4 pt-3 border-t border-gray-100">
-            <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Volume Legend */}
+        <div className="flex flex-col items-center gap-2 mt-3 sm:mt-4 pt-3 border-t border-gray-100 overflow-visible">
+          <div className="flex items-center justify-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-1.5 sm:gap-2 relative z-20">
               <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500"></span>
               <span className="text-[10px] sm:text-xs text-gray-600">Views</span>
               <InfoIcon tooltip="Total content views. Direct from platform APIs when available, otherwise estimated as ~15x engagement." />
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 relative z-20">
               <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-500"></span>
               <span className="text-[10px] sm:text-xs text-gray-600">Mentions</span>
               <InfoIcon tooltip="Number of posts matching your search query on this date." />
             </div>
           </div>
-        </>
-      )}
+          {onDataPointClick && (
+            <p className="text-[10px] text-gray-400 flex items-center gap-1">
+              <svg className="w-3 h-3 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+              </svg>
+              Click any data point for AI-powered insights
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Sentiment Chart */}
       {activeMode === "sentiment" && sentimentData && (

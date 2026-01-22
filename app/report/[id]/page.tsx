@@ -211,6 +211,7 @@ export default function ReportPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -567,6 +568,13 @@ export default function ReportPage() {
     window.history.replaceState({}, "", url.toString());
   }, []);
 
+  // Handle data point click on activity chart - opens chat with insight question
+  const handleDataPointClick = useCallback((event: { date: string; count: number; views: number; formattedDate: string }) => {
+    const message = `On ${event.formattedDate}, there were ${event.count} mentions with ${event.views.toLocaleString()} views. What might have caused this activity level? Was this a spike or decline compared to other days, and what topics or events were driving it?`;
+    setPendingChatMessage(message);
+    setIsChatOpen(true);
+  }, []);
+
   // Format date
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -827,6 +835,7 @@ export default function ReportPage() {
                 <ActivityChart
                   data={reportData.activityOverTime}
                   sentimentData={reportData.metrics.sentimentBreakdown}
+                  onDataPointClick={handleDataPointClick}
                 />
 
                 {/* Two Column: Emotions + Content Breakdown */}
@@ -934,7 +943,10 @@ export default function ReportPage() {
       {reportData && isChatOpen && (
         <AudienceChatSidebar
           isOpen={isChatOpen}
-          onClose={() => setIsChatOpen(false)}
+          onClose={() => {
+            setIsChatOpen(false);
+            setPendingChatMessage(null);
+          }}
           reportData={reportData}
           getAccessToken={getAccessToken}
           onScrollToPost={(postId) => {
@@ -953,6 +965,8 @@ export default function ReportPage() {
               }
             }, 100);
           }}
+          initialMessage={pendingChatMessage ?? undefined}
+          onInitialMessageSent={() => setPendingChatMessage(null)}
         />
       )}
     </div>

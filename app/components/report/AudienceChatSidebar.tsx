@@ -21,6 +21,8 @@ interface AudienceChatSidebarProps {
   reportData: ReportData
   getAccessToken: () => Promise<string | null>
   onScrollToPost: (postId: string) => void
+  initialMessage?: string
+  onInitialMessageSent?: () => void
 }
 
 export default function AudienceChatSidebar({
@@ -29,9 +31,12 @@ export default function AudienceChatSidebar({
   reportData,
   getAccessToken,
   onScrollToPost,
+  initialMessage,
+  onInitialMessageSent,
 }: AudienceChatSidebarProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isTokenLoading, setIsTokenLoading] = useState(true)
+  const [hasProcessedInitialMessage, setHasProcessedInitialMessage] = useState(false)
   const searchParams = useSearchParams()
 
   // Get share token from URL (for shared reports)
@@ -62,6 +67,28 @@ export default function AudienceChatSidebar({
   } = useAudienceChat(reportData.report.id, accessToken, shareToken)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Handle initial message when sidebar opens with a pending message
+  useEffect(() => {
+    if (
+      isOpen &&
+      initialMessage &&
+      !hasProcessedInitialMessage &&
+      !isTokenLoading &&
+      status === "idle"
+    ) {
+      setHasProcessedInitialMessage(true)
+      sendMessage(initialMessage)
+      onInitialMessageSent?.()
+    }
+  }, [isOpen, initialMessage, hasProcessedInitialMessage, isTokenLoading, status, sendMessage, onInitialMessageSent])
+
+  // Reset processed flag when sidebar closes or initial message changes
+  useEffect(() => {
+    if (!isOpen) {
+      setHasProcessedInitialMessage(false)
+    }
+  }, [isOpen])
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {

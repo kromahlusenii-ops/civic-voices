@@ -1,4 +1,5 @@
 export { default as ActivityChart } from "./ActivityChart";
+export type { DataPointClickEvent } from "./ActivityChart";
 export { default as MetricsRow } from "./MetricsRow";
 export { default as SentimentBreakdown } from "./SentimentBreakdown";
 export { default as EmotionsBreakdown, convertSentimentToEmotions } from "./EmotionsBreakdown";
