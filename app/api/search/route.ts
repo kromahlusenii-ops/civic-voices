@@ -704,9 +704,9 @@ export async function POST(request: NextRequest) {
     // Only fetch comments if we have posts and an API key for the AI analysis
     if (config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
       // Fetch comments for top posts per platform for richer AI analysis
-      // Local search gets more since Reddit is the only source
-      const MAX_POSTS_FOR_COMMENTS = isLocalSearch ? 20 : 10;
-      const MAX_COMMENTS_PER_POST = isLocalSearch ? 30 : 20;
+      // Reddit is a strong platform - maximize comment data for better insights
+      const MAX_POSTS_FOR_COMMENTS = isLocalSearch ? 30 : 20;
+      const MAX_COMMENTS_PER_POST = isLocalSearch ? 50 : 30;
 
       // Group posts by platform and take top N from each
       const postsByPlatform: Record<string, Post[]> = {};
@@ -799,7 +799,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Wait for all comment fetches with a timeout (longer for local search)
-      const commentTimeout = isLocalSearch ? 40000 : 30000;
+      const commentTimeout = isLocalSearch ? 55000 : 45000;
       try {
         await withTimeout(Promise.all(commentPromises), commentTimeout, "Comment fetching");
       } catch (e) {
