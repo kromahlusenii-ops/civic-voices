@@ -77,6 +77,7 @@ async function runAlertSearch(
 ): Promise<{ totalPosts: number; topPosts: EmailPost[] }> {
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    console.log(`[Cron] Running search for "${searchQuery}" on platforms: ${platforms.join(", ")} | App URL: ${appUrl}`)
 
     const response = await fetch(`${appUrl}/api/search`, {
       method: "POST",
@@ -169,16 +170,21 @@ function formatPostsForEmail(posts: EmailPost[], searchQuery: string): string {
 
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
-  console.log("[Cron] Alert processing started")
+  console.log("[Cron] Alert processing started at", new Date().toISOString())
 
   // Verify cron authorization
   if (!verifyCronSecret(request)) {
+    console.error("[Cron] Authorization failed - check CRON_SECRET")
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   // Check if Loops is configured
-  if (!isLoopsEnabled() || !LOOPS_TEMPLATES.alertDigest) {
-    console.warn("[Cron] Loops not configured or alertDigest template missing")
+  const loopsEnabled = isLoopsEnabled()
+  const hasTemplate = !!LOOPS_TEMPLATES.alertDigest
+  console.log("[Cron] Loops enabled:", loopsEnabled, "| Template configured:", hasTemplate, "| Template ID:", LOOPS_TEMPLATES.alertDigest || "(empty)")
+
+  if (!loopsEnabled || !hasTemplate) {
+    console.warn("[Cron] Loops not configured - LOOPS_API_KEY:", loopsEnabled ? "SET" : "MISSING", "| LOOPS_ALERT_DIGEST_TEMPLATE_ID:", hasTemplate ? "SET" : "MISSING")
     return NextResponse.json({
       success: true,
       message: "Loops not configured",
@@ -213,6 +219,8 @@ export async function GET(request: NextRequest) {
 
     for (const alert of dueAlerts) {
       try {
+        console.log(`[Cron] Processing alert ${alert.id}: "${alert.searchQuery}" | Frequency: ${alert.frequency} | Recipients: ${alert.recipients.map(r => `${r.email}(verified:${r.verified})`).join(", ")}`)
+
         // Skip if no verified recipients
         if (alert.recipients.length === 0) {
           console.log(`[Cron] Alert ${alert.id}: No verified recipients, skipping`)
@@ -239,6 +247,8 @@ export async function GET(request: NextRequest) {
         )
 
         // Only send if there are results
+        console.log(`[Cron] Alert ${alert.id}: Search returned ${searchResult.totalPosts} posts, ${searchResult.topPosts.length} top posts`)
+
         if (searchResult.totalPosts > 0) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
           const searchUrl = `${appUrl}/search?q=${encodeURIComponent(alert.searchQuery)}`
