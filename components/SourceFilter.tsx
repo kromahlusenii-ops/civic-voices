@@ -80,6 +80,7 @@ const GLOBAL_SOURCES: Source[] = [
 // Local sources (local search mode)
 const LOCAL_SOURCES: Source[] = [
   { id: "reddit", name: "Reddit", enabled: true, icon: <RedditIcon /> },
+  { id: "tiktok", name: "TikTok", enabled: true, icon: <TikTokIcon /> },
   { id: "nextdoor", name: "Nextdoor", enabled: false, icon: <NextdoorIcon /> },
 ];
 
