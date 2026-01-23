@@ -429,11 +429,24 @@ function PlanBillingTab() {
       });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || "Failed to process request");
+        return;
+      }
+
       if (data.url) {
+        // New subscription - redirect to Stripe checkout
         window.location.href = data.url;
+      } else if (data.success) {
+        // Upgrade successful - refresh billing data and show success
+        alert(data.message || `Successfully upgraded to ${plan} plan!`);
+        // Refresh the page to show updated plan
+        window.location.reload();
       }
     } catch (error) {
       console.error("Checkout error:", error);
+      alert("An error occurred. Please try again.");
     } finally {
       setIsCheckoutLoading(null);
     }
