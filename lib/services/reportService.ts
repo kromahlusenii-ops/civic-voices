@@ -1017,11 +1017,15 @@ export async function getReport(
   });
 
   if (!job) {
+    console.log(`[getReport] findFirst returned null for reportId: ${reportId}, userId: ${userId.slice(0, 8)}... - this is unexpected if match was true`);
     return null;
   }
 
+  console.log(`[getReport] Job found, searches count: ${job.searches.length}, insights count: ${job.insights.length}`);
+
   const search = job.searches[0];
   if (!search) {
+    console.log(`[getReport] No search record found for job ${reportId}`);
     return null;
   }
 
