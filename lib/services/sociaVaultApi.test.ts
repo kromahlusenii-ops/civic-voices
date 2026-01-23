@@ -604,7 +604,7 @@ describe("SociaVaultApiService", () => {
       expect(result.length).toBe(2);
     });
 
-    it("filters posts by query terms", async () => {
+    it("uses subreddit: query syntax for search", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({
@@ -619,25 +619,18 @@ describe("SociaVaultApiService", () => {
                 score: 100,
                 num_comments: 10,
               },
-              "1": {
-                id: "post2",
-                title: "Best pizza in town",
-                author: "user2",
-                subreddit: "California",
-                created: Date.now() / 1000,
-                score: 50,
-                num_comments: 5,
-              },
             },
           },
         }),
       });
 
-      const result = await service.searchRedditInSubreddits("climate", ["California"]);
+      await service.searchRedditInSubreddits("climate", ["California"]);
 
-      // Only the post about climate should be returned
-      expect(result.length).toBe(1);
-      expect(result[0].text).toContain("Climate");
+      // Verify the query uses subreddit: syntax (URL encodes : as %3A and space as +)
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("query=subreddit%3ACalifornia+climate"),
+        expect.any(Object)
+      );
     });
 
     it("sorts results by engagement (likes + comments)", async () => {

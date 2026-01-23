@@ -525,7 +525,7 @@ export class SociaVaultApiService {
 
   /**
    * Search Reddit posts within specific subreddits (for local search)
-   * Uses the subreddit endpoint to fetch local content with pagination, then filters by query
+   * Uses Reddit search with subreddit: query syntax for actual search within subreddits
    */
   async searchRedditInSubreddits(
     query: string,
@@ -536,53 +536,31 @@ export class SociaVaultApiService {
       return [];
     }
 
-    const timeframe = options.timeFilter
+    const time = options.timeFilter
       ? SociaVaultApiService.getRedditTimeValue(options.timeFilter)
       : "month";
 
-    // Fetch more posts to ensure we have enough after filtering
-    // For local search we want maximum data from each subreddit
-    const targetPostsPerSubreddit = Math.max(300, (options.limit || 100) * 3);
-    const maxPagesPerSubreddit = 5; // Fetch up to 5 pages per subreddit (500 posts max)
+    const postsPerSubreddit = Math.ceil((options.limit || 500) / subreddits.length);
     const allPosts: Post[] = [];
 
-    // Search each subreddit using the subreddit endpoint with pagination
+    // Search each subreddit using Reddit search with subreddit: syntax
     const searchPromises = subreddits.map(async (subreddit) => {
       try {
-        const subredditPosts: Post[] = [];
-        let after: string | undefined;
-        let page = 0;
+        // Use Reddit search with subreddit restriction
+        // Reddit search supports "subreddit:NAME query" syntax
+        const subredditQuery = `subreddit:${subreddit} ${query}`;
 
-        // Paginate through subreddit posts
-        while (page < maxPagesPerSubreddit && subredditPosts.length < targetPostsPerSubreddit) {
-          const response = await this.getSubredditPostsWithOptions(subreddit, {
-            limit: 100, // Max per page
-            timeframe,
-            sort: "top",
-            after,
-          });
+        const response = await this.searchReddit(subredditQuery, {
+          limit: postsPerSubreddit,
+          time,
+          sort: "relevance",
+        });
 
-          const posts = this.transformRedditToPosts(response);
-          if (posts.length === 0) break;
-
-          subredditPosts.push(...posts);
-
-          // Get cursor for next page
-          after = response.data?.after;
-          if (!after) break;
-
-          page++;
-
-          // Small delay between pages to avoid rate limiting
-          if (page < maxPagesPerSubreddit && subredditPosts.length < targetPostsPerSubreddit) {
-            await new Promise(resolve => setTimeout(resolve, 200));
-          }
-        }
-
-        console.log(`[Reddit Local] Fetched ${subredditPosts.length} posts from r/${subreddit} (${page + 1} pages)`);
-        return subredditPosts;
+        const posts = this.transformRedditToPosts(response);
+        console.log(`[Reddit Local] Searched r/${subreddit} for "${query}": found ${posts.length} posts`);
+        return posts;
       } catch (error) {
-        console.error(`[SociaVault] Error fetching subreddit r/${subreddit}:`, error);
+        console.error(`[SociaVault] Error searching subreddit r/${subreddit}:`, error);
         return [];
       }
     });
@@ -592,22 +570,13 @@ export class SociaVaultApiService {
       allPosts.push(...posts);
     }
 
-    // Filter by query terms (client-side)
-    const queryLower = query.toLowerCase();
-    const queryTerms = queryLower.split(/\s+/).filter(t => t.length > 2);
-
-    let filteredPosts = allPosts.filter(post => {
-      const textLower = (post.text || "").toLowerCase();
-      // Match if any query term is in the post text
-      return queryTerms.some(term => textLower.includes(term));
-    });
-
-    // Apply time filter client-side for accuracy (API timeframe is approximate)
+    // Apply time filter client-side for accuracy
+    let filteredPosts = allPosts;
     if (options.timeFilter) {
-      filteredPosts = SociaVaultApiService.filterByTimeRange(filteredPosts, options.timeFilter);
+      filteredPosts = SociaVaultApiService.filterByTimeRange(allPosts, options.timeFilter);
     }
 
-    console.log(`[Reddit Local] Filtered ${filteredPosts.length} posts matching query from ${allPosts.length} total`);
+    console.log(`[Reddit Local] Found ${filteredPosts.length} posts from ${subreddits.length} subreddits`);
 
     // Sort by engagement (likes + comments)
     filteredPosts.sort((a, b) => {
@@ -617,7 +586,7 @@ export class SociaVaultApiService {
     });
 
     // Limit total results
-    return filteredPosts.slice(0, options.limit || 100);
+    return filteredPosts.slice(0, options.limit || 500);
   }
 
   /**
