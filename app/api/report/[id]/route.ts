@@ -69,7 +69,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       // If no share token, return 401 to trigger auth modal
       if (!shareToken) {
         return NextResponse.json(
-          { error: "Unauthorized - Authentication required" },
+          {
+            error: "Unauthorized - Authentication required",
+            debug: {
+              hasAuthHeader: !!authHeader,
+              tokenVerified: false,
+              reason: authHeader ? "token_invalid" : "no_token",
+            },
+          },
           { status: 401 }
         );
       }

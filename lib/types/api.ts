@@ -108,6 +108,10 @@ export interface AIAnalysis {
   followUpQuestion: string;
   intentionsBreakdown?: IntentionData[];
   topicAnalysis?: TopicAnalysis[];
+  scope?: {
+    type: "local" | "national" | "international" | "mixed";
+    indicators: string[];  // e.g., ["mentions specific city", "state-level policy"]
+  };
 }
 
 export interface PlatformError {

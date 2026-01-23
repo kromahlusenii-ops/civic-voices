@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useToast } from "@/app/contexts/ToastContext";
+import { supabase } from "@/lib/supabase";
 import AuthModal from "@/app/components/AuthModal";
 import {
   ActivityChart,
@@ -257,14 +258,45 @@ export default function ReportPage() {
       console.log(`[Report] Fetching report ${params.id}, retry: ${retryCount}, silent: ${!!options?.silent}`);
       let token = await getAccessToken();
 
-      // If no token on first attempt, wait briefly and try once more
-      // This handles race condition where Supabase session is still initializing
+      // If no token on first attempt, try multiple recovery strategies
+      // This handles race conditions where Supabase session is still initializing
       if (!token && retryCount === 0) {
-        console.log('[Report] No token on first attempt, waiting for auth to initialize...');
+        console.log('[Report] No token on first attempt, trying recovery strategies...');
+
+        // Strategy 1: Wait for auth to initialize
         await new Promise(resolve => setTimeout(resolve, 500));
         token = await getAccessToken();
+
+        // Strategy 2: Force session refresh from Supabase
+        if (!token) {
+          console.log('[Report] Trying forced session refresh...');
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) {
+              token = session.access_token;
+            } else {
+              // Try refreshing the session explicitly
+              const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+              token = refreshedSession?.access_token ?? null;
+            }
+          } catch (refreshError) {
+            console.error('[Report] Session refresh failed:', refreshError);
+          }
+        }
       }
-      console.log(`[Report] Got token: ${!!token}`);
+
+      // For subsequent retries, also try forced refresh
+      if (!token && retryCount > 0 && retryCount <= 2) {
+        console.log(`[Report] Retry ${retryCount}: forcing session refresh...`);
+        try {
+          const { data: { session } } = await supabase.auth.refreshSession();
+          token = session?.access_token ?? null;
+        } catch (refreshError) {
+          console.error('[Report] Retry session refresh failed:', refreshError);
+        }
+      }
+
+      console.log(`[Report] Got token: ${!!token}, length: ${token?.length || 0}`);
       const headers: HeadersInit = {};
       if (token) {
         headers.Authorization = `Bearer ${token}`;
@@ -275,6 +307,15 @@ export default function ReportPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
+          // Log response body for debugging
+          const errorBody = await response.json().catch(() => ({}));
+          console.log(`[Report] 401 error details:`, {
+            hadToken: !!token,
+            tokenLength: token?.length || 0,
+            error: errorBody.error,
+            retryCount,
+          });
+
           // Retry with progressive delay for auth race conditions
           // This handles: 1) session still initializing, 2) token refresh in progress
           // Total max wait: 500+750+1000+1250+1500 = 5 seconds
@@ -673,9 +714,44 @@ export default function ReportPage() {
                   <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 line-clamp-2" data-testid="report-query">
                     {reportData.report.query}
                   </h1>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Generated on {formatDate(reportData.report.createdAt)}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <p className="text-sm text-gray-500">
+                      Generated on {formatDate(reportData.report.createdAt)}
+                    </p>
+                    {/* Scope Badge */}
+                    {reportData.aiAnalysis?.scope && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                          reportData.aiAnalysis.scope.type === "local"
+                            ? "bg-blue-100 text-blue-700"
+                            : reportData.aiAnalysis.scope.type === "national"
+                            ? "bg-purple-100 text-purple-700"
+                            : reportData.aiAnalysis.scope.type === "international"
+                            ? "bg-teal-100 text-teal-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                        title={reportData.aiAnalysis.scope.indicators?.join(", ") || ""}
+                      >
+                        {reportData.aiAnalysis.scope.type === "local" && (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        )}
+                        {reportData.aiAnalysis.scope.type === "national" && (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                          </svg>
+                        )}
+                        {reportData.aiAnalysis.scope.type === "international" && (
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                        {reportData.aiAnalysis.scope.type.charAt(0).toUpperCase() + reportData.aiAnalysis.scope.type.slice(1)}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Right side: Sources + Actions */}
@@ -799,28 +875,37 @@ export default function ReportPage() {
                 {/* AI Summary - Full Width */}
                 {reportData.aiAnalysis && (
                   <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
-                    <h3 className="text-sm font-semibold text-gray-800 mb-2 sm:mb-3">Summary</h3>
+                    <div className="flex items-center justify-between mb-2 sm:mb-3">
+                      <h3 className="text-sm font-semibold text-gray-800">Summary</h3>
+                      {/* Sentiment Badge */}
+                      {reportData.aiAnalysis.sentimentBreakdown && (
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          reportData.aiAnalysis.sentimentBreakdown.overall === "positive"
+                            ? "bg-green-100 text-green-700"
+                            : reportData.aiAnalysis.sentimentBreakdown.overall === "negative"
+                            ? "bg-red-100 text-red-700"
+                            : reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            reportData.aiAnalysis.sentimentBreakdown.overall === "positive"
+                              ? "bg-green-500"
+                              : reportData.aiAnalysis.sentimentBreakdown.overall === "negative"
+                              ? "bg-red-500"
+                              : reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
+                              ? "bg-amber-500"
+                              : "bg-gray-400"
+                          }`} />
+                          {reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
+                            ? "Mixed Sentiment"
+                            : `${reportData.aiAnalysis.sentimentBreakdown.overall.charAt(0).toUpperCase() + reportData.aiAnalysis.sentimentBreakdown.overall.slice(1)} Sentiment`}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-gray-600 leading-relaxed">
                       {renderSummaryWithHighlights(reportData.aiAnalysis.interpretation)}
                     </p>
-
-                    {/* Sentiment Commentary */}
-                    {reportData.aiAnalysis.sentimentBreakdown && (
-                      <div className="mt-3 sm:mt-4 rounded-lg bg-gray-50 p-3">
-                        <p className="text-sm text-gray-600">
-                          <span className="font-medium">Sentiment: </span>
-                          <span className={`capitalize ${
-                            reportData.aiAnalysis.sentimentBreakdown.overall === "positive" ? "text-green-600" :
-                            reportData.aiAnalysis.sentimentBreakdown.overall === "negative" ? "text-red-600" :
-                            reportData.aiAnalysis.sentimentBreakdown.overall === "mixed" ? "text-yellow-600" :
-                            "text-gray-600"
-                          }`}>
-                            {reportData.aiAnalysis.sentimentBreakdown.overall}
-                          </span>
-                          {" - "}{reportData.aiAnalysis.sentimentBreakdown.summary}
-                        </p>
-                      </div>
-                    )}
                   </div>
                 )}
 

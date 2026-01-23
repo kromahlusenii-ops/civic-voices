@@ -144,6 +144,13 @@ For intentionsBreakdown, analyze the primary purpose/intention of each post:
 - Entertain: Humor, memes, creative content, storytelling
 - Express: Personal opinions, emotional responses, questions, discussion
 
+For scope, determine the geographic/political scope of the conversation:
+- "local": Posts about specific cities, towns, neighborhoods, local businesses, local elections, local events
+- "national": Posts about federal policy, national politics, nationwide trends, presidential/congressional topics
+- "international": Posts about global issues, foreign countries, international relations
+- "mixed": Posts spanning multiple scope levels
+Include 1-3 indicators explaining WHY you chose this scope (e.g., "mentions Austin city council", "discusses federal tax policy")
+
 Provide a JSON response with the following structure:
 {
   "interpretation": "A 2-3 sentence analysis that summarizes the ACTUAL CONTENT of the posts. DO NOT say 'Found X posts' or mention numbers. DO NOT use generic phrases like 'conversation spans multiple platforms'. Instead, describe WHAT people are saying - the key claims, events, opinions, or narratives you found. Example: 'Recent discussions focus on [specific event], with many expressing [specific opinion]. A notable narrative is [specific claim].'",
@@ -151,6 +158,10 @@ Provide a JSON response with the following structure:
   "sentimentBreakdown": {
     "overall": "positive|negative|neutral|mixed",
     "summary": "Brief explanation with SPECIFIC examples of why sentiment is this way"
+  },
+  "scope": {
+    "type": "local|national|international|mixed",
+    "indicators": ["specific reason 1", "specific reason 2"]
   },
   "intentionsBreakdown": [
     {"name": "Inform", "percentage": 35, "engagementRate": 3.2},
