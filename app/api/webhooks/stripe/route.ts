@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { stripe } from "@/lib/stripe"
 import { prisma } from "@/lib/prisma"
-import { STRIPE_CONFIG } from "@/lib/stripe-config"
+import { getMonthlyCreditsForTier } from "@/lib/stripe-config"
 import { resetMonthlyCredits } from "@/lib/services/creditService"
+import { createOrganization, getUserOrganization } from "@/lib/services/organizationService"
+import { clearSeatItem } from "@/lib/services/seatService"
 import Stripe from "stripe"
 
 // Disable body parsing - we need raw body for signature verification
@@ -13,6 +15,7 @@ export const dynamic = "force-dynamic"
 interface SubscriptionWithPeriod extends Stripe.Subscription {
   current_period_start: number
   current_period_end: number
+  metadata: { plan?: string } & Stripe.Subscription["metadata"]
 }
 
 // Extended invoice type
@@ -29,9 +32,12 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return
   }
 
-  // Get the subscription to get dates
+  // Get the subscription to get dates and metadata
   const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId)
   const subscription = subscriptionResponse as unknown as SubscriptionWithPeriod
+
+  // Get plan from session metadata or subscription metadata (default to "pro")
+  const plan = session.metadata?.plan || subscription.metadata?.plan || "pro"
 
   // Find user by Stripe customer ID or create/update based on customer email
   const customer = await stripe.customers.retrieve(customerId)
@@ -46,6 +52,9 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return
   }
 
+  // Get tier-specific monthly credits
+  const monthlyCredits = getMonthlyCreditsForTier(plan)
+
   // Update user with subscription info
   await prisma.user.updateMany({
     where: { email },
@@ -53,7 +62,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
       stripeCustomerId: customerId,
       stripeSubscriptionId: subscriptionId,
       subscriptionStatus: subscription.status === "trialing" ? "trialing" : "active",
-      subscriptionPlan: "pro",
+      subscriptionPlan: plan,
       trialStartDate: subscription.trial_start
         ? new Date(subscription.trial_start * 1000)
         : null,
@@ -62,12 +71,29 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         : null,
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      monthlyCredits: STRIPE_CONFIG.monthlyCredits,
+      monthlyCredits,
       creditsResetDate: new Date(),
     },
   })
 
-  console.log(`Subscription activated for ${email}`)
+  console.log(`Subscription activated for ${email} (${plan} plan, ${monthlyCredits} credits)`)
+
+  // Create organization for Agency/Business plans
+  if (plan === "agency" || plan === "business") {
+    const user = await prisma.user.findFirst({
+      where: { email },
+      select: { id: true, name: true },
+    })
+
+    if (user) {
+      const existingOrg = await getUserOrganization(user.id)
+      if (!existingOrg) {
+        const orgName = user.name ? `${user.name}'s Team` : "My Team"
+        await createOrganization(user.id, orgName, plan)
+        console.log(`Created organization for user ${user.id} (${plan} plan)`)
+      }
+    }
+  }
 }
 
 async function handleSubscriptionUpdated(subscriptionEvent: Stripe.Subscription) {
@@ -114,6 +140,12 @@ async function handleSubscriptionUpdated(subscriptionEvent: Stripe.Subscription)
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string
 
+  // Find user and their organization before updating
+  const user = await prisma.user.findFirst({
+    where: { stripeCustomerId: customerId },
+    select: { id: true },
+  })
+
   await prisma.user.updateMany({
     where: { stripeCustomerId: customerId },
     data: {
@@ -125,6 +157,17 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       monthlyCredits: 0,
     },
   })
+
+  // Clear seat subscription item for organization if exists
+  if (user) {
+    const org = await prisma.organization.findUnique({
+      where: { ownerId: user.id },
+    })
+    if (org) {
+      await clearSeatItem(org.id)
+      console.log(`Cleared seat subscription for organization ${org.id}`)
+    }
+  }
 
   console.log(`Subscription canceled for customer ${customerId}`)
 }
@@ -146,26 +189,34 @@ async function handleInvoicePaid(invoiceEvent: Stripe.Invoice) {
   // Find user and reset monthly credits
   const user = await prisma.user.findFirst({
     where: { stripeCustomerId: customerId },
+    select: {
+      id: true,
+      subscriptionPlan: true,
+    },
   })
 
   if (user) {
-    // Get subscription for period dates
+    // Get subscription for period dates and metadata
     const subscriptionResponse = await stripe.subscriptions.retrieve(subscriptionId)
     const subscription = subscriptionResponse as unknown as SubscriptionWithPeriod
+
+    // Get plan from subscription metadata or user's current plan
+    const plan = subscription.metadata?.plan || user.subscriptionPlan || "pro"
 
     await prisma.user.update({
       where: { id: user.id },
       data: {
         subscriptionStatus: "active",
+        subscriptionPlan: plan,
         currentPeriodStart: new Date(subscription.current_period_start * 1000),
         currentPeriodEnd: new Date(subscription.current_period_end * 1000),
       },
     })
 
-    // Reset monthly credits on renewal
-    await resetMonthlyCredits(user.id, new Date(subscription.current_period_start * 1000))
+    // Reset monthly credits on renewal with tier-specific amount
+    await resetMonthlyCredits(user.id, plan, new Date(subscription.current_period_start * 1000))
 
-    console.log(`Monthly credits reset for user ${user.id}`)
+    console.log(`Monthly credits reset for user ${user.id} (${plan} plan)`)
   }
 }
 

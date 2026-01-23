@@ -4,7 +4,7 @@ import { getUserBillingStatus, getCreditTransactions } from "@/lib/services/cred
 import { getFeatureLimits } from "@/lib/services/featureService"
 import { prisma } from "@/lib/prisma"
 import { stripe } from "@/lib/stripe"
-import { STRIPE_CONFIG } from "@/lib/stripe-config"
+import { getMonthlyCreditsForTier } from "@/lib/stripe-config"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +33,9 @@ async function syncSubscriptionFromStripe(userId: string, stripeSubscriptionId: 
         status = "free"
     }
 
+    // Get plan from subscription metadata (set during checkout)
+    const plan = subscription.metadata?.plan || "pro"
+
     // Get period dates using type assertion
     const subscriptionData = subscription as unknown as {
       current_period_start?: number
@@ -41,12 +44,15 @@ async function syncSubscriptionFromStripe(userId: string, stripeSubscriptionId: 
       trial_end?: number | null
     }
 
+    // Get tier-specific monthly credits
+    const monthlyCredits = status !== "free" ? getMonthlyCreditsForTier(plan) : 0
+
     // Update the user with correct subscription data
     await prisma.user.update({
       where: { id: userId },
       data: {
         subscriptionStatus: status,
-        subscriptionPlan: status !== "free" ? "pro" : null,
+        subscriptionPlan: status !== "free" ? plan : null,
         currentPeriodStart: subscriptionData.current_period_start
           ? new Date(subscriptionData.current_period_start * 1000)
           : null,
@@ -59,12 +65,12 @@ async function syncSubscriptionFromStripe(userId: string, stripeSubscriptionId: 
         trialEndDate: subscriptionData.trial_end
           ? new Date(subscriptionData.trial_end * 1000)
           : null,
-        // Give credits if they don't have any yet
-        monthlyCredits: STRIPE_CONFIG.monthlyCredits,
+        // Give tier-specific credits if they don't have any yet
+        monthlyCredits,
       },
     })
 
-    console.log(`Synced subscription status for user ${userId}: ${status}`)
+    console.log(`Synced subscription status for user ${userId}: ${status} (${plan})`)
     return status
   } catch (error) {
     console.error("Failed to sync subscription from Stripe:", error)
@@ -98,6 +104,9 @@ async function syncSubscriptionByCustomerId(userId: string, stripeCustomerId: st
     // Map Stripe status to our status
     const status = subscription.status === "trialing" ? "trialing" : "active"
 
+    // Get plan from subscription metadata (set during checkout)
+    const plan = subscription.metadata?.plan || "pro"
+
     // Get period dates using type assertion
     const subscriptionData = subscription as unknown as {
       current_period_start?: number
@@ -106,13 +115,16 @@ async function syncSubscriptionByCustomerId(userId: string, stripeCustomerId: st
       trial_end?: number | null
     }
 
+    // Get tier-specific monthly credits
+    const monthlyCredits = getMonthlyCreditsForTier(plan)
+
     // Update the user with subscription data
     await prisma.user.update({
       where: { id: userId },
       data: {
         stripeSubscriptionId: subscription.id,
         subscriptionStatus: status,
-        subscriptionPlan: "pro",
+        subscriptionPlan: plan,
         currentPeriodStart: subscriptionData.current_period_start
           ? new Date(subscriptionData.current_period_start * 1000)
           : null,
@@ -125,12 +137,12 @@ async function syncSubscriptionByCustomerId(userId: string, stripeCustomerId: st
         trialEndDate: subscriptionData.trial_end
           ? new Date(subscriptionData.trial_end * 1000)
           : null,
-        monthlyCredits: STRIPE_CONFIG.monthlyCredits,
+        monthlyCredits,
         creditsResetDate: new Date(),
       },
     })
 
-    console.log(`Synced subscription by customer ID for user ${userId}: ${status}`)
+    console.log(`Synced subscription by customer ID for user ${userId}: ${status} (${plan})`)
     return status
   } catch (error) {
     console.error("Failed to sync subscription by customer ID:", error)
@@ -223,6 +235,7 @@ export async function GET(request: NextRequest) {
         trialEndDate: billingStatus.trialEndDate,
       },
       credits: billingStatus.credits,
+      freeTier: featureLimits.freeTier,
       limits: featureLimits.limits,
       recentTransactions,
     })

@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
 import { stripe } from "@/lib/stripe"
 import { prisma } from "@/lib/prisma"
-import { STRIPE_CONFIG } from "@/lib/stripe-config"
+import { STRIPE_CONFIG, SubscriptionTier } from "@/lib/stripe-config"
 
 export const dynamic = "force-dynamic"
+
+interface CheckoutRequest {
+  plan?: SubscriptionTier // "pro" | "agency" | "business"
+}
+
+// Map of tier to environment variable names for price IDs
+const PRICE_ID_ENV_MAP: Record<SubscriptionTier, string> = {
+  pro: "STRIPE_PRO_PRICE_ID",
+  agency: "STRIPE_AGENCY_PRICE_ID",
+  business: "STRIPE_BUSINESS_PRICE_ID",
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +35,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized - Invalid token" },
         { status: 401 }
+      )
+    }
+
+    // Parse request body
+    let body: CheckoutRequest = {}
+    try {
+      body = await request.json()
+    } catch {
+      // Body is optional, default to pro plan
+    }
+
+    // Default to pro plan if not specified
+    const plan: SubscriptionTier = body.plan || "pro"
+
+    // Validate plan
+    if (!STRIPE_CONFIG.tiers[plan]) {
+      return NextResponse.json(
+        { error: `Invalid plan: ${plan}. Must be one of: pro, agency, business` },
+        { status: 400 }
       )
     }
 
@@ -69,18 +99,19 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Get the subscription price ID from env
-    const priceId = process.env.STRIPE_PRICE_ID
+    // Get the subscription price ID for the selected plan
+    const priceIdEnvVar = PRICE_ID_ENV_MAP[plan]
+    const priceId = process.env[priceIdEnvVar] || process.env.STRIPE_PRICE_ID
     if (!priceId) {
-      console.error("STRIPE_PRICE_ID is not set in environment variables")
+      console.error(`${priceIdEnvVar} is not set in environment variables`)
       return NextResponse.json(
-        { error: "Stripe price not configured. Please set STRIPE_PRICE_ID in your environment variables." },
+        { error: `Stripe price not configured for ${plan} plan. Please set ${priceIdEnvVar} in your environment variables.` },
         { status: 500 }
       )
     }
 
     // Log the price ID being used (first 10 chars for security)
-    console.log(`Creating checkout session with price: ${priceId.substring(0, 10)}...`)
+    console.log(`Creating checkout session for ${plan} plan with price: ${priceId.substring(0, 10)}...`)
 
     // Determine the base URL from request headers or environment
     const host = request.headers.get("host") || "localhost:3000"
@@ -89,7 +120,7 @@ export async function POST(request: NextRequest) {
       process.env.NODE_ENV === "production" ? "https://civicvoices.ai" : `${protocol}://${host}`
     )
 
-    // Create checkout session with trial
+    // Create checkout session with 3-day free trial
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "subscription",
@@ -101,12 +132,16 @@ export async function POST(request: NextRequest) {
         },
       ],
       subscription_data: {
-        trial_period_days: STRIPE_CONFIG.subscription.trialDays,
+        trial_period_days: STRIPE_CONFIG.trial.days,
+        metadata: {
+          plan, // Store plan in subscription metadata for webhook handling
+        },
       },
       success_url: `${baseUrl}/search?subscription=success`,
       cancel_url: `${baseUrl}/search?subscription=canceled`,
       metadata: {
         userId: user.id,
+        plan,
       },
     })
 

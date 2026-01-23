@@ -149,22 +149,18 @@ function formatDate(dateString: string): string {
 
 // Format posts as HTML for email (Octolens-style cards)
 function formatPostsForEmail(posts: EmailPost[], searchQuery: string): string {
-  if (posts.length === 0) return "<p>No new posts found.</p>"
+  if (posts.length === 0) return "<p style=\"text-align: left;\">No new posts found.</p>"
 
   return posts
     .map(
       (post) => `
-<div style="border-bottom: 1px solid #E5E7EB; padding: 16px 0;">
-  <div style="margin-bottom: 8px;">
-    <a href="${post.url}" style="color: #2563EB; font-weight: 600; text-decoration: none;">${searchQuery}</a>
-    <span style="color: #6B7280;"> in ${post.platformCapitalized}</span>
-    <span style="color: #9CA3AF;"> · by ${post.authorHandle} on ${post.date}</span>
-  </div>
-  <p style="color: #374151; margin: 8px 0; line-height: 1.5;">${post.content}</p>
-  <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-    <span style="color: ${post.sentimentColor}; font-size: 14px; font-weight: 500;">${post.sentiment}</span>
-  </div>
-  <a href="${post.url}" style="display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid #E5E7EB; border-radius: 6px; color: #374151; text-decoration: none; font-size: 14px;">View post</a>
+<div style="border-bottom: 1px solid #E5E7EB; padding: 16px 0; text-align: left;">
+  <a href="${post.url}" style="color: #2563EB; font-weight: 600; text-decoration: none;">${searchQuery}</a><br>
+  <span style="color: #6B7280;">on ${post.platformCapitalized}</span><br>
+  <span style="color: #9CA3AF;">by ${post.authorHandle} on ${post.date}</span>
+  <p style="color: #374151; margin: 12px 0 8px 0; line-height: 1.5;">${post.content}</p>
+  <span style="color: ${post.sentimentColor}; font-size: 14px; font-weight: 500;">${post.sentiment}</span><br>
+  <a href="${post.url}" style="display: inline-block; margin-top: 8px; padding: 8px 16px; border: 1px solid #E5E7EB; border-radius: 6px; color: #374151; text-decoration: none; font-size: 14px;">View post</a>
 </div>`
     )
     .join("")

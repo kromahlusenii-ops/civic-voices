@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
 import { prisma } from "@/lib/prisma"
 import { deductCredits } from "@/lib/services/creditService"
-import { STRIPE_CONFIG } from "@/lib/stripe-config"
+import { consumeFreeAction } from "@/lib/services/featureService"
+import { getSearchCreditCost, getReportCreditCost, SearchType } from "@/lib/stripe-config"
 
 export const dynamic = "force-dynamic"
 
 interface DeductCreditsRequest {
   action: "search" | "report_generation"
+  searchType?: SearchType // "national" | "state" | "city" - only for search action
   description?: string
 }
 
@@ -40,6 +42,8 @@ export async function POST(request: NextRequest) {
         subscriptionStatus: true,
         monthlyCredits: true,
         bonusCredits: true,
+        freeSearchUsed: true,
+        freeReportUsed: true,
       },
     })
 
@@ -53,30 +57,23 @@ export async function POST(request: NextRequest) {
           subscriptionStatus: "free",
           monthlyCredits: 0,
           bonusCredits: 0,
+          freeSearchUsed: false,
+          freeReportUsed: false,
         },
         select: {
           id: true,
           subscriptionStatus: true,
           monthlyCredits: true,
           bonusCredits: true,
+          freeSearchUsed: true,
+          freeReportUsed: true,
         },
       })
       user = newUser
     }
 
-    // Only deduct credits for active subscriptions
-    if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "trialing") {
-      // Free tier users don't use credits
-      return NextResponse.json({
-        success: true,
-        creditsDeducted: 0,
-        remainingCredits: 0,
-        message: "Free tier - no credits deducted",
-      })
-    }
-
     const body: DeductCreditsRequest = await request.json()
-    const { action, description } = body
+    const { action, searchType = "national", description } = body
 
     // Validate action
     if (!action || !["search", "report_generation"].includes(action)) {
@@ -86,17 +83,72 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get credit cost
-    const creditCost = action === "search"
-      ? STRIPE_CONFIG.creditCosts.search
-      : STRIPE_CONFIG.creditCosts.reportGeneration
+    // Validate searchType if action is search
+    if (action === "search" && searchType && !["national", "state", "city"].includes(searchType)) {
+      return NextResponse.json(
+        { error: "Invalid search type. Must be: national, state, or city" },
+        { status: 400 }
+      )
+    }
 
-    // Deduct credits
+    // Handle free tier users
+    if (user.subscriptionStatus !== "active" && user.subscriptionStatus !== "trialing") {
+      if (action === "search") {
+        // Check if free search is available
+        if (user.freeSearchUsed) {
+          return NextResponse.json(
+            {
+              error: "Free search already used",
+              message: "Upgrade to a paid plan to continue searching",
+              upgradeRequired: true,
+            },
+            { status: 402 }
+          )
+        }
+        // Consume the free search
+        await consumeFreeAction(user.id, "search")
+        return NextResponse.json({
+          success: true,
+          creditsDeducted: 0,
+          remainingCredits: 0,
+          message: "Free search used - upgrade to continue",
+          freeActionUsed: true,
+        })
+      } else if (action === "report_generation") {
+        // Check if free report is available
+        if (user.freeReportUsed) {
+          return NextResponse.json(
+            {
+              error: "Free report already used",
+              message: "Upgrade to a paid plan to continue generating reports",
+              upgradeRequired: true,
+            },
+            { status: 402 }
+          )
+        }
+        // Consume the free report
+        await consumeFreeAction(user.id, "report")
+        return NextResponse.json({
+          success: true,
+          creditsDeducted: 0,
+          remainingCredits: 0,
+          message: "Free report used - upgrade to continue",
+          freeActionUsed: true,
+        })
+      }
+    }
+
+    // Calculate credit cost based on action and search type
+    const creditCost = action === "search"
+      ? getSearchCreditCost(searchType)
+      : getReportCreditCost()
+
+    // Deduct credits for paid users
     const result = await deductCredits(
       user.id,
       creditCost,
       action === "search" ? "search_usage" : "report_generation",
-      description || `${action} credit deduction`
+      description || `${action} (${action === "search" ? searchType : ""}) - ${creditCost} credits`
     )
 
     if (!result.success) {

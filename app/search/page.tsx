@@ -491,7 +491,7 @@ function SearchPageContent() {
     }
 
     // Check credits for paid users
-    if (hasActiveSubscription && !hasEnoughCredits(STRIPE_CONFIG.creditCosts.search)) {
+    if (hasActiveSubscription && !hasEnoughCredits(STRIPE_CONFIG.creditCosts.nationalSearch)) {
       setShowCreditsModal(true);
       return;
     }
@@ -798,7 +798,7 @@ function SearchPageContent() {
         isOpen={showCreditsModal}
         onClose={() => setShowCreditsModal(false)}
         currentCredits={billing?.credits?.total || 0}
-        requiredCredits={STRIPE_CONFIG.creditCosts.search}
+        requiredCredits={STRIPE_CONFIG.creditCosts.nationalSearch}
       />
 
       {/* Report Progress Modal */}

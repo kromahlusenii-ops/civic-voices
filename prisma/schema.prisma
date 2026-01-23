@@ -41,6 +41,10 @@ model User {
   bonusCredits          Int       @default(0)
   creditsResetDate      DateTime?
 
+  // Free tier usage tracking (one-time allowance)
+  freeSearchUsed        Boolean   @default(false)
+  freeReportUsed        Boolean   @default(false)
+
   researchJobs  ResearchJob[]
   searches      Search[]
   accounts      Account[]
@@ -48,6 +52,10 @@ model User {
   trackedTopics TrackedTopic[]
   creditTransactions CreditTransaction[]
   alerts        Alert[]
+
+  // Organization relationships
+  ownedOrganization       Organization?          @relation("OrganizationOwner")
+  organizationMemberships OrganizationMember[]
 
   @@index([firebaseUid])
   @@index([supabaseUid])
@@ -336,4 +344,60 @@ enum AlertFrequency {
   HOURLY
   DAILY
   WEEKLY
+}
+
+// Organization for team seat management
+model Organization {
+  id                String               @id @default(cuid())
+  name              String
+  ownerId           String               @unique
+  owner             User                 @relation("OrganizationOwner", fields: [ownerId], references: [id])
+
+  // Seat management
+  includedSeats     Int                  @default(1)    // From plan (1, 3, or 5)
+  additionalSeats   Int                  @default(0)    // Purchased extra seats
+  stripeSeatItemId  String?                             // Stripe subscription item ID for seats
+
+  members           OrganizationMember[]
+  invites           OrganizationInvite[]
+
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([ownerId])
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member") // "admin" | "member"
+  invitedAt      DateTime     @default(now())
+  joinedAt       DateTime?
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("organization_members")
+}
+
+model OrganizationInvite {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String       @default("member") // "admin" | "member"
+  token          String       @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, email])
+  @@index([token])
+  @@index([organizationId])
+  @@map("organization_invites")
 }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
 import { stripe } from "@/lib/stripe"
 import { prisma } from "@/lib/prisma"
-import { STRIPE_CONFIG } from "@/lib/stripe-config"
+import { STRIPE_CONFIG, getCreditPack } from "@/lib/stripe-config"
 
 export const dynamic = "force-dynamic"
 
@@ -57,19 +57,15 @@ export async function POST(request: NextRequest) {
     const body: BuyCreditsRequest = await request.json()
     const { credits } = body
 
-    // Validate credit amount
-    const validPack = STRIPE_CONFIG.overage.packs.find((p) => p.credits === credits)
-    if (!validPack && credits <= 0) {
+    // Validate credit amount - must be one of the predefined packs
+    const validPack = getCreditPack(credits)
+    if (!validPack) {
+      const validAmounts = STRIPE_CONFIG.creditPacks.map(p => p.credits).join(", ")
       return NextResponse.json(
-        { error: "Invalid credit amount" },
+        { error: `Invalid credit amount. Valid packs: ${validAmounts}` },
         { status: 400 }
       )
     }
-
-    // Calculate price
-    const price = validPack
-      ? validPack.price
-      : credits * STRIPE_CONFIG.overage.pricePerCredit
 
     // Get or create Stripe customer
     let customerId = user.stripeCustomerId
@@ -96,7 +92,7 @@ export async function POST(request: NextRequest) {
       process.env.NODE_ENV === "production" ? "https://civicvoices.ai" : `${protocol}://${host}`
     )
 
-    // Create checkout session for one-time payment
+    // Create checkout session for one-time payment using the credit pack
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: customerId,
       mode: "payment",
@@ -109,7 +105,7 @@ export async function POST(request: NextRequest) {
               name: `${credits} Credits`,
               description: `Add ${credits} credits to your Civic Voices account`,
             },
-            unit_amount: price,
+            unit_amount: validPack.price,
           },
           quantity: 1,
         },

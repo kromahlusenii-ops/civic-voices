@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { STRIPE_CONFIG } from "@/lib/stripe-config"
+import { getMonthlyCreditsForTier } from "@/lib/stripe-config"
 
 export interface CreditBalance {
   monthlyCredits: number
@@ -147,25 +147,32 @@ export async function addCredits(
 
 /**
  * Reset monthly credits for a user (called on subscription renewal)
+ * @param userId - User ID
+ * @param plan - Subscription plan tier (pro, agency, business)
+ * @param creditsResetDate - Optional date to set as reset date
  */
 export async function resetMonthlyCredits(
   userId: string,
+  plan?: string | null,
   creditsResetDate?: Date
 ): Promise<void> {
+  // Get monthly credits based on plan tier
+  const monthlyCredits = plan ? getMonthlyCreditsForTier(plan) : 0
+
   await prisma.$transaction([
     prisma.user.update({
       where: { id: userId },
       data: {
-        monthlyCredits: STRIPE_CONFIG.monthlyCredits,
+        monthlyCredits,
         creditsResetDate: creditsResetDate || new Date(),
       },
     }),
     prisma.creditTransaction.create({
       data: {
         userId,
-        amount: STRIPE_CONFIG.monthlyCredits,
+        amount: monthlyCredits,
         type: "monthly_reset",
-        description: `Monthly credit reset - ${STRIPE_CONFIG.monthlyCredits} credits`,
+        description: `Monthly credit reset - ${monthlyCredits} credits (${plan || "free"} plan)`,
       },
     }),
   ])

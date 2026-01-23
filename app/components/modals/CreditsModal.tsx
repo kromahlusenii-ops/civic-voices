@@ -24,7 +24,7 @@ export default function CreditsModal({
 
   if (!isOpen) return null
 
-  const packs = STRIPE_CONFIG.overage.packs
+  const packs = STRIPE_CONFIG.creditPacks
 
   const handlePurchase = async () => {
     if (!session?.access_token) {

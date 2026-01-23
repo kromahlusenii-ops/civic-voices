@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
 import { prisma } from "@/lib/prisma"
-import { STRIPE_CONFIG } from "@/lib/stripe-config"
+import { STRIPE_CONFIG, getMonthlyCreditsForTier } from "@/lib/stripe-config"
 
 export const dynamic = "force-dynamic"
 
@@ -147,11 +147,11 @@ export async function POST(request: NextRequest) {
     // Set plan based on tier
     if (tier === "active" || tier === "trialing") {
       updateData.subscriptionPlan = "pro"
-      // Set default credits if upgrading to paid tier
+      // Set default credits if upgrading to paid tier (default to pro tier credits)
       if (monthlyCredits !== undefined) {
         updateData.monthlyCredits = monthlyCredits
       } else if (existingUser.subscriptionStatus === "free") {
-        updateData.monthlyCredits = STRIPE_CONFIG.monthlyCredits
+        updateData.monthlyCredits = getMonthlyCreditsForTier("pro")
       }
       // Set period dates if not already set
       if (!existingUser.currentPeriodStart) {
@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
       if (tier === "trialing" && !existingUser.trialStartDate) {
         const now = new Date()
         const trialEnd = new Date(now)
-        trialEnd.setDate(trialEnd.getDate() + 1) // 1-day trial
+        trialEnd.setDate(trialEnd.getDate() + STRIPE_CONFIG.trial.days) // 3-day trial
         updateData.trialStartDate = now
         updateData.trialEndDate = trialEnd
       }

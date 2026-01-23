@@ -8,6 +8,7 @@ import {
   extractKeywords,
   extractHashtags,
   convertToEmotions,
+  calculateResonance,
 } from "@/lib/services/pdfService";
 
 interface RouteParams {
@@ -377,7 +378,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     <h1>${escapeHtml(reportData.report.query)}</h1>
     <p class="platforms">${platformsList} Report</p>
     <p class="date-range">Date range: ${startDate} - ${endDate}</p>
-    <div class="logo">civic voices</div>
+    <div class="logo">Civic Voices</div>
   </div>
 
   <!-- Page 2: Overview -->
@@ -391,7 +392,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       </div>
       <div class="metric-card">
         <div class="label">Engagement rate</div>
-        <div class="value">${reportData.metrics.totalMentions > 0 ? (reportData.metrics.avgEngagement / 1000).toFixed(3) : "0"}</div>
+        <div class="value">${totalViews > 0 ? ((reportData.metrics.totalEngagement / totalViews) * 100).toFixed(2) : reportData.metrics.totalMentions > 0 ? ((reportData.metrics.avgEngagement / reportData.metrics.totalMentions) * 100).toFixed(2) : "0"}%</div>
       </div>
       <div class="metric-card">
         <div class="label">Estimated views</div>
@@ -598,8 +599,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         (sum, p) => sum + p.engagement.likes,
         0
       );
-      const resonance =
-        audienceSize > 1_000_000 ? "High" : audienceSize > 100_000 ? "Medium" : "Low";
+      const comments = relatedPosts.reduce(
+        (sum, p) => sum + p.engagement.comments,
+        0
+      );
+      // Use proper resonance calculation: engagement / audience ratio
+      const totalEngagement = likes + comments;
+      const resonance = calculateResonance(audienceSize, totalEngagement);
 
       // Calculate sentiment for this topic
       const topicSentiment = relatedPosts.reduce(
