@@ -8,6 +8,7 @@ export { default as ContentBreakdown, generateCategoryData, generateFormatData }
 export type { CategoryData, FormatData } from "./ContentBreakdown";
 export { default as TopicsTable, generateTopicsFromThemes } from "./TopicsTable";
 export type { TopicData } from "./TopicsTable";
+export { default as KeywordsCloud } from "./KeywordsCloud";
 export { default as PlatformBreakdown } from "./PlatformBreakdown";
 export { default as KeyThemes } from "./KeyThemes";
 export { default as TopPosts } from "./TopPosts";

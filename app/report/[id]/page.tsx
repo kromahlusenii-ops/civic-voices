@@ -15,6 +15,7 @@ import {
   generateFormatData,
   TopicsTable,
   generateTopicsFromThemes,
+  KeywordsCloud,
   TopPosts,
   TopVoices,
   TopCreatorsByFollowing,
@@ -880,6 +881,15 @@ export default function ReportPage() {
                       reportData.posts
                     )}
                     onViewMore={() => handleTabChange("social-posts")}
+                  />
+                )}
+
+                {/* Keywords Cloud - Full Width */}
+                {reportData.posts.length > 0 && (
+                  <KeywordsCloud
+                    posts={reportData.posts}
+                    keyThemes={reportData.aiAnalysis?.keyThemes}
+                    maxKeywords={30}
                   />
                 )}
 
