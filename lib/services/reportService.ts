@@ -15,6 +15,7 @@ import {
 import AIAnalysisService from "./aiAnalysis";
 import { XRapidApiProvider } from "@/lib/providers/XRapidApiProvider";
 import { YouTubeProvider } from "@/lib/providers/YouTubeProvider";
+import SociaVaultApiService from "@/lib/services/sociaVaultApi";
 import { config } from "@/lib/config";
 import type { Post, AIAnalysis } from "@/lib/types/api";
 
@@ -272,6 +273,65 @@ async function fetchTopPostComments(
 
       const ytSettled = await Promise.allSettled(ytPromises);
       for (const result of ytSettled) {
+        if (result.status === "fulfilled" && result.value.comments.length > 0) {
+          results.push(result.value);
+        }
+      }
+    }
+  }
+
+  // Fetch Reddit and TikTok comments via SociaVault
+  if (config.sociaVault?.apiKey) {
+    const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey);
+
+    // Fetch Reddit comments
+    const redditPosts = posts
+      .filter(p => p.platform === "reddit")
+      .sort(sortByEngagement)
+      .slice(0, maxPostsPerPlatform);
+
+    if (redditPosts.length > 0) {
+      console.log(`[Report] Fetching comments for ${redditPosts.length} top Reddit posts`);
+
+      const redditPromises = redditPosts.map(async (post) => {
+        try {
+          const comments = await sociaVaultService.getRedditComments(post.url, maxCommentsPerPost);
+          return { parentId: post.id, platform: "reddit", comments };
+        } catch (error) {
+          console.error(`[Report] Failed to fetch Reddit comments for ${post.id}:`, error);
+          return { parentId: post.id, platform: "reddit", comments: [] };
+        }
+      });
+
+      const redditSettled = await Promise.allSettled(redditPromises);
+      for (const result of redditSettled) {
+        if (result.status === "fulfilled" && result.value.comments.length > 0) {
+          results.push(result.value);
+        }
+      }
+    }
+
+    // Fetch TikTok comments
+    const tiktokPosts = posts
+      .filter(p => p.platform === "tiktok")
+      .sort(sortByEngagement)
+      .slice(0, maxPostsPerPlatform);
+
+    if (tiktokPosts.length > 0) {
+      console.log(`[Report] Fetching comments for ${tiktokPosts.length} top TikTok videos`);
+
+      const tiktokPromises = tiktokPosts.map(async (post) => {
+        try {
+          const comments = await sociaVaultService.getTikTokComments(post.url, maxCommentsPerPost);
+          return { parentId: post.id, platform: "tiktok", comments };
+        } catch (error) {
+          console.error(`[Report] Failed to fetch TikTok comments for ${post.id}:`, error);
+          return { parentId: post.id, platform: "tiktok", comments: [] };
+        }
+      });
+
+      const tiktokSettled = await Promise.allSettled(tiktokPromises);
+      for (const result of tiktokSettled) {
         if (result.status === "fulfilled" && result.value.comments.length > 0) {
           results.push(result.value);
         }
