@@ -554,8 +554,9 @@ describe("SociaVaultApiService", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("searches each subreddit in parallel", async () => {
-      // Mock responses for each subreddit
+    it("searches each subreddit in parallel with pagination", async () => {
+      // Mock responses for each subreddit with pagination
+      // California subreddit - 3 pages
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
@@ -572,6 +573,7 @@ describe("SociaVaultApiService", () => {
                   num_comments: 10,
                 },
               },
+              after: "cursor1",
             },
           }),
         })
@@ -590,22 +592,64 @@ describe("SociaVaultApiService", () => {
                   num_comments: 20,
                 },
               },
+              after: "cursor2",
+            },
+          }),
+        })
+        // Page 2 for California (no more after)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            data: {
+              posts: {
+                "0": {
+                  id: "post3",
+                  title: "More climate in CA",
+                  author: "user3",
+                  subreddit: "California",
+                  created: Date.now() / 1000,
+                  score: 50,
+                  num_comments: 5,
+                },
+              },
+            },
+          }),
+        })
+        // Page 2 for LA (no more after)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({
+            data: {
+              posts: {
+                "0": {
+                  id: "post4",
+                  title: "LA climate update",
+                  author: "user4",
+                  subreddit: "LosAngeles",
+                  created: Date.now() / 1000,
+                  score: 75,
+                  num_comments: 8,
+                },
+              },
             },
           }),
         });
 
       const result = await service.searchRedditInSubreddits(
         "climate",
-        ["California", "LosAngeles"]
+        ["California", "LosAngeles"],
+        { maxPagesPerSubreddit: 2 }
       );
 
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-      // Both posts contain "climate" so both should be included
-      expect(result.length).toBe(2);
+      // 2 subreddits × 2 pages each = 4 API calls
+      expect(mockFetch).toHaveBeenCalledTimes(4);
+      // Should have posts from all pages
+      expect(result.length).toBe(4);
     });
 
     it("uses subreddit: query syntax for search", async () => {
-      mockFetch.mockResolvedValueOnce({
+      // Mock single page response (no after cursor = stops pagination)
+      mockFetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           data: {
@@ -620,11 +664,12 @@ describe("SociaVaultApiService", () => {
                 num_comments: 10,
               },
             },
+            // No "after" cursor = pagination stops after first page
           },
         }),
       });
 
-      await service.searchRedditInSubreddits("climate", ["California"]);
+      await service.searchRedditInSubreddits("climate", ["California"], { maxPagesPerSubreddit: 1 });
 
       // Verify the query uses subreddit: syntax (URL encodes : as %3A and space as +)
       expect(mockFetch).toHaveBeenCalledWith(
@@ -634,7 +679,7 @@ describe("SociaVaultApiService", () => {
     });
 
     it("sorts results by engagement (likes + comments)", async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockFetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           data: {
@@ -658,11 +703,12 @@ describe("SociaVaultApiService", () => {
                 num_comments: 100,
               },
             },
+            // No after cursor = stops pagination
           },
         }),
       });
 
-      const result = await service.searchRedditInSubreddits("climate", ["California"]);
+      const result = await service.searchRedditInSubreddits("climate", ["California"], { maxPagesPerSubreddit: 1 });
 
       expect(result.length).toBe(2);
       // Higher engagement should come first
@@ -684,19 +730,21 @@ describe("SociaVaultApiService", () => {
         };
       }
 
-      mockFetch.mockResolvedValueOnce({
+      mockFetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ data: { posts } }),
       });
 
       const result = await service.searchRedditInSubreddits("climate", ["California"], {
         limit: 5,
+        maxPagesPerSubreddit: 1,
       });
 
       expect(result.length).toBe(5);
     });
 
     it("handles API errors gracefully for individual subreddits", async () => {
+      // First subreddit succeeds (no after = stops pagination)
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
@@ -713,14 +761,17 @@ describe("SociaVaultApiService", () => {
                   num_comments: 10,
                 },
               },
+              // No after = pagination stops
             },
           }),
         })
+        // Second subreddit fails
         .mockRejectedValueOnce(new Error("API error for second subreddit"));
 
       const result = await service.searchRedditInSubreddits(
         "climate",
-        ["California", "LosAngeles"]
+        ["California", "LosAngeles"],
+        { maxPagesPerSubreddit: 1 }
       );
 
       // Should return results from the working subreddit
@@ -730,7 +781,7 @@ describe("SociaVaultApiService", () => {
 
     it("applies time filter to results", async () => {
       const now = Date.now();
-      mockFetch.mockResolvedValueOnce({
+      mockFetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({
           data: {
@@ -754,6 +805,7 @@ describe("SociaVaultApiService", () => {
                 num_comments: 5,
               },
             },
+            // No after = pagination stops
           },
         }),
       });
@@ -761,7 +813,7 @@ describe("SociaVaultApiService", () => {
       const result = await service.searchRedditInSubreddits(
         "climate",
         ["California"],
-        { timeFilter: "7d" }
+        { timeFilter: "7d", maxPagesPerSubreddit: 1 }
       );
 
       // Only the recent post should be included

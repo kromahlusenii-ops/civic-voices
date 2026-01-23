@@ -524,13 +524,70 @@ export class SociaVaultApiService {
   }
 
   /**
+   * Search Reddit posts with pagination - fetches multiple pages for more results
+   */
+  async searchRedditPaginated(
+    query: string,
+    options: { maxPages?: number; time?: string; sort?: string } = {}
+  ): Promise<{ posts: SociaVaultRedditPost[]; after?: string }> {
+    const maxPages = options.maxPages || 3;
+    const time = options.time || "month";
+    const sort = options.sort || "relevance";
+
+    const allPosts: SociaVaultRedditPost[] = [];
+    let after: string | undefined;
+    let pagesLoaded = 0;
+
+    while (pagesLoaded < maxPages) {
+      const response = await this.searchReddit(query, {
+        time,
+        sort,
+        after,
+      });
+
+      const postsData = response.data?.posts;
+      if (!postsData) {
+        break;
+      }
+
+      // Convert object with numeric keys to array if needed
+      const posts: SociaVaultRedditPost[] = Array.isArray(postsData)
+        ? postsData
+        : Object.values(postsData);
+
+      if (posts.length === 0) {
+        break;
+      }
+
+      allPosts.push(...posts);
+      after = response.data?.after;
+      pagesLoaded++;
+
+      console.log(`[Reddit Paginated] Page ${pagesLoaded}: fetched ${posts.length} posts, total: ${allPosts.length}`);
+
+      // Stop if no more pages
+      if (!after) {
+        break;
+      }
+
+      // Small delay between pages to avoid rate limiting
+      if (pagesLoaded < maxPages) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
+
+    return { posts: allPosts, after };
+  }
+
+  /**
    * Search Reddit posts within specific subreddits (for local search)
    * Uses Reddit search with subreddit: query syntax for actual search within subreddits
+   * Supports pagination to get more results per subreddit
    */
   async searchRedditInSubreddits(
     query: string,
     subreddits: string[],
-    options: { limit?: number; timeFilter?: string } = {}
+    options: { limit?: number; timeFilter?: string; maxPagesPerSubreddit?: number } = {}
   ): Promise<Post[]> {
     if (subreddits.length === 0) {
       return [];
@@ -540,23 +597,27 @@ export class SociaVaultApiService {
       ? SociaVaultApiService.getRedditTimeValue(options.timeFilter)
       : "month";
 
-    const postsPerSubreddit = Math.ceil((options.limit || 500) / subreddits.length);
+    // How many pages to fetch per subreddit (default 3 for ~75 posts per subreddit)
+    const maxPagesPerSubreddit = options.maxPagesPerSubreddit || 3;
     const allPosts: Post[] = [];
 
-    // Search each subreddit using Reddit search with subreddit: syntax
+    // Search each subreddit using Reddit search with subreddit: syntax and pagination
     const searchPromises = subreddits.map(async (subreddit) => {
       try {
         // Use Reddit search with subreddit restriction
         // Reddit search supports "subreddit:NAME query" syntax
         const subredditQuery = `subreddit:${subreddit} ${query}`;
 
-        const response = await this.searchReddit(subredditQuery, {
-          limit: postsPerSubreddit,
+        // Use paginated search to get more results
+        // Sort by "new" for local search to prioritize recent posts
+        const { posts: rawPosts } = await this.searchRedditPaginated(subredditQuery, {
+          maxPages: maxPagesPerSubreddit,
           time,
-          sort: "relevance",
+          sort: "new",
         });
 
-        const posts = this.transformRedditToPosts(response);
+        // Transform raw posts to Post format
+        const posts = this.transformRedditToPosts({ data: { posts: rawPosts } });
         console.log(`[Reddit Local] Searched r/${subreddit} for "${query}": found ${posts.length} posts`);
         return posts;
       } catch (error) {
