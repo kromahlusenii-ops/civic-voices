@@ -351,19 +351,20 @@ function CreatorSection({
 export default function TopCreatorsByFollowing({ posts, limit = 6 }: TopCreatorsByFollowingProps) {
   const allCreators = aggregateCreators(posts);
 
-  // Single list of Top Voices from ALL platforms
-  // Sort by followers if available, otherwise by engagement
-  const topVoices = allCreators
-    .sort((a, b) => {
-      // Sort by followers if both have followers, otherwise by engagement
-      if (a.followersCount > 0 && b.followersCount > 0) {
-        return b.followersCount - a.followersCount;
-      }
-      if (a.followersCount > 0) return -1;
-      if (b.followersCount > 0) return 1;
-      return b.totalEngagement - a.totalEngagement;
-    })
-    .slice(0, limit);
+  // Separate creators with follower data from those without
+  const creatorsWithFollowers = allCreators
+    .filter(c => c.followersCount > 0)
+    .sort((a, b) => b.followersCount - a.followersCount);
+
+  const creatorsWithoutFollowers = allCreators
+    .filter(c => c.followersCount === 0)
+    .sort((a, b) => b.totalEngagement - a.totalEngagement);
+
+  // Prefer creators with follower data; only fall back to engagement if none have followers
+  const hasFollowerData = creatorsWithFollowers.length > 0;
+  const topVoices = hasFollowerData
+    ? creatorsWithFollowers.slice(0, limit)
+    : creatorsWithoutFollowers.slice(0, limit);
 
   // Don't render if no creators at all
   if (topVoices.length === 0) {
@@ -373,8 +374,10 @@ export default function TopCreatorsByFollowing({ posts, limit = 6 }: TopCreators
   return (
     <CreatorSection
       title="Top Voices"
-      subtitle={topVoices.some(c => c.followersCount > 0) ? "By reach" : "By engagement"}
-      tooltip="Creators who posted about this topic across all platforms. Ranked by follower count when available, otherwise by engagement."
+      subtitle={hasFollowerData ? "By follower count" : "By engagement"}
+      tooltip={hasFollowerData
+        ? "Creators ranked by follower count across all platforms."
+        : "Creators ranked by engagement (follower data not available)."}
       creators={topVoices}
       testId="top-voices"
       showFollowers={true}
