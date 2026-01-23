@@ -204,9 +204,14 @@ export async function GET(request: NextRequest) {
       user = newUser
     }
 
-    // Sync subscription from Stripe if status is "free" but user has Stripe IDs
-    // This handles cases where the webhook didn't process yet
-    if (user.subscriptionStatus === "free" || !user.subscriptionStatus) {
+    // Sync subscription from Stripe if status needs verification
+    // This handles cases where webhook didn't process yet OR trial status needs updating to active
+    const needsSync =
+      user.subscriptionStatus === "free" ||
+      user.subscriptionStatus === "trialing" ||
+      !user.subscriptionStatus
+
+    if (needsSync) {
       if (user.stripeSubscriptionId) {
         // Sync by subscription ID
         await syncSubscriptionFromStripe(user.id, user.stripeSubscriptionId)

@@ -823,33 +823,12 @@ export default function Home() {
           <div className="text-center mb-12">
             <div className="text-[10px] font-mono text-stone-500 tracking-wider mb-4">PRICING</div>
             <h2 className="font-display text-4xl sm:text-5xl text-stone-900">
-              Transparent pricing<span className="text-red-600">.</span>
-              <br />
-              Start free<span className="text-red-600">.</span>
+              Simple, transparent pricing<span className="text-red-600">.</span>
             </h2>
+            <p className="font-body text-lg text-stone-600 mt-4">All plans include a 3-day free trial</p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Free */}
-            <div className="bg-stone-50 border border-stone-200 p-6">
-              <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">FREE</div>
-              <div className="font-display text-4xl text-stone-900 mb-4">$0<span className="text-lg text-stone-500">/mo</span></div>
-              <ul className="space-y-2 mb-6">
-                <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> 10 searches/month
-                </li>
-                <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Basic sentiment analysis
-                </li>
-                <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> All platforms
-                </li>
-              </ul>
-              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
-                START FREE →
-              </Link>
-            </div>
-
+          <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {/* Pro */}
             <div className="bg-stone-900 text-white border-2 border-stone-900 p-6 relative">
               <div className="absolute -top-3 left-4 px-2 py-1 bg-red-600 text-[10px] font-mono font-bold tracking-wider">
@@ -859,7 +838,7 @@ export default function Home() {
               <div className="font-display text-4xl text-white mb-4">$99<span className="text-lg text-stone-400">/mo</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="text-sm text-stone-300 flex items-start gap-2">
-                  <span className="text-emerald-400">✓</span> Unlimited searches
+                  <span className="text-emerald-400">✓</span> 50 credits/month
                 </li>
                 <li className="text-sm text-stone-300 flex items-start gap-2">
                   <span className="text-emerald-400">✓</span> Advanced filtering
@@ -875,53 +854,53 @@ export default function Home() {
                 </li>
               </ul>
               <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 bg-white hover:bg-red-600 hover:text-white transition-colors">
-                START FREE, UPGRADE ANYTIME →
+                START 3-DAY FREE TRIAL →
               </Link>
             </div>
 
-            {/* Team */}
+            {/* Agency */}
             <div className="bg-stone-50 border border-stone-200 p-6">
-              <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">TEAM</div>
-              <div className="font-display text-4xl text-stone-900 mb-4">$499<span className="text-lg text-stone-500">/mo</span></div>
+              <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">AGENCY</div>
+              <div className="font-display text-4xl text-stone-900 mb-4">$249<span className="text-lg text-stone-500">/mo</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Everything in Pro
+                  <span className="text-emerald-600">✓</span> 150 credits/month
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> 5 seats
+                  <span className="text-emerald-600">✓</span> 3 seats included
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Shared dashboards
+                  <span className="text-emerald-600">✓</span> Add seats ($49/seat)
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
                   <span className="text-emerald-600">✓</span> Priority support
                 </li>
               </ul>
               <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
-                CONTACT US →
+                START 3-DAY FREE TRIAL →
               </Link>
             </div>
 
-            {/* Enterprise */}
+            {/* Business */}
             <div className="bg-stone-50 border border-stone-200 p-6">
-              <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">ENTERPRISE / AGENCY</div>
-              <div className="font-display text-4xl text-stone-900 mb-4">Custom</div>
+              <div className="font-mono text-xs font-bold text-stone-500 tracking-wider mb-2">BUSINESS</div>
+              <div className="font-display text-4xl text-stone-900 mb-4">$499<span className="text-lg text-stone-500">/mo</span></div>
               <ul className="space-y-2 mb-6">
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Unlimited seats
+                  <span className="text-emerald-600">✓</span> 400 credits/month
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Multiple cities/clients
+                  <span className="text-emerald-600">✓</span> 5 seats included
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
-                  <span className="text-emerald-600">✓</span> Custom integrations
+                  <span className="text-emerald-600">✓</span> Add seats ($49/seat)
                 </li>
                 <li className="text-sm text-stone-600 flex items-start gap-2">
                   <span className="text-emerald-600">✓</span> Dedicated support
                 </li>
               </ul>
               <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
-                TALK TO US →
+                START 3-DAY FREE TRIAL →
               </Link>
             </div>
           </div>
@@ -961,7 +940,7 @@ export default function Home() {
             />
             <FAQItem
               question="Is there a free trial?"
-              answer="Yes. 10 free searches, no credit card required."
+              answer="Yes. All plans include a 3-day free trial. Cancel anytime."
             />
           </div>
         </div>

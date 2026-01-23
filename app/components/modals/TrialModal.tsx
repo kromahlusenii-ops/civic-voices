@@ -97,8 +97,8 @@ export default function TrialModal({ isOpen, onClose, feature }: TrialModalProps
                 </svg>
               </div>
               <div>
-                <p className="font-semibold text-green-800">Try Pro for just $1</p>
-                <p className="text-sm text-green-600">1-day trial, then $49/month</p>
+                <p className="font-semibold text-green-800">Start your 3-day free trial</p>
+                <p className="text-sm text-green-600">Then $99/month for Pro</p>
               </div>
             </div>
           </div>
@@ -110,11 +110,11 @@ export default function TrialModal({ isOpen, onClose, feature }: TrialModalProps
             </h3>
             <ul className="space-y-2">
               {[
-                "200 credits/month included",
-                "Unlimited search timeframes",
+                "50 credits/month included",
+                "All search timeframes",
                 "AI-powered report generation",
                 "Export data and insights",
-                "Priority support",
+                "Synthetic audience testing",
               ].map((feature, i) => (
                 <li key={i} className="flex items-center gap-2 text-gray-700">
                   <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -150,7 +150,7 @@ export default function TrialModal({ isOpen, onClose, feature }: TrialModalProps
                 Processing...
               </span>
             ) : (
-              "Start $1 Trial"
+              "Start Free Trial"
             )}
           </button>
 

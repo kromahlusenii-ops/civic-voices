@@ -64,7 +64,9 @@ export async function POST(request: NextRequest) {
         id: true,
         email: true,
         stripeCustomerId: true,
+        stripeSubscriptionId: true,
         subscriptionStatus: true,
+        subscriptionPlan: true,
       },
     })
 
@@ -72,12 +74,86 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Check if user already has an active subscription
-    if (user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing") {
-      return NextResponse.json(
-        { error: "User already has an active subscription" },
-        { status: 400 }
-      )
+    // Handle upgrade/downgrade for existing subscribers
+    const isSubscribed = user.subscriptionStatus === "active" || user.subscriptionStatus === "trialing"
+    if (isSubscribed && user.stripeSubscriptionId) {
+      // If user already has the same plan, return error
+      if (user.subscriptionPlan === plan) {
+        return NextResponse.json(
+          { error: "You are already subscribed to this plan" },
+          { status: 400 }
+        )
+      }
+
+      // Get the new price ID for the requested plan
+      const newPriceIdEnvVar = PRICE_ID_ENV_MAP[plan]
+      const newPriceId = process.env[newPriceIdEnvVar] || process.env.STRIPE_PRICE_ID
+      if (!newPriceId) {
+        return NextResponse.json(
+          { error: `Stripe price not configured for ${plan} plan` },
+          { status: 500 }
+        )
+      }
+
+      try {
+        // Get current subscription to find the subscription item ID
+        const currentSubscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId)
+        const subscriptionItemId = currentSubscription.items.data[0]?.id
+
+        if (!subscriptionItemId) {
+          return NextResponse.json(
+            { error: "Could not find subscription item to update" },
+            { status: 500 }
+          )
+        }
+
+        // Update the subscription to the new plan
+        const updatedSubscription = await stripe.subscriptions.update(user.stripeSubscriptionId, {
+          items: [
+            {
+              id: subscriptionItemId,
+              price: newPriceId,
+            },
+          ],
+          metadata: {
+            plan,
+          },
+          proration_behavior: "create_prorations",
+        })
+
+        // Update user in database
+        const { getMonthlyCreditsForTier } = await import("@/lib/stripe-config")
+        const monthlyCredits = getMonthlyCreditsForTier(plan)
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            subscriptionPlan: plan,
+            monthlyCredits,
+          },
+        })
+
+        console.log(`Upgraded user ${user.id} from ${user.subscriptionPlan} to ${plan}`)
+
+        return NextResponse.json({
+          success: true,
+          message: `Successfully ${plan > (user.subscriptionPlan || "") ? "upgraded" : "changed"} to ${plan} plan`,
+          subscription: {
+            id: updatedSubscription.id,
+            status: updatedSubscription.status,
+            plan,
+          },
+        })
+      } catch (upgradeError) {
+        console.error("Subscription upgrade error:", upgradeError)
+        return NextResponse.json(
+          {
+            error: "Failed to upgrade subscription",
+            details: upgradeError instanceof Error ? upgradeError.message : "Unknown error",
+          },
+          { status: 500 }
+        )
+      }
     }
 
     // Get or create Stripe customer
