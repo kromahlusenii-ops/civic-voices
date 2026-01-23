@@ -141,7 +141,7 @@ function getProfileUrl(platform: string, handle: string): string {
   }
 }
 
-function aggregateCreatorsByFollowing(posts: Post[]): CreatorData[] {
+function aggregateCreators(posts: Post[]): CreatorData[] {
   const creatorMap = new Map<string, CreatorData>();
 
   for (const post of posts) {
@@ -179,40 +179,144 @@ function aggregateCreatorsByFollowing(posts: Post[]): CreatorData[] {
     }
   }
 
-  // Get all creators and sort - prefer by followers if available, otherwise by engagement
-  const allCreators = Array.from(creatorMap.values());
-  const creatorsWithFollowers = allCreators.filter((creator) => creator.followersCount > 0);
-
-  if (creatorsWithFollowers.length >= 3) {
-    // Enough creators with follower data - sort by followers
-    return creatorsWithFollowers.sort((a, b) => b.followersCount - a.followersCount);
-  }
-
-  // Fall back to sorting by engagement when follower data is scarce
-  return allCreators.sort((a, b) => b.totalEngagement - a.totalEngagement);
+  return Array.from(creatorMap.values());
 }
 
-export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: TopCreatorsByFollowingProps) {
-  const creators = aggregateCreatorsByFollowing(posts).slice(0, limit);
+// Creator card component
+function CreatorCard({ creator, showFollowers }: { creator: CreatorData; showFollowers: boolean }) {
+  return (
+    <a
+      href={getProfileUrl(creator.platform, creator.authorHandle)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex-shrink-0 w-[160px] sm:w-[180px] snap-start
+                 border border-gray-100 rounded-lg p-3 hover:bg-gray-50 hover:border-gray-200 transition-colors cursor-pointer"
+    >
+      {/* Avatar + Platform badge */}
+      <div className="relative mb-3">
+        {creator.authorAvatar ? (
+          <Image
+            src={creator.authorAvatar}
+            alt={creator.author}
+            width={48}
+            height={48}
+            className="w-12 h-12 rounded-full object-cover mx-auto"
+            unoptimized
+          />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mx-auto">
+            <span className="text-gray-500 text-lg font-medium">
+              {creator.author.charAt(0).toUpperCase()}
+            </span>
+          </div>
+        )}
+        {/* Platform badge */}
+        <span
+          className={`absolute -bottom-1 left-1/2 -translate-x-1/2 p-1 rounded-full ${
+            PLATFORM_COLORS[creator.platform] || "bg-gray-500 text-white"
+          }`}
+        >
+          {PLATFORM_ICONS[creator.platform]}
+        </span>
+      </div>
 
-  // Check if we have follower data for the display
-  const hasFollowerData = creators.some(c => c.followersCount > 0);
+      {/* Name + Handle + Verification */}
+      <div className="text-center mb-2">
+        <div className="flex items-center justify-center gap-1">
+          <p className="text-sm font-medium text-gray-800 truncate">{creator.author}</p>
+          {/* Verification checkmark */}
+          {creator.isVerified && (
+            <svg className="w-4 h-4 text-blue-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8.603 3.799A4.49 4.49 0 0112 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 013.498 1.307 4.491 4.491 0 011.307 3.497A4.49 4.49 0 0121.75 12a4.49 4.49 0 01-1.549 3.397 4.491 4.491 0 01-1.307 3.497 4.491 4.491 0 01-3.497 1.307A4.49 4.49 0 0112 21.75a4.49 4.49 0 01-3.397-1.549 4.49 4.49 0 01-3.498-1.306 4.491 4.491 0 01-1.307-3.498A4.49 4.49 0 012.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 011.307-3.497 4.49 4.49 0 013.497-1.307zm7.007 6.387a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" />
+            </svg>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 truncate">{creator.authorHandle}</p>
+      </div>
 
-  // Don't render if no creators found at all
-  if (creators.length === 0) {
-    return null;
-  }
+      {/* Follower Count or Engagement - Prominent */}
+      <div className="flex items-center justify-center gap-1 mb-2">
+        {showFollowers && creator.followersCount > 0 ? (
+          <>
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+              />
+            </svg>
+            <span className="text-sm font-semibold text-gray-800">
+              {formatFollowers(creator.followersCount)}
+            </span>
+            <span className="text-xs text-gray-400">followers</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
+            </svg>
+            <span className="text-sm font-semibold text-gray-800">
+              {formatFollowers(creator.totalEngagement)}
+            </span>
+            <span className="text-xs text-gray-400">engagements</span>
+          </>
+        )}
+      </div>
+
+      {/* Secondary Stats */}
+      <div className="flex items-center justify-center gap-3 text-xs text-gray-500">
+        <span className="flex items-center gap-1" title="Posts in this report">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+            />
+          </svg>
+          {creator.postCount} {creator.postCount === 1 ? "post" : "posts"}
+        </span>
+      </div>
+    </a>
+  );
+}
+
+// Section component for Top Voices or Top Creators
+function CreatorSection({
+  title,
+  subtitle,
+  tooltip,
+  creators,
+  onViewAll,
+  testId,
+  showFollowers,
+}: {
+  title: string;
+  subtitle: string;
+  tooltip: string;
+  creators: CreatorData[];
+  onViewAll?: () => void;
+  testId: string;
+  showFollowers: boolean;
+}) {
+  if (creators.length === 0) return null;
 
   return (
     <div
       className="bg-white rounded-lg border border-gray-200 p-4 overflow-visible"
-      data-testid="top-creators-by-following"
+      data-testid={testId}
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-gray-700">Top Creators</h3>
-          <span className="text-xs text-gray-400">{hasFollowerData ? "By following size" : "By engagement"}</span>
-          <InfoIcon tooltip={hasFollowerData ? "Creators who posted about this topic, ranked by their follower count. Shows potential reach from these accounts." : "Creators who posted about this topic, ranked by total engagement (likes, comments, shares)."} />
+          <h3 className="text-sm font-medium text-gray-700">{title}</h3>
+          <span className="text-xs text-gray-400">{subtitle}</span>
+          <InfoIcon tooltip={tooltip} />
         </div>
         {onViewAll && (
           <button
@@ -231,111 +335,64 @@ export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: 
       <div className="relative -mx-4 sm:mx-0">
         <div className="flex gap-3 overflow-x-auto px-4 sm:px-0 pb-2 snap-x scrollbar-hide">
           {creators.map((creator, index) => (
-            <a
+            <CreatorCard
               key={`${creator.authorHandle}-${creator.platform}-${index}`}
-              href={getProfileUrl(creator.platform, creator.authorHandle)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-shrink-0 w-[160px] sm:w-[180px] snap-start
-                         border border-gray-100 rounded-lg p-3 hover:bg-gray-50 hover:border-gray-200 transition-colors cursor-pointer"
-            >
-              {/* Avatar + Platform badge */}
-              <div className="relative mb-3">
-                {creator.authorAvatar ? (
-                  <Image
-                    src={creator.authorAvatar}
-                    alt={creator.author}
-                    width={48}
-                    height={48}
-                    className="w-12 h-12 rounded-full object-cover mx-auto"
-                    unoptimized
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mx-auto">
-                    <span className="text-gray-500 text-lg font-medium">
-                      {creator.author.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
-                {/* Platform badge */}
-                <span
-                  className={`absolute -bottom-1 left-1/2 -translate-x-1/2 p-1 rounded-full ${
-                    PLATFORM_COLORS[creator.platform] || "bg-gray-500 text-white"
-                  }`}
-                >
-                  {PLATFORM_ICONS[creator.platform]}
-                </span>
-              </div>
-
-              {/* Name + Handle + Verification */}
-              <div className="text-center mb-2">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="text-sm font-medium text-gray-800 truncate">{creator.author}</p>
-                  {/* Verification checkmark */}
-                  {creator.isVerified && (
-                    <svg className="w-4 h-4 text-blue-500 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M8.603 3.799A4.49 4.49 0 0112 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 013.498 1.307 4.491 4.491 0 011.307 3.497A4.49 4.49 0 0121.75 12a4.49 4.49 0 01-1.549 3.397 4.491 4.491 0 01-1.307 3.497 4.491 4.491 0 01-3.497 1.307A4.49 4.49 0 0112 21.75a4.49 4.49 0 01-3.397-1.549 4.49 4.49 0 01-3.498-1.306 4.491 4.491 0 01-1.307-3.498A4.49 4.49 0 012.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 011.307-3.497 4.49 4.49 0 013.497-1.307zm7.007 6.387a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" />
-                    </svg>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 truncate">{creator.authorHandle}</p>
-              </div>
-
-              {/* Follower Count or Engagement - Prominent */}
-              <div className="flex items-center justify-center gap-1 mb-2">
-                {creator.followersCount > 0 ? (
-                  <>
-                    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
-                    <span className="text-sm font-semibold text-gray-800">
-                      {formatFollowers(creator.followersCount)}
-                    </span>
-                    <span className="text-xs text-gray-400">followers</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                      />
-                    </svg>
-                    <span className="text-sm font-semibold text-gray-800">
-                      {formatFollowers(creator.totalEngagement)}
-                    </span>
-                    <span className="text-xs text-gray-400">engagements</span>
-                  </>
-                )}
-              </div>
-
-              {/* Secondary Stats */}
-              <div className="flex items-center justify-center gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1" title="Posts in this report">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                    />
-                  </svg>
-                  {creator.postCount} {creator.postCount === 1 ? "post" : "posts"}
-                </span>
-              </div>
-            </a>
+              creator={creator}
+              showFollowers={showFollowers}
+            />
           ))}
         </div>
         {/* Fade indicator */}
         <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-white pointer-events-none sm:hidden" />
       </div>
+    </div>
+  );
+}
+
+export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: TopCreatorsByFollowingProps) {
+  const allCreators = aggregateCreators(posts);
+
+  // Split creators into two groups:
+  // 1. Top Voices: Creators with follower data (TikTok, X, YouTube, etc.) - sorted by followers
+  // 2. Top Creators: Creators without follower data (Reddit) - sorted by engagement
+  const topVoices = allCreators
+    .filter((c) => c.followersCount > 0)
+    .sort((a, b) => b.followersCount - a.followersCount)
+    .slice(0, limit);
+
+  const topCreators = allCreators
+    .filter((c) => c.followersCount === 0)
+    .sort((a, b) => b.totalEngagement - a.totalEngagement)
+    .slice(0, limit);
+
+  // Don't render if no creators at all
+  if (topVoices.length === 0 && topCreators.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Top Voices - Creators with follower data */}
+      <CreatorSection
+        title="Top Voices"
+        subtitle="By following size"
+        tooltip="Creators who posted about this topic from platforms with follower data (TikTok, X, YouTube). Ranked by follower count to show potential reach."
+        creators={topVoices}
+        onViewAll={onViewAll}
+        testId="top-voices-by-following"
+        showFollowers={true}
+      />
+
+      {/* Top Creators - Creators without follower data (Reddit) */}
+      <CreatorSection
+        title="Top Creators"
+        subtitle="By engagement"
+        tooltip="Creators who posted about this topic from platforms without follower data (Reddit). Ranked by total engagement (likes, comments, shares)."
+        creators={topCreators}
+        onViewAll={onViewAll}
+        testId="top-creators-by-engagement"
+        showFollowers={false}
+      />
     </div>
   );
 }
