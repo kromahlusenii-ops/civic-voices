@@ -63,10 +63,10 @@ const SENTIMENT_MAX_POSTS = Number(
 const DEFER_REPORT_INSIGHTS = process.env.REPORT_DEFER_INSIGHTS === "true";
 const REPORT_AI_MAX_POSTS = Number(process.env.REPORT_AI_MAX_POSTS ?? 100);
 const REPORT_AI_MAX_COMMENT_POSTS = Number(
-  process.env.REPORT_AI_MAX_COMMENT_POSTS ?? 8
+  process.env.REPORT_AI_MAX_COMMENT_POSTS ?? 25
 );
 const REPORT_AI_MAX_COMMENTS_PER_POST = Number(
-  process.env.REPORT_AI_MAX_COMMENTS_PER_POST ?? 20
+  process.env.REPORT_AI_MAX_COMMENTS_PER_POST ?? 30
 );
 
 /**
@@ -206,12 +206,13 @@ export interface UpdateShareSettingsInput {
  */
 async function fetchTopPostComments(
   posts: Post[],
-  maxPostsPerPlatform: number = 5,
-  maxCommentsPerPost: number = 20
+  maxPostsPerPlatform: number = 25,
+  maxCommentsPerPost: number = 30
 ): Promise<PostComments[]> {
   const results: PostComments[] = [];
-  const xMaxPosts = Math.min(maxPostsPerPlatform, 5);
-  const xMaxComments = Math.min(maxCommentsPerPost, 15);
+  // X/Twitter has stricter API limits - cap at 10 posts, 20 comments each
+  const xMaxPosts = Math.min(maxPostsPerPlatform, 10);
+  const xMaxComments = Math.min(maxCommentsPerPost, 20);
 
   // Sort posts by engagement helper
   const sortByEngagement = (a: Post, b: Post) => {
