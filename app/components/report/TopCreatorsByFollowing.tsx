@@ -349,19 +349,30 @@ function CreatorSection({
   );
 }
 
+// Platforms that typically have follower data
+const FOLLOWER_PLATFORMS = ["tiktok", "x", "youtube", "instagram", "bluesky", "truthsocial"];
+
 export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: TopCreatorsByFollowingProps) {
   const allCreators = aggregateCreators(posts);
 
-  // Split creators into two groups:
-  // 1. Top Voices: Creators with follower data (TikTok, X, YouTube, etc.) - sorted by followers
-  // 2. Top Creators: Creators without follower data (Reddit) - sorted by engagement
+  // Split creators into two groups based on PLATFORM:
+  // 1. Top Voices: TikTok, X, YouTube, etc. - sorted by followers if available, otherwise engagement
+  // 2. Top Creators: Reddit (platforms without follower data) - sorted by engagement
   const topVoices = allCreators
-    .filter((c) => c.followersCount > 0)
-    .sort((a, b) => b.followersCount - a.followersCount)
+    .filter((c) => FOLLOWER_PLATFORMS.includes(c.platform))
+    .sort((a, b) => {
+      // Sort by followers if both have followers, otherwise by engagement
+      if (a.followersCount > 0 && b.followersCount > 0) {
+        return b.followersCount - a.followersCount;
+      }
+      if (a.followersCount > 0) return -1;
+      if (b.followersCount > 0) return 1;
+      return b.totalEngagement - a.totalEngagement;
+    })
     .slice(0, limit);
 
   const topCreators = allCreators
-    .filter((c) => c.followersCount === 0)
+    .filter((c) => !FOLLOWER_PLATFORMS.includes(c.platform))
     .sort((a, b) => b.totalEngagement - a.totalEngagement)
     .slice(0, limit);
 
@@ -372,11 +383,11 @@ export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: 
 
   return (
     <div className="space-y-4">
-      {/* Top Voices - Creators with follower data */}
+      {/* Top Voices - TikTok, X, YouTube creators */}
       <CreatorSection
         title="Top Voices"
-        subtitle="By following size"
-        tooltip="Creators who posted about this topic from platforms with follower data (TikTok, X, YouTube). Ranked by follower count to show potential reach."
+        subtitle={topVoices.some(c => c.followersCount > 0) ? "By reach" : "By engagement"}
+        tooltip="Creators from TikTok, X, and YouTube who posted about this topic. Ranked by follower count when available, otherwise by engagement."
         creators={topVoices}
         onViewAll={onViewAll}
         testId="top-voices-by-following"
