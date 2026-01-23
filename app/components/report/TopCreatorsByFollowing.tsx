@@ -39,7 +39,6 @@ function InfoIcon({ tooltip }: { tooltip: string }) {
 interface TopCreatorsByFollowingProps {
   posts: Post[];
   limit?: number;
-  onViewAll?: () => void;
 }
 
 interface CreatorData {
@@ -349,17 +348,12 @@ function CreatorSection({
   );
 }
 
-// Platforms that typically have follower data
-const FOLLOWER_PLATFORMS = ["tiktok", "x", "youtube", "instagram", "bluesky", "truthsocial"];
-
-export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: TopCreatorsByFollowingProps) {
+export default function TopCreatorsByFollowing({ posts, limit = 6 }: TopCreatorsByFollowingProps) {
   const allCreators = aggregateCreators(posts);
 
-  // Split creators into two groups based on PLATFORM:
-  // 1. Top Voices: TikTok, X, YouTube, etc. - sorted by followers if available, otherwise engagement
-  // 2. Top Creators: Reddit (platforms without follower data) - sorted by engagement
+  // Single list of Top Voices from ALL platforms
+  // Sort by followers if available, otherwise by engagement
   const topVoices = allCreators
-    .filter((c) => FOLLOWER_PLATFORMS.includes(c.platform))
     .sort((a, b) => {
       // Sort by followers if both have followers, otherwise by engagement
       if (a.followersCount > 0 && b.followersCount > 0) {
@@ -371,39 +365,19 @@ export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: 
     })
     .slice(0, limit);
 
-  const topCreators = allCreators
-    .filter((c) => !FOLLOWER_PLATFORMS.includes(c.platform))
-    .sort((a, b) => b.totalEngagement - a.totalEngagement)
-    .slice(0, limit);
-
   // Don't render if no creators at all
-  if (topVoices.length === 0 && topCreators.length === 0) {
+  if (topVoices.length === 0) {
     return null;
   }
 
   return (
-    <div className="space-y-4">
-      {/* Top Voices - TikTok, X, YouTube creators */}
-      <CreatorSection
-        title="Top Voices"
-        subtitle={topVoices.some(c => c.followersCount > 0) ? "By reach" : "By engagement"}
-        tooltip="Creators from TikTok, X, and YouTube who posted about this topic. Ranked by follower count when available, otherwise by engagement."
-        creators={topVoices}
-        onViewAll={onViewAll}
-        testId="top-voices-by-following"
-        showFollowers={true}
-      />
-
-      {/* Top Creators - Creators without follower data (Reddit) */}
-      <CreatorSection
-        title="Top Creators"
-        subtitle="By engagement"
-        tooltip="Creators who posted about this topic from platforms without follower data (Reddit). Ranked by total engagement (likes, comments, shares)."
-        creators={topCreators}
-        onViewAll={onViewAll}
-        testId="top-creators-by-engagement"
-        showFollowers={false}
-      />
-    </div>
+    <CreatorSection
+      title="Top Voices"
+      subtitle={topVoices.some(c => c.followersCount > 0) ? "By reach" : "By engagement"}
+      tooltip="Creators who posted about this topic across all platforms. Ranked by follower count when available, otherwise by engagement."
+      creators={topVoices}
+      testId="top-voices"
+      showFollowers={true}
+    />
   );
 }

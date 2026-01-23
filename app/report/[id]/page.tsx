@@ -18,7 +18,6 @@ import {
   generateTopicsFromThemes,
   KeywordsCloud,
   TopPosts,
-  TopVoices,
   TopCreatorsByFollowing,
   ShareModal,
   AlertButton,
@@ -987,21 +986,11 @@ export default function ReportPage() {
                   />
                 )}
 
-                {/* Top Creators by Following - Full Width */}
+                {/* Top Voices - Full Width */}
                 {reportData.posts.length > 0 && (
                   <TopCreatorsByFollowing
                     posts={reportData.posts}
                     limit={6}
-                    onViewAll={() => handleTabChange("social-posts")}
-                  />
-                )}
-
-                {/* Top Voices - Full Width */}
-                {reportData.posts.length > 0 && (
-                  <TopVoices
-                    posts={reportData.posts}
-                    limit={6}
-                    onViewAll={() => handleTabChange("social-posts")}
                   />
                 )}
 
