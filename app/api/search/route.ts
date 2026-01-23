@@ -328,7 +328,14 @@ export async function POST(request: NextRequest) {
         if (config.sociaVault.apiKey) {
           const sociaVaultPromise = (async () => {
             const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey!);
-            const tiktokQuery = SociaVaultApiService.getBaseQuery(query);
+            let tiktokQuery = SociaVaultApiService.getBaseQuery(query);
+
+            // For local searches, append location to TikTok query
+            if (isLocalSearch) {
+              const locationSuffix = city && state ? `in ${city}, ${state}` : `in ${state || city}`;
+              tiktokQuery = `${tiktokQuery} ${locationSuffix}`;
+              console.log('[TikTok SociaVault] Local search query:', tiktokQuery);
+            }
 
             const tiktokResults = await withRetryOnEmpty(
               () => withRetry(
@@ -371,7 +378,14 @@ export async function POST(request: NextRequest) {
               config.tiktok.accountKey
             );
 
-            const tiktokQuery = TikTokApiService.getBaseQuery(query);
+            let tiktokQuery = TikTokApiService.getBaseQuery(query);
+
+            // For local searches, append location to TikTok query
+            if (isLocalSearch) {
+              const locationSuffix = city && state ? `in ${city}, ${state}` : `in ${state || city}`;
+              tiktokQuery = `${tiktokQuery} ${locationSuffix}`;
+              console.log('[TikTok TikAPI] Local search query:', tiktokQuery);
+            }
 
             const tiktokResults = await withRetryOnEmpty(
               () => withRetry(
