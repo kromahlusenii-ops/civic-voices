@@ -359,20 +359,31 @@ async function getUserIdFromSupabaseUid(supabaseUid: string): Promise<string> {
   });
 
   if (user) {
+    console.log(`[getUserIdFromSupabaseUid] Found user by supabaseUid: ${supabaseUid.slice(0, 8)}... -> ${user.id.slice(0, 8)}...`);
     return user.id;
   }
 
   // Fall back to firebaseUid (legacy)
-  user = await prisma.user.findUnique({
+  const legacyUser = await prisma.user.findUnique({
     where: { firebaseUid: supabaseUid },
-    select: { id: true },
+    select: { id: true, supabaseUid: true },
   });
 
-  if (user) {
-    return user.id;
+  if (legacyUser) {
+    console.log(`[getUserIdFromSupabaseUid] Found user by firebaseUid (legacy): ${supabaseUid.slice(0, 8)}... -> ${legacyUser.id.slice(0, 8)}...`);
+    // Migrate: set supabaseUid if not already set
+    if (!legacyUser.supabaseUid) {
+      console.log(`[getUserIdFromSupabaseUid] Migrating user: setting supabaseUid to ${supabaseUid.slice(0, 8)}...`);
+      await prisma.user.update({
+        where: { id: legacyUser.id },
+        data: { supabaseUid },
+      });
+    }
+    return legacyUser.id;
   }
 
   // Create new user with supabaseUid
+  console.log(`[getUserIdFromSupabaseUid] Creating NEW user for supabaseUid: ${supabaseUid.slice(0, 8)}...`);
   user = await prisma.user.create({
     data: {
       supabaseUid,
@@ -382,6 +393,7 @@ async function getUserIdFromSupabaseUid(supabaseUid: string): Promise<string> {
     select: { id: true },
   });
 
+  console.log(`[getUserIdFromSupabaseUid] Created user: ${user.id.slice(0, 8)}...`);
   return user.id;
 }
 
@@ -969,6 +981,18 @@ export async function getReport(
 ): Promise<ReportData | null> {
   // Get internal user ID
   const userId = await getUserIdFromSupabaseUid(supabaseUid);
+  console.log(`[getReport] supabaseUid: ${supabaseUid.slice(0, 8)}..., resolved userId: ${userId.slice(0, 8)}...`);
+
+  // First, check who actually owns this report (for debugging)
+  const reportOwner = await prisma.researchJob.findUnique({
+    where: { id: reportId },
+    select: { userId: true },
+  });
+  if (reportOwner) {
+    console.log(`[getReport] Report ${reportId} owned by userId: ${reportOwner.userId.slice(0, 8)}..., match: ${reportOwner.userId === userId}`);
+  } else {
+    console.log(`[getReport] Report ${reportId} not found in database`);
+  }
 
   // Fetch the research job
   const job = await prisma.researchJob.findFirst({
