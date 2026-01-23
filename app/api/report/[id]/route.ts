@@ -28,10 +28,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // Try authenticated access first
     const authHeader = request.headers.get("Authorization");
+    console.log(`[Report API] GET ${reportId} - hasAuth: ${!!authHeader}, hasToken: ${!!shareToken}`);
 
     if (authHeader?.startsWith("Bearer ")) {
       const accessToken = authHeader.split("Bearer ")[1];
+      console.log(`[Report API] Verifying token (length: ${accessToken?.length || 0})`);
       const user = await verifySupabaseToken(accessToken);
+      console.log(`[Report API] Token verification: ${user ? 'success (user: ' + user.id.slice(0, 8) + '...)' : 'failed'}`);
 
       if (user) {
         // Authenticated user - use owner-only logic
@@ -48,16 +51,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
         const report = await getReport(reportId, user.id);
         if (report) {
+          console.log(`[Report API] Report found for owner, posts: ${report.posts?.length || 0}`);
           return NextResponse.json({ ...report, isOwner: true });
         }
         // If authenticated but not owner, try shared access below
+        console.log(`[Report API] User ${user.id.slice(0, 8)}... is not owner of report ${reportId}`);
       }
+    } else {
+      console.log(`[Report API] No auth header provided`);
     }
 
     // Unauthenticated or not owner - try shared access
     const report = await getReportForSharing(reportId, shareToken || undefined);
 
     if (!report) {
+      console.log(`[Report API] No shared access for report ${reportId}`);
       // If no share token, return 401 to trigger auth modal
       if (!shareToken) {
         return NextResponse.json(
