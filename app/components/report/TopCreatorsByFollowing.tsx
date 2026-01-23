@@ -179,24 +179,26 @@ function aggregateCreatorsByFollowing(posts: Post[]): CreatorData[] {
     }
   }
 
-  // Filter to only creators with follower data and sort by followers descending
-  return Array.from(creatorMap.values())
-    .filter((creator) => creator.followersCount > 0)
-    .sort((a, b) => b.followersCount - a.followersCount);
+  // Get all creators and sort - prefer by followers if available, otherwise by engagement
+  const allCreators = Array.from(creatorMap.values());
+  const creatorsWithFollowers = allCreators.filter((creator) => creator.followersCount > 0);
+
+  if (creatorsWithFollowers.length >= 3) {
+    // Enough creators with follower data - sort by followers
+    return creatorsWithFollowers.sort((a, b) => b.followersCount - a.followersCount);
+  }
+
+  // Fall back to sorting by engagement when follower data is scarce
+  return allCreators.sort((a, b) => b.totalEngagement - a.totalEngagement);
 }
 
 export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: TopCreatorsByFollowingProps) {
   const creators = aggregateCreatorsByFollowing(posts).slice(0, limit);
 
-  // Debug logging
-  console.log('[TopCreatorsByFollowing] Posts received:', posts.length);
-  console.log('[TopCreatorsByFollowing] Posts with follower data:', posts.filter(p => p.authorMetadata?.followersCount).length);
-  console.log('[TopCreatorsByFollowing] Creators found:', creators.length);
-  if (creators.length > 0) {
-    console.log('[TopCreatorsByFollowing] Top creator:', creators[0]);
-  }
+  // Check if we have follower data for the display
+  const hasFollowerData = creators.some(c => c.followersCount > 0);
 
-  // Don't render if no creators with follower data found
+  // Don't render if no creators found at all
   if (creators.length === 0) {
     return null;
   }
@@ -209,8 +211,8 @@ export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: 
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-gray-700">Top Creators</h3>
-          <span className="text-xs text-gray-400">By following size</span>
-          <InfoIcon tooltip="Creators who posted about this topic, ranked by their follower count. Shows potential reach from these accounts." />
+          <span className="text-xs text-gray-400">{hasFollowerData ? "By following size" : "By engagement"}</span>
+          <InfoIcon tooltip={hasFollowerData ? "Creators who posted about this topic, ranked by their follower count. Shows potential reach from these accounts." : "Creators who posted about this topic, ranked by total engagement (likes, comments, shares)."} />
         </div>
         {onViewAll && (
           <button
@@ -279,20 +281,39 @@ export default function TopCreatorsByFollowing({ posts, limit = 6, onViewAll }: 
                 <p className="text-xs text-gray-500 truncate">{creator.authorHandle}</p>
               </div>
 
-              {/* Follower Count - Prominent */}
+              {/* Follower Count or Engagement - Prominent */}
               <div className="flex items-center justify-center gap-1 mb-2">
-                <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-                  />
-                </svg>
-                <span className="text-sm font-semibold text-gray-800">
-                  {formatFollowers(creator.followersCount)}
-                </span>
-                <span className="text-xs text-gray-400">followers</span>
+                {creator.followersCount > 0 ? (
+                  <>
+                    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                    <span className="text-sm font-semibold text-gray-800">
+                      {formatFollowers(creator.followersCount)}
+                    </span>
+                    <span className="text-xs text-gray-400">followers</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                      />
+                    </svg>
+                    <span className="text-sm font-semibold text-gray-800">
+                      {formatFollowers(creator.totalEngagement)}
+                    </span>
+                    <span className="text-xs text-gray-400">engagements</span>
+                  </>
+                )}
               </div>
 
               {/* Secondary Stats */}
