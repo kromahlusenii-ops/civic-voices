@@ -414,6 +414,13 @@ function PlanBillingTab() {
   }, [getAccessToken]);
 
   const handleStartTrial = async (plan: "pro" | "agency" | "business" = "pro") => {
+    // If user is already subscribed, redirect to Billing Portal for upgrades
+    if (isSubscribed) {
+      await handleManagePlan();
+      return;
+    }
+
+    // New subscription - go through checkout
     try {
       setIsCheckoutLoading(plan);
       const accessToken = await getAccessToken();
@@ -436,13 +443,7 @@ function PlanBillingTab() {
       }
 
       if (data.url) {
-        // New subscription - redirect to Stripe checkout
         window.location.href = data.url;
-      } else if (data.success) {
-        // Upgrade successful - refresh billing data and show success
-        alert(data.message || `Successfully upgraded to ${plan} plan!`);
-        // Refresh the page to show updated plan
-        window.location.reload();
       }
     } catch (error) {
       console.error("Checkout error:", error);
