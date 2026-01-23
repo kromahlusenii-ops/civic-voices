@@ -111,6 +111,11 @@ export interface AIAnalysis {
   scope?: {
     type: "local" | "national" | "international" | "mixed";
     indicators: string[];  // e.g., ["mentions specific city", "state-level policy"]
+    location?: {
+      city?: string;       // e.g., "Austin"
+      state?: string;      // e.g., "Texas" or "TX"
+      country?: string;    // e.g., "USA" for international scope
+    };
   };
 }
 

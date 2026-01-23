@@ -150,6 +150,7 @@ For scope, determine the geographic/political scope of the conversation:
 - "international": Posts about global issues, foreign countries, international relations
 - "mixed": Posts spanning multiple scope levels
 Include 1-3 indicators explaining WHY you chose this scope (e.g., "mentions Austin city council", "discusses federal tax policy")
+IMPORTANT: If scope is "local", you MUST include the "location" object with city and/or state. Extract the specific location mentioned in the posts.
 
 Provide a JSON response with the following structure:
 {
@@ -161,7 +162,8 @@ Provide a JSON response with the following structure:
   },
   "scope": {
     "type": "local|national|international|mixed",
-    "indicators": ["specific reason 1", "specific reason 2"]
+    "indicators": ["specific reason 1", "specific reason 2"],
+    "location": {"city": "Austin", "state": "Texas"}
   },
   "intentionsBreakdown": [
     {"name": "Inform", "percentage": 35, "engagementRate": 3.2},
