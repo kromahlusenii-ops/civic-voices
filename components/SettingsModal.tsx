@@ -69,8 +69,34 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("credit_usage");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const { signOut: supabaseSignOut } = useAuth();
+  const [userPlan, setUserPlan] = useState<string | null>(null);
+  const { signOut: supabaseSignOut, getAccessToken } = useAuth();
   const router = useRouter();
+
+  // Fetch user's subscription plan to determine team access
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchPlan = async () => {
+      try {
+        const accessToken = await getAccessToken();
+        if (!accessToken) return;
+
+        const response = await fetch("/api/billing/status", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserPlan(data.subscription?.plan || null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch plan:", error);
+      }
+    };
+
+    fetchPlan();
+  }, [isOpen, getAccessToken]);
 
   if (!isOpen) return null;
 
@@ -93,11 +119,14 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  // Team & Members is only available for Agency and Business plans (not Pro or free)
+  const isTeamEnabled = userPlan === "agency" || userPlan === "business";
+
   const navItems = [
     { id: "credit_usage" as const, label: "Credit usage", icon: CreditIcon, disabled: false },
     { id: "plan_billing" as const, label: "Plan & Billing", icon: BillingIcon, disabled: false },
-    { id: "team_members" as const, label: "Team & Members", icon: TeamIcon, disabled: false },
-    { id: "integrations" as const, label: "Integrations", icon: IntegrationsIcon, disabled: true },
+    { id: "team_members" as const, label: "Team & Members", icon: TeamIcon, disabled: !isTeamEnabled, disabledReason: "Upgrade to Agency or Business" },
+    { id: "integrations" as const, label: "Integrations", icon: IntegrationsIcon, disabled: true, disabledReason: "Coming soon" },
   ];
 
   return (
@@ -164,7 +193,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </button>
                 {item.disabled && (
                   <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
-                    Coming soon
+                    {item.disabledReason || "Coming soon"}
                   </div>
                 )}
               </div>
@@ -414,9 +443,46 @@ function PlanBillingTab() {
   }, [getAccessToken]);
 
   const handleStartTrial = async (plan: "pro" | "agency" | "business" = "pro") => {
-    // If user is already subscribed, redirect to Billing Portal for upgrades
-    if (isSubscribed) {
-      await handleManagePlan();
+    // Check subscription status from billingData directly to avoid closure issues
+    const currentSubscription = billingData?.subscription || { status: "free", plan: null };
+    const currentlySubscribed = currentSubscription.status === "active" || currentSubscription.status === "trialing";
+
+    // If user is already subscribed, redirect to Billing Portal for upgrades/changes
+    if (currentlySubscribed) {
+      try {
+        setIsCheckoutLoading(plan); // Use checkout loading for visual feedback
+        const accessToken = await getAccessToken();
+        if (!accessToken) {
+          alert("Please sign in to manage your subscription.");
+          return;
+        }
+
+        const response = await fetch("/api/billing/portal", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert(data.error || "Failed to open billing portal. Please try again.");
+          return;
+        }
+
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          alert("Failed to open billing portal. Please try again.");
+        }
+      } catch (error) {
+        console.error("Portal error:", error);
+        alert("An error occurred opening the billing portal. Please try again.");
+      } finally {
+        setIsCheckoutLoading(null);
+      }
       return;
     }
 
@@ -424,7 +490,10 @@ function PlanBillingTab() {
     try {
       setIsCheckoutLoading(plan);
       const accessToken = await getAccessToken();
-      if (!accessToken) return;
+      if (!accessToken) {
+        alert("Please sign in to start your subscription.");
+        return;
+      }
 
       const response = await fetch("/api/billing/checkout", {
         method: "POST",
@@ -444,6 +513,8 @@ function PlanBillingTab() {
 
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        alert("Failed to create checkout session. Please try again.");
       }
     } catch (error) {
       console.error("Checkout error:", error);

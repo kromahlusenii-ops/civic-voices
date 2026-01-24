@@ -104,15 +104,42 @@ describe("SettingsModal", () => {
       })
     })
 
-    it("shows Coming soon tooltip for disabled Team & Members tab", async () => {
+    it("shows Team & Members tab as disabled for free/pro users", async () => {
+      // Default mock returns free status
       render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
 
-      const teamTab = screen.getByText("Team & Members")
-      expect(teamTab.closest("button")).toBeDisabled()
+      await waitFor(() => {
+        const teamTab = screen.getByText("Team & Members")
+        expect(teamTab.closest("button")).toBeDisabled()
+      })
+    })
 
-      // The tooltip should be in the DOM but hidden until hover
-      const tooltips = screen.getAllByText("Coming soon")
-      expect(tooltips.length).toBeGreaterThan(0)
+    it("shows Team & Members tab as enabled for agency users", async () => {
+      mockFetch.mockReset()
+      mockFetch.mockImplementation(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              subscription: {
+                status: "active",
+                plan: "agency",
+                currentPeriodEnd: "2025-02-01T00:00:00Z",
+                trialEndDate: null,
+              },
+              credits: { monthly: 150, bonus: 0, total: 150, resetDate: null },
+              limits: {},
+              recentTransactions: [],
+            }),
+        })
+      )
+
+      render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
+
+      await waitFor(() => {
+        const teamTab = screen.getByText("Team & Members")
+        expect(teamTab.closest("button")).not.toBeDisabled()
+      }, { timeout: 3000 })
     })
 
     it("shows Coming soon tooltip for disabled Integrations tab", async () => {
@@ -169,7 +196,7 @@ describe("SettingsModal", () => {
         json: () =>
           Promise.resolve({
             subscription: { status: "active", plan: "pro", currentPeriodEnd: null, trialEndDate: null },
-            credits: { monthly: 150, bonus: 10, total: 160, resetDate: "2025-02-01" },
+            credits: { monthly: 40, bonus: 10, total: 50, resetDate: "2025-02-01" },
             limits: {},
             recentTransactions: [],
           }),
@@ -179,7 +206,7 @@ describe("SettingsModal", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Credits available")).toBeInTheDocument()
-        expect(screen.getByText("160/200")).toBeInTheDocument()
+        expect(screen.getByText("50/50")).toBeInTheDocument()
       })
     })
 
@@ -189,11 +216,11 @@ describe("SettingsModal", () => {
         json: () =>
           Promise.resolve({
             subscription: { status: "active", plan: "pro", currentPeriodEnd: null, trialEndDate: null },
-            credits: { monthly: 200, bonus: 0, total: 200, resetDate: "2025-02-01" },
+            credits: { monthly: 50, bonus: 0, total: 50, resetDate: "2025-02-01" },
             limits: {},
             recentTransactions: [
               { id: "tx-1", amount: -5, type: "search_usage", description: "Search", createdAt: "2025-01-15T10:00:00Z" },
-              { id: "tx-2", amount: 200, type: "monthly_reset", description: "Reset", createdAt: "2025-01-01T00:00:00Z" },
+              { id: "tx-2", amount: 50, type: "monthly_reset", description: "Reset", createdAt: "2025-01-01T00:00:00Z" },
             ],
           }),
       })
@@ -224,8 +251,8 @@ describe("SettingsModal", () => {
 
       await waitFor(() => {
         expect(screen.getByRole("heading", { name: "Pro" })).toBeInTheDocument()
+        expect(screen.getByRole("heading", { name: "Agency" })).toBeInTheDocument()
         expect(screen.getByRole("heading", { name: "Business" })).toBeInTheDocument()
-        expect(screen.getByRole("heading", { name: "Enterprise" })).toBeInTheDocument()
       })
     })
 
@@ -250,7 +277,7 @@ describe("SettingsModal", () => {
               currentPeriodEnd: "2025-02-01T00:00:00Z",
               trialEndDate: "2025-01-25T00:00:00Z",
             },
-            credits: { monthly: 200, bonus: 0, total: 200, resetDate: null },
+            credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
             limits: {},
             recentTransactions: [],
           }),
@@ -277,7 +304,7 @@ describe("SettingsModal", () => {
               currentPeriodEnd: "2025-02-01T00:00:00Z",
               trialEndDate: null,
             },
-            credits: { monthly: 200, bonus: 0, total: 200, resetDate: null },
+            credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
             limits: {},
             recentTransactions: [],
           }),
@@ -292,16 +319,41 @@ describe("SettingsModal", () => {
       })
     })
 
-    it("shows Coming soon badges on Business and Enterprise plans", async () => {
+    it("shows Upgrade button for subscribed users on higher tier plans", async () => {
+      mockFetch.mockReset()
+      mockFetch.mockImplementation(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              subscription: {
+                status: "active",
+                plan: "pro",
+                currentPeriodEnd: "2025-02-01T00:00:00Z",
+                trialEndDate: null,
+              },
+              credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
+              limits: {},
+              recentTransactions: [],
+            }),
+        })
+      )
+
       render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
 
       fireEvent.click(screen.getByText("Plan & Billing"))
 
+      // Wait for loading to complete and current plan to show
       await waitFor(() => {
-        const comingSoonBadges = screen.getAllByText("Coming soon")
-        // Should have badges on both Business and Enterprise cards plus disabled buttons
-        expect(comingSoonBadges.length).toBeGreaterThanOrEqual(2)
-      })
+        expect(screen.getByText("Current plan")).toBeInTheDocument()
+      }, { timeout: 5000 })
+
+      // Then check for upgrade buttons
+      await waitFor(() => {
+        // Pro user should see "Upgrade" buttons on Agency and Business plans
+        const upgradeButtons = screen.getAllByText("Upgrade")
+        expect(upgradeButtons.length).toBe(2) // Agency and Business
+      }, { timeout: 3000 })
     })
 
     it("shows Cancel membership link for subscribed users", async () => {
@@ -315,7 +367,7 @@ describe("SettingsModal", () => {
               currentPeriodEnd: "2025-02-01T00:00:00Z",
               trialEndDate: null,
             },
-            credits: { monthly: 200, bonus: 0, total: 200, resetDate: null },
+            credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
             limits: {},
             recentTransactions: [],
           }),
@@ -353,7 +405,7 @@ describe("SettingsModal", () => {
               currentPeriodEnd: "2025-02-01T00:00:00Z",
               trialEndDate: null,
             },
-            credits: { monthly: 200, bonus: 0, total: 200, resetDate: null },
+            credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
             limits: {},
             recentTransactions: [],
           }),
@@ -384,7 +436,7 @@ describe("SettingsModal", () => {
               currentPeriodEnd: "2025-02-01T00:00:00Z",
               trialEndDate: null,
             },
-            credits: { monthly: 200, bonus: 0, total: 200, resetDate: null },
+            credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
             limits: {},
             recentTransactions: [],
           }),
@@ -416,7 +468,7 @@ describe("SettingsModal", () => {
               currentPeriodEnd: "2025-02-01T00:00:00Z",
               trialEndDate: null,
             },
-            credits: { monthly: 200, bonus: 0, total: 200, resetDate: null },
+            credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
             limits: {},
             recentTransactions: [],
           }),
@@ -467,7 +519,7 @@ describe("SettingsModal", () => {
   })
 
   describe("Checkout flow", () => {
-    it("calls checkout API when clicking Start Trial", async () => {
+    it("calls checkout API when clicking Start Free Trial for free users", async () => {
       const checkoutUrl = "https://checkout.stripe.com/session123"
 
       mockFetch
@@ -491,10 +543,11 @@ describe("SettingsModal", () => {
       fireEvent.click(screen.getByText("Plan & Billing"))
 
       await waitFor(() => {
-        expect(screen.getByText("Start $1 Trial")).toBeInTheDocument()
+        expect(screen.getAllByText("Start Free Trial").length).toBeGreaterThan(0)
       })
 
-      fireEvent.click(screen.getByText("Start $1 Trial"))
+      // Click the first "Start Free Trial" button (Pro plan)
+      fireEvent.click(screen.getAllByText("Start Free Trial")[0])
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith(
@@ -505,22 +558,176 @@ describe("SettingsModal", () => {
         )
       })
     })
+
+    it("calls portal API when subscribed user clicks Upgrade", async () => {
+      const portalUrl = "https://billing.stripe.com/portal123"
+
+      mockFetch.mockReset()
+      mockFetch.mockImplementation((url: string) => {
+        if (url === "/api/billing/portal") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ url: portalUrl }),
+          })
+        }
+        // Default: billing status
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              subscription: {
+                status: "active",
+                plan: "pro",
+                currentPeriodEnd: "2025-02-01T00:00:00Z",
+                trialEndDate: null,
+              },
+              credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
+              limits: {},
+              recentTransactions: [],
+            }),
+        })
+      })
+
+      render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
+
+      fireEvent.click(screen.getByText("Plan & Billing"))
+
+      // Wait for current plan to load first
+      await waitFor(() => {
+        expect(screen.getByText("Current plan")).toBeInTheDocument()
+      }, { timeout: 5000 })
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Upgrade").length).toBeGreaterThan(0)
+      }, { timeout: 3000 })
+
+      // Click the first "Upgrade" button (Agency plan)
+      fireEvent.click(screen.getAllByText("Upgrade")[0])
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          "/api/billing/portal",
+          expect.objectContaining({
+            method: "POST",
+          })
+        )
+      })
+    })
+
+    it("shows error alert when portal API fails", async () => {
+      const alertMock = vi.spyOn(window, "alert").mockImplementation(() => {})
+
+      mockFetch.mockReset()
+      mockFetch.mockImplementation((url: string) => {
+        if (url === "/api/billing/portal") {
+          return Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({ error: "No billing account found" }),
+          })
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              subscription: {
+                status: "active",
+                plan: "pro",
+                currentPeriodEnd: "2025-02-01T00:00:00Z",
+                trialEndDate: null,
+              },
+              credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
+              limits: {},
+              recentTransactions: [],
+            }),
+        })
+      })
+
+      render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
+
+      fireEvent.click(screen.getByText("Plan & Billing"))
+
+      // Wait for current plan to load first
+      await waitFor(() => {
+        expect(screen.getByText("Current plan")).toBeInTheDocument()
+      }, { timeout: 5000 })
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Upgrade").length).toBeGreaterThan(0)
+      }, { timeout: 3000 })
+
+      fireEvent.click(screen.getAllByText("Upgrade")[0])
+
+      await waitFor(() => {
+        expect(alertMock).toHaveBeenCalledWith("No billing account found")
+      })
+
+      alertMock.mockRestore()
+    })
+
+    it("shows error when portal URL is missing", async () => {
+      const alertMock = vi.spyOn(window, "alert").mockImplementation(() => {})
+
+      mockFetch.mockReset()
+      mockFetch.mockImplementation((url: string) => {
+        if (url === "/api/billing/portal") {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({}), // Missing url
+          })
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              subscription: {
+                status: "active",
+                plan: "pro",
+                currentPeriodEnd: "2025-02-01T00:00:00Z",
+                trialEndDate: null,
+              },
+              credits: { monthly: 50, bonus: 0, total: 50, resetDate: null },
+              limits: {},
+              recentTransactions: [],
+            }),
+        })
+      })
+
+      render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
+
+      fireEvent.click(screen.getByText("Plan & Billing"))
+
+      // Wait for current plan to load first
+      await waitFor(() => {
+        expect(screen.getByText("Current plan")).toBeInTheDocument()
+      }, { timeout: 5000 })
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Upgrade").length).toBeGreaterThan(0)
+      }, { timeout: 3000 })
+
+      fireEvent.click(screen.getAllByText("Upgrade")[0])
+
+      await waitFor(() => {
+        expect(alertMock).toHaveBeenCalledWith("Failed to open billing portal. Please try again.")
+      })
+
+      alertMock.mockRestore()
+    })
   })
 
   describe("Pro plan features", () => {
-    it("displays all Pro plan features including new ones", async () => {
+    it("displays all Pro plan features", async () => {
       render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
 
       fireEvent.click(screen.getByText("Plan & Billing"))
 
       await waitFor(() => {
-        expect(screen.getByText("200 credits / month")).toBeInTheDocument()
+        expect(screen.getByText("50 credits / month")).toBeInTheDocument()
         expect(screen.getByText("AI-powered reports")).toBeInTheDocument()
         expect(screen.getByText("PDF report generator")).toBeInTheDocument()
         expect(screen.getByText("Shareable reports")).toBeInTheDocument()
         expect(screen.getByText("Email alerts")).toBeInTheDocument()
         expect(screen.getByText("Export data")).toBeInTheDocument()
-        expect(screen.getByText("Priority support")).toBeInTheDocument()
       })
     })
   })
