@@ -78,4 +78,5 @@ export function isLoopsEnabled(): boolean {
 export const LOOPS_TEMPLATES = {
   alertDigest: process.env.LOOPS_ALERT_DIGEST_TEMPLATE_ID || "",
   verifyRecipient: process.env.LOOPS_VERIFY_RECIPIENT_TEMPLATE_ID || "",
+  reportReady: process.env.LOOPS_REPORT_READY_TEMPLATE_ID || "",
 }

@@ -8,6 +8,7 @@
 import { prisma } from "@/lib/prisma";
 import { JobStatus, Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import { getLoopsClient, isLoopsEnabled, LOOPS_TEMPLATES } from "@/lib/loops";
 import {
   SentimentClassificationService,
   type Sentiment,
@@ -91,6 +92,48 @@ function getBaseUrl(): string {
 }
 
 type PrismaClientLike = Prisma.TransactionClient | PrismaClient;
+
+/**
+ * Send "Report Ready" email notification to user
+ */
+async function sendReportReadyEmail(
+  userEmail: string,
+  reportId: string,
+  searchQuery: string,
+  totalPosts: number,
+  topInsight?: string
+): Promise<void> {
+  if (!isLoopsEnabled() || !LOOPS_TEMPLATES.reportReady) {
+    console.log("[Report] Loops not configured for report ready emails, skipping");
+    return;
+  }
+
+  try {
+    const loops = getLoopsClient();
+    const appUrl = getBaseUrl();
+    const reportUrl = `${appUrl}/report/${reportId}`;
+
+    const response = await loops.sendTransactionalEmail({
+      transactionalId: LOOPS_TEMPLATES.reportReady,
+      email: userEmail,
+      dataVariables: {
+        searchQuery,
+        totalPosts,
+        reportUrl,
+        topInsight: topInsight || `Analysis of ${totalPosts} social media posts about "${searchQuery}"`,
+      },
+    });
+
+    if (response.success) {
+      console.log(`[Report] Report ready email sent to ${userEmail} for report ${reportId}`);
+    } else {
+      console.error(`[Report] Failed to send report ready email: ${response.error}`);
+    }
+  } catch (error) {
+    console.error("[Report] Error sending report ready email:", error);
+    // Don't throw - email failure shouldn't fail the report
+  }
+}
 
 export function getEngagementScore(post: {
   engagement: Post["engagement"];
@@ -412,6 +455,13 @@ export async function startReport(
   // ============================================
   const userId = await getUserIdFromSupabaseUid(supabaseUid);
 
+  // Get user email for notification
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  const userEmail = user?.email;
+
   const search = await prisma.search.findFirst({
     where: {
       id: searchId,
@@ -595,6 +645,18 @@ export async function startReport(
       { timeout: TRANSACTION_TIMEOUT_MS }
     );
 
+    // Send report ready email notification
+    if (userEmail) {
+      const topInsight = aiAnalysis?.interpretation || undefined;
+      await sendReportReadyEmail(
+        userEmail,
+        jobId,
+        searchData.queryText,
+        searchData.posts.length,
+        topInsight
+      );
+    }
+
     return { reportId: jobId };
   } catch (error) {
     // Mark job as failed (separate transaction since main one failed)
@@ -630,6 +692,13 @@ export async function startReportWithProgress(
   });
 
   const userId = await getUserIdFromSupabaseUid(supabaseUid);
+
+  // Get user email for notification
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  const userEmail = user?.email;
 
   const search = await prisma.search.findFirst({
     where: {
@@ -844,6 +913,18 @@ export async function startReportWithProgress(
       },
       { timeout: TRANSACTION_TIMEOUT_MS }
     );
+
+    // Send report ready email notification
+    if (userEmail) {
+      const topInsight = aiAnalysis?.interpretation || undefined;
+      await sendReportReadyEmail(
+        userEmail,
+        jobId,
+        searchData.queryText,
+        searchData.posts.length,
+        topInsight
+      );
+    }
 
     return { reportId: jobId };
   } catch (error) {
