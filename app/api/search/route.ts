@@ -18,6 +18,14 @@ import {
   filterVerifiedOnly,
   isTier1Source,
 } from "@/lib/credibility";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+
+// Rate limit: 15 requests per minute per IP
+const SEARCH_RATE_LIMIT = { windowMs: 60000, maxRequests: 15 };
+// Max query length to prevent abuse
+const MAX_QUERY_LENGTH = 500;
+// Max sources to prevent resource exhaustion
+const MAX_SOURCES = 6;
 
 interface SentimentCounts {
   positive: number;
@@ -202,12 +210,34 @@ async function withRetryOnEmpty<T>(
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting by IP
+    const clientIp = getClientIp(request);
+    const rateLimitResult = checkRateLimit(`search:${clientIp}`, SEARCH_RATE_LIMIT);
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: "Too many requests. Please try again later.",
+          retryAfter: Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000),
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(Math.ceil((rateLimitResult.resetAt - Date.now()) / 1000)),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rateLimitResult.resetAt),
+          },
+        }
+      );
+    }
+
     const body: SearchParams = await request.json();
     const { query, sources, timeFilter, language, sort = 'relevance', state, city } = body;
 
     const isLocalSearch = !!(state || city);
     console.log('[Search API] Request:', { query, sources, timeFilter, language, sort, state, city, isLocalSearch });
 
+    // Input validation
     if (!query || !query.trim()) {
       return NextResponse.json(
         { error: "Query is required" },
@@ -215,9 +245,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate query length to prevent abuse
+    if (query.length > MAX_QUERY_LENGTH) {
+      return NextResponse.json(
+        { error: `Query too long. Maximum ${MAX_QUERY_LENGTH} characters allowed.` },
+        { status: 400 }
+      );
+    }
+
     if (!sources || sources.length === 0) {
       return NextResponse.json(
         { error: "At least one source must be selected" },
+        { status: 400 }
+      );
+    }
+
+    // Validate number of sources
+    if (sources.length > MAX_SOURCES) {
+      return NextResponse.json(
+        { error: `Too many sources. Maximum ${MAX_SOURCES} allowed.` },
         { status: 400 }
       );
     }

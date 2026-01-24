@@ -2,14 +2,57 @@ import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
 import { prisma } from "@/lib/prisma"
 import { STRIPE_CONFIG, getMonthlyCreditsForTier } from "@/lib/stripe-config"
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit"
 
 export const dynamic = "force-dynamic"
 
 // Admin emails that can update user tiers
+// SECURITY: Consider moving to database-based RBAC for production
 const ADMIN_EMAILS = [
   process.env.ADMIN_EMAIL,
   // Add more admin emails here
-].filter(Boolean)
+].filter(Boolean) as string[]
+
+// Rate limit: 10 admin requests per minute per IP
+const ADMIN_RATE_LIMIT = { windowMs: 60000, maxRequests: 10 }
+
+/**
+ * Verify admin access with multiple security checks
+ * Returns the admin user if authorized, null otherwise
+ */
+async function verifyAdminAccess(
+  accessToken: string,
+  clientIp: string
+): Promise<{ adminUser: { id: string; email: string } | null; error?: string; status?: number }> {
+  // Verify Supabase token
+  const authUser = await verifySupabaseToken(accessToken)
+  if (!authUser || !authUser.email) {
+    return { adminUser: null, error: "Invalid authentication token", status: 401 }
+  }
+
+  // Check if email is in admin list
+  if (!ADMIN_EMAILS.includes(authUser.email)) {
+    // Log unauthorized admin attempt
+    console.warn(`[Admin Security] Unauthorized admin access attempt by ${authUser.email} from IP ${clientIp}`)
+    return { adminUser: null, error: "Unauthorized - Admin access required", status: 403 }
+  }
+
+  // Verify the admin user exists in our database (additional security layer)
+  const dbUser = await prisma.user.findFirst({
+    where: {
+      supabaseUid: authUser.id,
+      email: authUser.email, // Must match the email in our DB
+    },
+    select: { id: true, email: true },
+  })
+
+  if (!dbUser) {
+    console.warn(`[Admin Security] Admin email ${authUser.email} not found in database from IP ${clientIp}`)
+    return { adminUser: null, error: "Admin account not properly configured", status: 403 }
+  }
+
+  return { adminUser: dbUser }
+}
 
 interface UpdateTierRequest {
   userId?: string
@@ -24,7 +67,19 @@ interface UpdateTierRequest {
  * Get a user's current subscription tier
  */
 export async function GET(request: NextRequest) {
+  const clientIp = getClientIp(request)
+
   try {
+    // Rate limiting
+    const rateLimitResult = checkRateLimit(`admin:${clientIp}`, ADMIN_RATE_LIMIT)
+    if (!rateLimitResult.success) {
+      console.warn(`[Admin Security] Rate limit exceeded for IP ${clientIp}`)
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429 }
+      )
+    }
+
     // Verify admin authentication
     const authHeader = request.headers.get("Authorization")
     if (!authHeader?.startsWith("Bearer ")) {
@@ -35,13 +90,10 @@ export async function GET(request: NextRequest) {
     }
 
     const accessToken = authHeader.split("Bearer ")[1]
-    const authUser = await verifySupabaseToken(accessToken)
+    const { adminUser, error, status } = await verifyAdminAccess(accessToken, clientIp)
 
-    if (!authUser || !ADMIN_EMAILS.includes(authUser.email || "")) {
-      return NextResponse.json(
-        { error: "Unauthorized - Admin access required" },
-        { status: 403 }
-      )
+    if (!adminUser) {
+      return NextResponse.json({ error }, { status: status || 403 })
     }
 
     const url = new URL(request.url)
@@ -93,7 +145,19 @@ export async function GET(request: NextRequest) {
  * Update a user's subscription tier
  */
 export async function POST(request: NextRequest) {
+  const clientIp = getClientIp(request)
+
   try {
+    // Rate limiting
+    const rateLimitResult = checkRateLimit(`admin:${clientIp}`, ADMIN_RATE_LIMIT)
+    if (!rateLimitResult.success) {
+      console.warn(`[Admin Security] Rate limit exceeded for IP ${clientIp}`)
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429 }
+      )
+    }
+
     // Verify admin authentication
     const authHeader = request.headers.get("Authorization")
     if (!authHeader?.startsWith("Bearer ")) {
@@ -104,13 +168,10 @@ export async function POST(request: NextRequest) {
     }
 
     const accessToken = authHeader.split("Bearer ")[1]
-    const authUser = await verifySupabaseToken(accessToken)
+    const { adminUser, error, status } = await verifyAdminAccess(accessToken, clientIp)
 
-    if (!authUser || !ADMIN_EMAILS.includes(authUser.email || "")) {
-      return NextResponse.json(
-        { error: "Unauthorized - Admin access required" },
-        { status: 403 }
-      )
+    if (!adminUser) {
+      return NextResponse.json({ error }, { status: status || 403 })
     }
 
     const body: UpdateTierRequest = await request.json()
@@ -201,8 +262,11 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Log the admin action
-    console.log(`Admin ${authUser.email} updated user ${existingUser.email} tier to ${tier}`)
+    // Audit log for admin action (include IP for security monitoring)
+    console.log(
+      `[Admin Audit] Admin ${adminUser.email} (IP: ${clientIp}) updated user ${existingUser.email} tier: ${existingUser.subscriptionStatus} -> ${tier}`,
+      { adminId: adminUser.id, targetUserId: existingUser.id, previousTier: existingUser.subscriptionStatus, newTier: tier }
+    )
 
     return NextResponse.json({
       success: true,

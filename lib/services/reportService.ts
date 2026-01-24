@@ -622,10 +622,12 @@ export async function startReport(
         }
 
         // Link the search to this report
-        await tx.search.update({
+        console.log(`[Report] Linking search ${searchData.id} to job ${jobId}`);
+        const updatedSearch = await tx.search.update({
           where: { id: searchData.id },
           data: { reportId: jobId },
         });
+        console.log(`[Report] Search linked: reportId=${updatedSearch.reportId}`);
 
         // Mark job as completed
         const jobUpdateData: Prisma.ResearchJobUpdateInput = {
@@ -641,6 +643,7 @@ export async function startReport(
           where: { id: jobId },
           data: jobUpdateData,
         });
+        console.log(`[Report] Job ${jobId} marked as COMPLETED`);
       },
       { timeout: TRANSACTION_TIMEOUT_MS }
     );
@@ -659,6 +662,7 @@ export async function startReport(
 
     return { reportId: jobId };
   } catch (error) {
+    console.error(`[Report] Error in startReport for job ${jobId}:`, error);
     // Mark job as failed (separate transaction since main one failed)
     await prisma.researchJob.update({
       where: { id: jobId },
@@ -891,10 +895,12 @@ export async function startReportWithProgress(
         }
 
         // Link the search to this report
-        await tx.search.update({
+        console.log(`[Report] Linking search ${searchData.id} to job ${jobId}`);
+        const updatedSearch = await tx.search.update({
           where: { id: searchData.id },
           data: { reportId: jobId },
         });
+        console.log(`[Report] Search linked: reportId=${updatedSearch.reportId}`);
 
         // Mark job as completed
         const jobUpdateData: Prisma.ResearchJobUpdateInput = {
@@ -910,6 +916,7 @@ export async function startReportWithProgress(
           where: { id: jobId },
           data: jobUpdateData,
         });
+        console.log(`[Report] Job ${jobId} marked as COMPLETED`);
       },
       { timeout: TRANSACTION_TIMEOUT_MS }
     );
@@ -928,6 +935,7 @@ export async function startReportWithProgress(
 
     return { reportId: jobId };
   } catch (error) {
+    console.error(`[Report] Error in startReportWithProgress for job ${jobId}:`, error);
     // Mark job as failed (separate transaction since main one failed)
     await prisma.researchJob.update({
       where: { id: jobId },
@@ -1358,10 +1366,11 @@ export async function getReportForSharing(
     return null;
   }
 
-  // Validate access - must have valid share token
+  // Validate access - must have valid share token that hasn't expired
   const hasValidToken = shareToken && job.shareToken === shareToken;
+  const isTokenExpired = job.shareTokenExpiresAt && new Date(job.shareTokenExpiresAt) < new Date();
 
-  if (!hasValidToken) {
+  if (!hasValidToken || isTokenExpired) {
     return null;
   }
 
@@ -1471,11 +1480,13 @@ export async function updateShareSettings(
 
   const updateData: Prisma.ResearchJobUpdateInput = {};
 
-  // Handle token generation
+  // Handle token generation (30-day expiration for security)
   if (settings.generateToken) {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
     updateData.shareToken = crypto.randomUUID();
-    updateData.shareTokenCreatedAt = new Date();
-    updateData.shareTokenExpiresAt = null; // No expiration
+    updateData.shareTokenCreatedAt = now;
+    updateData.shareTokenExpiresAt = expiresAt;
   }
 
   // Handle token revocation
