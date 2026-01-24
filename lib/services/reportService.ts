@@ -476,6 +476,12 @@ export async function startReport(
     throw new Error("Search not found or access denied");
   }
 
+  // Check if search already has a report (prevents duplicate generation from double-clicks)
+  if (search.reportId) {
+    console.log(`[Report] Search ${searchId} already has report ${search.reportId}, returning existing`);
+    return { reportId: search.reportId };
+  }
+
   const job = await prisma.researchJob.create({
     data: {
       userId,
@@ -716,6 +722,17 @@ export async function startReportWithProgress(
 
   if (!search) {
     throw new Error("Search not found or access denied");
+  }
+
+  // Check if search already has a report (prevents duplicate generation from double-clicks)
+  if (search.reportId) {
+    console.log(`[Report] Search ${searchId} already has report ${search.reportId}, returning existing`);
+    onProgress({
+      type: "complete",
+      message: "Report already generated",
+      reportId: search.reportId,
+    });
+    return { reportId: search.reportId };
   }
 
   const job = await prisma.researchJob.create({
