@@ -90,6 +90,7 @@ model Session {
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("sessions")
 }
 
@@ -126,6 +127,9 @@ model ResearchJob {
   shareTokenExpiresAt   DateTime?
   shareTokenCreatedAt   DateTime?
 
+  // Email notification tracking
+  emailSentAt           DateTime?  // When "report ready" email was sent (prevents duplicates)
+
   // Relations
   sourceResults SourceResult[]
   insights      Insight[]
@@ -134,6 +138,7 @@ model ResearchJob {
   @@index([userId, createdAt(sort: Desc)])
   @@index([status])
   @@index([shareToken])
+  @@index([emailSentAt])
   @@map("research_jobs")
 }
 
@@ -165,6 +170,7 @@ model Search {
   updatedAt   DateTime     @updatedAt
 
   @@index([userId, createdAt(sort: Desc)])
+  @@index([reportId])
   @@map("searches")
 }
 
@@ -318,7 +324,7 @@ model Alert {
   updatedAt       DateTime @updatedAt
 
   @@index([userId])
-  @@index([nextScheduledAt, isActive])
+  @@index([isActive, nextScheduledAt])
   @@map("alerts")
 }
 
@@ -399,5 +405,6 @@ model OrganizationInvite {
   @@unique([organizationId, email])
   @@index([token])
   @@index([organizationId])
+  @@index([expiresAt])
   @@map("organization_invites")
 }

@@ -289,7 +289,7 @@ export async function GET(request: NextRequest) {
   try {
     const now = new Date()
 
-    // Find alerts that are due
+    // Find alerts that are due (limit to 50 per cron run to prevent timeout)
     const dueAlerts = await prisma.alert.findMany({
       where: {
         isActive: true,
@@ -303,6 +303,8 @@ export async function GET(request: NextRequest) {
           select: { email: true, name: true },
         },
       },
+      orderBy: { nextScheduledAt: "asc" },
+      take: 50,
     })
 
     console.log(`[Cron] Found ${dueAlerts.length} due alerts`)
