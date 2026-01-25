@@ -25,6 +25,7 @@ model User {
 
   // Onboarding
   onboardingCompletedAt DateTime?  // null means not completed
+  useCase               String?    // "civic", "brand", "policy", "general"
 
   // Stripe subscription fields
   stripeCustomerId      String?   @unique

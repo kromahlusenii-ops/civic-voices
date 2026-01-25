@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { ReportProgressStep } from "@/lib/services/reportService";
 
@@ -103,6 +103,7 @@ export default function ReportProgressModal({
   const [completedSteps, setCompletedSteps] = useState<Set<ReportProgressStep>>(new Set());
   const [isComplete, setIsComplete] = useState(false);
   const [reportId, setReportId] = useState<string | null>(null);
+  const hasStarted = useRef(false);
 
   const startStream = useCallback(() => {
     if (!searchId || !accessToken) return;
@@ -197,7 +198,8 @@ export default function ReportProgressModal({
   }, [searchId, accessToken, router, onError, onClose]);
 
   useEffect(() => {
-    if (isOpen && searchId && accessToken) {
+    if (isOpen && searchId && accessToken && !hasStarted.current) {
+      hasStarted.current = true;
       const cleanup = startStream();
       return cleanup;
     }

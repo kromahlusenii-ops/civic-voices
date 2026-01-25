@@ -483,6 +483,27 @@ export async function startReport(
     return { reportId: search.reportId };
   }
 
+  // Check for an already-running job for this search (prevents duplicate from re-triggered requests)
+  const existingRunningJob = await prisma.researchJob.findFirst({
+    where: {
+      userId,
+      status: JobStatus.RUNNING,
+      queryJson: {
+        path: ["query"],
+        equals: search.queryText,
+      },
+      startedAt: {
+        gte: new Date(Date.now() - 10 * 60 * 1000), // within last 10 minutes
+      },
+    },
+    select: { id: true },
+  });
+
+  if (existingRunningJob) {
+    console.log(`[Report] Found running job ${existingRunningJob.id} for search ${searchId}, skipping duplicate`);
+    throw new Error("Report generation already in progress for this search");
+  }
+
   const job = await prisma.researchJob.create({
     data: {
       userId,
@@ -745,6 +766,29 @@ export async function startReportWithProgress(
       reportId: search.reportId,
     });
     return { reportId: search.reportId };
+  }
+
+  // Check for an already-running job for this search (prevents duplicate from re-triggered streams)
+  const existingRunningJob = await prisma.researchJob.findFirst({
+    where: {
+      userId,
+      status: JobStatus.RUNNING,
+      queryJson: {
+        path: ["query"],
+        equals: search.queryText,
+      },
+      startedAt: {
+        gte: new Date(Date.now() - 10 * 60 * 1000), // within last 10 minutes
+      },
+    },
+    select: { id: true },
+  });
+
+  if (existingRunningJob) {
+    console.log(`[Report] Found running job ${existingRunningJob.id} for search ${searchId}, skipping duplicate`);
+    // Wait for the existing job to complete and return it
+    // For now, throw to prevent double generation - the first stream will complete
+    throw new Error("Report generation already in progress for this search");
   }
 
   const job = await prisma.researchJob.create({

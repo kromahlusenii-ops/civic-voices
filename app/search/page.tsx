@@ -20,7 +20,17 @@ import SettingsModal from "../../components/SettingsModal";
 import ReportProgressModal from "../components/ReportProgressModal";
 import TrialModal from "../components/modals/TrialModal";
 import CreditsModal from "../components/modals/CreditsModal";
+import UseCaseModal from "../components/UseCaseModal";
+import ContextualTooltip from "../../components/ContextualTooltip";
+import { useContextualTooltips } from "@/lib/hooks/useContextualTooltips";
 import type { Post, SearchResponse, AIAnalysis } from "@/lib/types/api";
+import {
+  getSuggestionsForUseCase,
+  getPlaceholdersForUseCase,
+  isQuestion,
+  convertToSearchQuery,
+  USE_CASE_STORAGE_KEY,
+} from "@/lib/search-suggestions";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "../contexts/ToastContext";
 import { STRIPE_CONFIG } from "@/lib/stripe-config";
@@ -103,10 +113,11 @@ interface SearchResults {
 }
 
 function SearchPageContent() {
-  const { isAuthenticated, loading, user, billing, billingLoading, refreshBilling } = useAuth();
+  const { isAuthenticated, loading, user, session, billing, billingLoading, refreshBilling } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { showToast } = useToast();
+  const { activeTooltip, dismissTooltip, onResultsLoaded, onScroll: onTooltipScroll, onReportButtonHover } = useContextualTooltips();
 
   // Initialize state from URL params
   const [searchQuery, setSearchQuery] = useState(searchParams.get("message") || "");
@@ -152,6 +163,9 @@ function SearchPageContent() {
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [showLocalComingSoon, setShowLocalComingSoon] = useState(false);
+  const [showUseCaseModal, setShowUseCaseModal] = useState(false);
+  const [userUseCase, setUserUseCase] = useState<string | null>(null);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
   // When switching to local search, reset sources to Reddit only
   useEffect(() => {
@@ -163,6 +177,39 @@ function SearchPageContent() {
   const postsContainerRef = useRef<HTMLDivElement>(null);
   const hasExecutedAuthCallbackSearch = useRef(false);
   const hasHandledSubscriptionSuccess = useRef(false);
+
+  // Load use case from localStorage on mount, show modal if none set
+  useEffect(() => {
+    const stored = localStorage.getItem(USE_CASE_STORAGE_KEY)
+    if (stored) {
+      setUserUseCase(stored)
+    } else if (isAuthenticated && !loading) {
+      setShowUseCaseModal(true)
+    }
+  }, [isAuthenticated, loading])
+
+  // Rotating placeholder text
+  const placeholders = getPlaceholdersForUseCase(userUseCase)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIndex((prev) => (prev + 1) % placeholders.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [placeholders.length])
+
+  const currentPlaceholder = placeholders[placeholderIndex] || placeholders[0]
+  const suggestedSearches = getSuggestionsForUseCase(userUseCase)
+
+  // Start tooltip sequence on page load (works for first-time visitors before signup)
+  useEffect(() => {
+    onResultsLoaded()
+  }, [onResultsLoaded])
+
+  // Handle use case modal close
+  const handleUseCaseSelect = (useCase: string) => {
+    setUserUseCase(useCase)
+    setShowUseCaseModal(false)
+  }
 
   // Helper to check if time range is allowed for free tier
   const isTimeRangeAllowedForFree = (range: string): boolean => {
@@ -496,6 +543,17 @@ function SearchPageContent() {
       return;
     }
 
+    // Question detection hint
+    if (isQuestion(searchQuery)) {
+      const converted = convertToSearchQuery(searchQuery)
+      if (converted !== searchQuery.trim()) {
+        showToast({
+          message: `Tip: Try searching "${converted}" for better results`,
+          duration: 5000,
+        })
+      }
+    }
+
     executeSearch(searchQuery);
   };
 
@@ -801,6 +859,13 @@ function SearchPageContent() {
         requiredCredits={STRIPE_CONFIG.creditCosts.nationalSearch}
       />
 
+      {/* Use Case Selection Modal */}
+      <UseCaseModal
+        isOpen={showUseCaseModal}
+        onClose={handleUseCaseSelect}
+        accessToken={session?.access_token || null}
+      />
+
       {/* Report Progress Modal */}
       {searchResults?.searchId && reportAccessToken && (
         <ReportProgressModal
@@ -981,7 +1046,7 @@ function SearchPageContent() {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Search an issue, candidate, or ballot measure"
+                      placeholder={currentPlaceholder}
                       className="flex-1 rounded-r-lg border border-l-0 border-gray-300 px-4 h-[48px] focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
                       data-testid="search-input"
                       onKeyDown={(e) => {
@@ -1025,26 +1090,44 @@ function SearchPageContent() {
                 )}
 
                 <div className="flex flex-wrap gap-2">
-                  <SourceFilter
-                    selectedSources={selectedSources}
-                    onSourcesChange={setSelectedSources}
-                    updateUrlParams={false}
-                    isLocalSearch={searchScope === "local"}
-                  />
+                  <ContextualTooltip
+                    isVisible={activeTooltip === "source-filter"}
+                    title="Filter by platform"
+                    description="Toggle sources to focus on specific platforms like TikTok or Reddit."
+                    onDismiss={() => dismissTooltip("source-filter")}
+                    position="bottom"
+                    testId="tooltip-source-filter"
+                  >
+                    <SourceFilter
+                      selectedSources={selectedSources}
+                      onSourcesChange={setSelectedSources}
+                      updateUrlParams={false}
+                      isLocalSearch={searchScope === "local"}
+                    />
+                  </ContextualTooltip>
 
                   {/* Time Interval Filter */}
-                  <FilterDropdown
-                    icon={
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    }
-                    label="Time range"
-                    options={TIME_INTERVAL_OPTIONS}
-                    value={timeRange}
-                    onChange={handleTimeRangeChange}
-                    testId="time-range-filter"
-                  />
+                  <ContextualTooltip
+                    isVisible={activeTooltip === "time-filter"}
+                    title="Narrow by time"
+                    description="Use the date filter to see only recent conversations or a specific time period."
+                    onDismiss={() => dismissTooltip("time-filter")}
+                    position="bottom"
+                    testId="tooltip-time-filter"
+                  >
+                    <FilterDropdown
+                      icon={
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      }
+                      label="Time range"
+                      options={TIME_INTERVAL_OPTIONS}
+                      value={timeRange}
+                      onChange={handleTimeRangeChange}
+                      testId="time-range-filter"
+                    />
+                  </ContextualTooltip>
 
                   {/* Language Filter */}
                   <FilterDropdown
@@ -1061,6 +1144,28 @@ function SearchPageContent() {
                   />
                 </div>
               </div>
+
+              {/* Suggested Searches */}
+              {!searchQuery.trim() && (
+                <div className="mt-4" data-testid="suggested-searches">
+                  <p className="mb-3 text-sm text-gray-500">Try searching for</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedSearches.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => {
+                          setSearchQuery(suggestion)
+                          updateUrlParams({ message: suggestion })
+                        }}
+                        className="rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm text-gray-700 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+                        data-testid="suggested-search-chip"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1219,14 +1324,25 @@ function SearchPageContent() {
                     >
                       Preview mentions
                     </button>
-                    <button
-                      onClick={handleStartReportGeneration}
-                      disabled={showReportProgress || isSavingReportSearch}
-                      className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      data-testid="generate-report-btn"
-                    >
-                      {isSavingReportSearch ? "Saving..." : "Start research"}
-                    </button>
+                    <div onMouseEnter={onReportButtonHover}>
+                      <ContextualTooltip
+                        isVisible={activeTooltip === "generate-report"}
+                        title="Generate a full report"
+                        description="Get AI-powered insights, sentiment breakdown, and exportable PDF."
+                        onDismiss={() => dismissTooltip("generate-report")}
+                        position="bottom"
+                        testId="tooltip-generate-report"
+                      >
+                        <button
+                          onClick={handleStartReportGeneration}
+                          disabled={showReportProgress || isSavingReportSearch}
+                          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          data-testid="generate-report-btn"
+                        >
+                          {isSavingReportSearch ? "Saving..." : "Start research"}
+                        </button>
+                      </ContextualTooltip>
+                    </div>
                   </div>
                 </div>
 
@@ -1374,28 +1490,46 @@ function SearchPageContent() {
 
                 {/* Filters row */}
                 <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                  <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
-                    {selectedSources.map((source) => (
-                      <span key={source} className="text-gray-600">
-                        {SOURCE_ICONS[source]}
-                      </span>
-                    ))}
-                    <span className="ml-1">{getSourceLabel()}</span>
-                  </div>
+                  <ContextualTooltip
+                    isVisible={activeTooltip === "source-filter"}
+                    title="Filter by platform"
+                    description="Toggle sources to focus on specific platforms like TikTok or Reddit."
+                    onDismiss={() => dismissTooltip("source-filter")}
+                    position="bottom"
+                    testId="tooltip-source-filter"
+                  >
+                    <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5">
+                      {selectedSources.map((source) => (
+                        <span key={source} className="text-gray-600">
+                          {SOURCE_ICONS[source]}
+                        </span>
+                      ))}
+                      <span className="ml-1">{getSourceLabel()}</span>
+                    </div>
+                  </ContextualTooltip>
 
                   {/* Time Interval Filter */}
-                  <FilterDropdown
-                    icon={
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    }
-                    label="Time range"
-                    options={TIME_INTERVAL_OPTIONS}
-                    value={timeRange}
-                    onChange={handleTimeRangeChange}
-                    testId="results-time-range-filter"
-                  />
+                  <ContextualTooltip
+                    isVisible={activeTooltip === "time-filter"}
+                    title="Narrow by time"
+                    description="Use the date filter to see only recent conversations or a specific time period."
+                    onDismiss={() => dismissTooltip("time-filter")}
+                    position="bottom"
+                    testId="tooltip-time-filter"
+                  >
+                    <FilterDropdown
+                      icon={
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      }
+                      label="Time range"
+                      options={TIME_INTERVAL_OPTIONS}
+                      value={timeRange}
+                      onChange={handleTimeRangeChange}
+                      testId="results-time-range-filter"
+                    />
+                  </ContextualTooltip>
 
                   {/* Language Filter */}
                   <FilterDropdown
@@ -1429,18 +1563,27 @@ function SearchPageContent() {
                 </div>
 
                 {/* Generate Report Button - prominent placement */}
-                <div className="mt-4">
-                  <button
-                    onClick={handleStartReportGeneration}
-                    disabled={showReportProgress || isSavingReportSearch}
-                    className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-base font-semibold text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    data-testid="generate-report-btn"
+                <div className="mt-4" onMouseEnter={onReportButtonHover}>
+                  <ContextualTooltip
+                    isVisible={activeTooltip === "generate-report"}
+                    title="Generate a full report"
+                    description="Get AI-powered insights, sentiment breakdown, and exportable PDF."
+                    onDismiss={() => dismissTooltip("generate-report")}
+                    position="top"
+                    testId="tooltip-generate-report"
                   >
-                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    {isSavingReportSearch ? "Saving..." : "Start research"}
-                  </button>
+                    <button
+                      onClick={handleStartReportGeneration}
+                      disabled={showReportProgress || isSavingReportSearch}
+                      className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2.5 text-base font-semibold text-white shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      data-testid="generate-report-btn"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {isSavingReportSearch ? "Saving..." : "Start research"}
+                    </button>
+                  </ContextualTooltip>
                 </div>
 
                 {/* Report error message */}
@@ -1487,7 +1630,11 @@ function SearchPageContent() {
               </div>
 
               {/* Posts Feed - Scrollable */}
-              <div ref={postsContainerRef} className="flex-1 overflow-y-auto p-6">
+              <div
+                ref={postsContainerRef}
+                className="flex-1 overflow-y-auto p-6"
+                onScroll={(e) => onTooltipScroll(e.currentTarget.scrollTop, 120)}
+              >
                 <div className="space-y-4">
                   {searchResults.posts
                     .filter((post) => !verifiedOnly || post.verificationBadge || (post.credibilityScore && post.credibilityScore >= 0.7))

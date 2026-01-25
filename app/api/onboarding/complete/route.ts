@@ -15,13 +15,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { topics, skipped } = body as { topics?: string[]; skipped?: boolean };
+    const { topics, skipped, useCase } = body as { topics?: string[]; skipped?: boolean; useCase?: string };
 
     // Update user's onboarding status
     await prisma.user.update({
       where: { id: session.user.id },
       data: {
         onboardingCompletedAt: new Date(),
+        ...(useCase && { useCase }),
       },
     });
 
