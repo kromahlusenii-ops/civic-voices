@@ -169,6 +169,56 @@ export class YouTubeProvider {
   }
 
   /**
+   * Search with pagination - fetches multiple pages for more results
+   * YouTube API returns max 50 results per page, so we fetch multiple pages
+   */
+  async searchWithStatsPaginated(
+    query: string,
+    options: YouTubeSearchOptions & { maxPages?: number } = {}
+  ): Promise<YouTubeSearchResult> {
+    const maxPages = options.maxPages || 4; // Default to 4 pages = ~200 videos max
+    const allPosts: Post[] = [];
+    let nextPageToken: string | undefined;
+    let totalResults: number | undefined;
+    let pagesLoaded = 0;
+
+    while (pagesLoaded < maxPages) {
+      const result = await this.searchWithStats(query, {
+        ...options,
+        pageToken: nextPageToken,
+        maxResults: 50, // Max per page
+      });
+
+      if (result.posts.length === 0) {
+        break;
+      }
+
+      allPosts.push(...result.posts);
+      nextPageToken = result.nextPageToken;
+      totalResults = result.totalResults;
+      pagesLoaded++;
+
+      console.log(`[YouTube Paginated] Page ${pagesLoaded}: fetched ${result.posts.length} videos, total: ${allPosts.length}`);
+
+      // Stop if no more pages
+      if (!nextPageToken) {
+        break;
+      }
+
+      // Small delay between pages to avoid rate limiting
+      if (pagesLoaded < maxPages) {
+        await this.delay(300);
+      }
+    }
+
+    return {
+      posts: allPosts,
+      nextPageToken,
+      totalResults,
+    };
+  }
+
+  /**
    * Get comments for a YouTube video
    * Uses commentThreads API (1 quota unit per request)
    */

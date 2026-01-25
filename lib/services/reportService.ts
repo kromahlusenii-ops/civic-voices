@@ -654,16 +654,27 @@ export async function startReport(
       { timeout: TRANSACTION_TIMEOUT_MS }
     );
 
-    // Send report ready email notification
+    // Send report ready email notification (atomic to prevent duplicates)
     if (userEmail) {
-      const topInsight = aiAnalysis?.interpretation || undefined;
-      await sendReportReadyEmail(
-        userEmail,
-        jobId,
-        searchData.queryText,
-        searchData.posts.length,
-        topInsight
-      );
+      // Atomically mark email as sent - only succeeds if emailSentAt was null
+      const emailUpdateResult = await prisma.researchJob.updateMany({
+        where: { id: jobId, emailSentAt: null },
+        data: { emailSentAt: new Date() },
+      });
+
+      // Only send email if we successfully marked it (prevents race condition duplicates)
+      if (emailUpdateResult.count > 0) {
+        const topInsight = aiAnalysis?.interpretation || undefined;
+        await sendReportReadyEmail(
+          userEmail,
+          jobId,
+          searchData.queryText,
+          searchData.posts.length,
+          topInsight
+        );
+      } else {
+        console.log(`[Report] Email already sent for job ${jobId}, skipping duplicate`);
+      }
     }
 
     return { reportId: jobId };
@@ -938,16 +949,27 @@ export async function startReportWithProgress(
       { timeout: TRANSACTION_TIMEOUT_MS }
     );
 
-    // Send report ready email notification
+    // Send report ready email notification (atomic to prevent duplicates)
     if (userEmail) {
-      const topInsight = aiAnalysis?.interpretation || undefined;
-      await sendReportReadyEmail(
-        userEmail,
-        jobId,
-        searchData.queryText,
-        searchData.posts.length,
-        topInsight
-      );
+      // Atomically mark email as sent - only succeeds if emailSentAt was null
+      const emailUpdateResult = await prisma.researchJob.updateMany({
+        where: { id: jobId, emailSentAt: null },
+        data: { emailSentAt: new Date() },
+      });
+
+      // Only send email if we successfully marked it (prevents race condition duplicates)
+      if (emailUpdateResult.count > 0) {
+        const topInsight = aiAnalysis?.interpretation || undefined;
+        await sendReportReadyEmail(
+          userEmail,
+          jobId,
+          searchData.queryText,
+          searchData.posts.length,
+          topInsight
+        );
+      } else {
+        console.log(`[Report] Email already sent for job ${jobId}, skipping duplicate`);
+      }
     }
 
     return { reportId: jobId };

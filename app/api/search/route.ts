@@ -553,34 +553,35 @@ export async function POST(request: NextRequest) {
 
             console.log(`[Reddit Local] Found ${redditPosts.length} posts from ${subreddits.length} subreddits`);
           } else {
-            // Standard global Reddit search
-            const redditResults = await withRetryOnEmpty(
+            // Standard global Reddit search with pagination for more results
+            const time = SociaVaultApiService.getRedditTimeValue(timeFilter);
+
+            const paginatedResult = await withRetryOnEmpty(
               () => withRetry(
                 () => withTimeout(
-                  sociaVaultService.searchRedditPosts(redditQuery, { limit: 250, timeFilter }),
-                  30000,
-                  "Reddit SociaVault API"
+                  sociaVaultService.searchRedditPaginated(redditQuery, {
+                    maxPages: 5, // Fetch up to 5 pages (~500 posts)
+                    time,
+                    sort: "relevance",
+                  }),
+                  60000, // 60 second timeout for paginated search
+                  "Reddit SociaVault Paginated"
                 ),
-                { retries: 2, delay: 1500, name: "Reddit SociaVault API" }
+                { retries: 2, delay: 1500, name: "Reddit SociaVault Paginated" }
               ),
               {
-                isEmpty: (result) => {
-                  const posts = result.data?.posts;
-                  if (!posts) return true;
-                  return Array.isArray(posts) ? posts.length === 0 : Object.keys(posts).length === 0;
-                },
-                maxEmptyRetries: 3,
+                isEmpty: (result) => result.posts.length === 0,
+                maxEmptyRetries: 2,
                 emptyRetryDelay: 2000,
-                name: "Reddit SociaVault API",
+                name: "Reddit SociaVault Paginated",
               }
             );
 
-            redditPosts = sociaVaultService.transformRedditToPosts(redditResults);
+            // Transform paginated posts to Post format
+            redditPosts = sociaVaultService.transformRedditToPosts({ data: { posts: paginatedResult.posts } });
             redditPosts = SociaVaultApiService.filterByTimeRange(redditPosts, timeFilter);
 
-            const postsData = redditResults.data?.posts;
-            const rawPostCount = postsData ? (Array.isArray(postsData) ? postsData.length : Object.keys(postsData).length) : 0;
-            console.log('[Reddit SociaVault] Raw:', rawPostCount, 'Filtered:', redditPosts.length, 'TimeFilter:', timeFilter);
+            console.log('[Reddit SociaVault] Paginated raw:', paginatedResult.posts.length, 'Filtered:', redditPosts.length, 'TimeFilter:', timeFilter);
           }
 
           if (SociaVaultApiService.hasBooleanQuery(query)) {
@@ -606,7 +607,7 @@ export async function POST(request: NextRequest) {
       searchPromises.push(redditSearch());
     }
 
-    // YouTube search promise
+    // YouTube search promise - with pagination for more results
     if (sources.includes("youtube")) {
       const youtubeSearch = async () => {
         try {
@@ -622,19 +623,21 @@ export async function POST(request: NextRequest) {
 
           const timeRange = YouTubeProvider.getTimeRange(timeFilter);
           const youtubeResult = await withTimeout(
-            youtubeProvider.searchWithStats(query, {
+            youtubeProvider.searchWithStatsPaginated(query, {
+              maxPages: 4, // Fetch up to 4 pages = ~200 videos
               maxResults: 50,
               publishedAfter: timeRange.publishedAfter,
               publishedBefore: timeRange.publishedBefore,
               relevanceLanguage: language,
               order: "relevance",
             }),
-            30000, // 30 second timeout for more data
-            "YouTube API"
+            60000, // 60 second timeout for paginated search
+            "YouTube API Paginated"
           );
 
           allPosts.push(...youtubeResult.posts);
           platformCounts.youtube = youtubeResult.posts.length;
+          console.log('[YouTube] Paginated search complete:', youtubeResult.posts.length, 'videos');
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error("YouTube API error:", errorMessage);
