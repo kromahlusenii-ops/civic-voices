@@ -26,6 +26,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Validate reportId format (CUID) to prevent resource exhaustion attacks
+    const cuidRegex = /^c[a-z0-9]{24,}$/;
+    if (!cuidRegex.test(reportId)) {
+      return NextResponse.json(
+        { error: "Invalid report ID format" },
+        { status: 400 }
+      );
+    }
+
     console.log(`[PDF] Request for report ${reportId}, shareToken: ${shareToken ? "present" : "none"}`);
 
     // Authenticate user

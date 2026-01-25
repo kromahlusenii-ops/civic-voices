@@ -200,6 +200,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
+    // SECURITY: Prevent admins from modifying other admin accounts
+    if (ADMIN_EMAILS.includes(existingUser.email) && existingUser.id !== adminUser.id) {
+      console.warn(
+        `[Admin Security] BLOCKED: Admin ${adminUser.email} attempted to modify another admin account ${existingUser.email} from IP ${clientIp}`
+      )
+      return NextResponse.json(
+        { error: "Cannot modify other admin accounts" },
+        { status: 403 }
+      )
+    }
+
     // Prepare update data
     const updateData: Record<string, unknown> = {
       subscriptionStatus: tier,
@@ -263,10 +274,21 @@ export async function POST(request: NextRequest) {
     })
 
     // Audit log for admin action (include IP for security monitoring)
-    console.log(
-      `[Admin Audit] Admin ${adminUser.email} (IP: ${clientIp}) updated user ${existingUser.email} tier: ${existingUser.subscriptionStatus} -> ${tier}`,
-      { adminId: adminUser.id, targetUserId: existingUser.id, previousTier: existingUser.subscriptionStatus, newTier: tier }
-    )
+    const auditLog = {
+      timestamp: new Date().toISOString(),
+      action: "USER_TIER_UPDATE",
+      adminId: adminUser.id,
+      adminEmail: adminUser.email,
+      clientIp,
+      targetUserId: existingUser.id,
+      targetEmail: existingUser.email,
+      changes: {
+        tier: { from: existingUser.subscriptionStatus, to: tier },
+        monthlyCredits: { from: existingUser.monthlyCredits, to: updatedUser.monthlyCredits },
+        bonusCredits: { from: existingUser.bonusCredits, to: updatedUser.bonusCredits },
+      },
+    }
+    console.log(`[Admin Audit] ${JSON.stringify(auditLog)}`)
 
     return NextResponse.json({
       success: true,

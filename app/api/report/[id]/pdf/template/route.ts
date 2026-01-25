@@ -30,7 +30,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return new NextResponse("Report ID required", { status: 400 });
     }
 
-    // Try authenticated access
+    // Validate reportId format (CUID) to prevent enumeration attacks
+    const cuidRegex = /^c[a-z0-9]{24,}$/;
+    if (!cuidRegex.test(reportId)) {
+      return new NextResponse("Invalid report ID format", { status: 400 });
+    }
+
+    // Try authenticated access first
     let reportData = null;
     const authHeader = request.headers.get("Authorization");
 
@@ -42,13 +48,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Fall back to shared access
-    if (!reportData) {
-      reportData = await getReportForSharing(reportId, shareToken || undefined);
+    // Fall back to shared access ONLY if share token is provided
+    if (!reportData && shareToken) {
+      reportData = await getReportForSharing(reportId, shareToken);
     }
 
+    // Require either valid auth or valid share token - no anonymous access
     if (!reportData) {
-      return new NextResponse("Report not found", { status: 404 });
+      return new NextResponse("Unauthorized - valid authentication or share token required", { status: 401 });
     }
 
     // Calculate derived data for PDF
