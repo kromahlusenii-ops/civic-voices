@@ -6,6 +6,7 @@ import { getMonthlyCreditsForTier } from "@/lib/stripe-config"
 import { resetMonthlyCredits } from "@/lib/services/creditService"
 import { createOrganization, getUserOrganization } from "@/lib/services/organizationService"
 import { clearSeatItem } from "@/lib/services/seatService"
+import { maskEmail } from "@/lib/utils/logging"
 import Stripe from "stripe"
 
 // Disable body parsing - we need raw body for signature verification
@@ -76,7 +77,7 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     },
   })
 
-  console.log(`Subscription activated for ${email} (${plan} plan, ${monthlyCredits} credits)`)
+  console.log(`Subscription activated for ${maskEmail(email)} (${plan} plan, ${monthlyCredits} credits)`)
 
   // Create organization for Agency/Business plans
   if (plan === "agency" || plan === "business") {

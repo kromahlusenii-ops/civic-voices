@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getLoopsClient, isLoopsEnabled, LOOPS_TEMPLATES } from "@/lib/loops"
 import { randomBytes } from "crypto"
 import type { AlertFrequency } from "@prisma/client"
+import { maskEmail } from "@/lib/utils/logging"
 
 export const dynamic = "force-dynamic"
 
@@ -177,7 +178,7 @@ export async function POST(request: NextRequest) {
             },
           })
         } catch (err) {
-          console.error(`Failed to send verification email to ${recipient.email}:`, err)
+          console.error(`Failed to send verification email to ${maskEmail(recipient.email)}:`, err)
         }
       }
     }
@@ -341,7 +342,7 @@ export async function PUT(request: NextRequest) {
             },
           })
         } catch (err) {
-          console.error(`Failed to send verification email to ${recipient.email}:`, err)
+          console.error(`Failed to send verification email to ${maskEmail(recipient.email)}:`, err)
         }
       }
     }

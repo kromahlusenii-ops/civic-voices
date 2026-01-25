@@ -18,6 +18,7 @@ import { XRapidApiProvider } from "@/lib/providers/XRapidApiProvider";
 import { YouTubeProvider } from "@/lib/providers/YouTubeProvider";
 import SociaVaultApiService from "@/lib/services/sociaVaultApi";
 import { config } from "@/lib/config";
+import { maskEmail } from "@/lib/utils/logging";
 import type { Post, AIAnalysis } from "@/lib/types/api";
 
 // Comment data structure for multi-platform support
@@ -125,7 +126,7 @@ async function sendReportReadyEmail(
     });
 
     if (response.success) {
-      console.log(`[Report] Report ready email sent to ${userEmail} for report ${reportId}`);
+      console.log(`[Report] Report ready email sent to ${maskEmail(userEmail)} for report ${reportId}`);
     } else {
       console.error(`[Report] Failed to send report ready email: ${response.error}`);
     }

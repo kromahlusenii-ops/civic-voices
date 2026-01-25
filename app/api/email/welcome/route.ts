@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { resend, EMAIL_FROM, isEmailEnabled } from "@/lib/resend"
+import { maskEmail } from "@/lib/utils/logging"
 
 export const dynamic = "force-dynamic"
 
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log(`[Email] Sending welcome email to ${email}`)
+    console.log(`[Email] Sending welcome email to ${maskEmail(email)}`)
 
     // Use Resend template if available, otherwise use inline HTML
     const emailOptions = WELCOME_TEMPLATE_ID

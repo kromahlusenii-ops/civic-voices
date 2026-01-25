@@ -3,6 +3,7 @@ import { verifySupabaseToken } from "@/lib/supabase-server"
 import { prisma } from "@/lib/prisma"
 import { STRIPE_CONFIG, getMonthlyCreditsForTier } from "@/lib/stripe-config"
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit"
+import { maskEmail, maskIp } from "@/lib/utils/logging"
 
 export const dynamic = "force-dynamic"
 
@@ -33,7 +34,7 @@ async function verifyAdminAccess(
   // Check if email is in admin list
   if (!ADMIN_EMAILS.includes(authUser.email)) {
     // Log unauthorized admin attempt
-    console.warn(`[Admin Security] Unauthorized admin access attempt by ${authUser.email} from IP ${clientIp}`)
+    console.warn(`[Admin Security] Unauthorized admin access attempt by ${maskEmail(authUser.email)} from IP ${maskIp(clientIp)}`)
     return { adminUser: null, error: "Unauthorized - Admin access required", status: 403 }
   }
 
@@ -47,7 +48,7 @@ async function verifyAdminAccess(
   })
 
   if (!dbUser) {
-    console.warn(`[Admin Security] Admin email ${authUser.email} not found in database from IP ${clientIp}`)
+    console.warn(`[Admin Security] Admin email ${maskEmail(authUser.email)} not found in database from IP ${maskIp(clientIp)}`)
     return { adminUser: null, error: "Admin account not properly configured", status: 403 }
   }
 
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
     // SECURITY: Prevent admins from modifying other admin accounts
     if (ADMIN_EMAILS.includes(existingUser.email) && existingUser.id !== adminUser.id) {
       console.warn(
-        `[Admin Security] BLOCKED: Admin ${adminUser.email} attempted to modify another admin account ${existingUser.email} from IP ${clientIp}`
+        `[Admin Security] BLOCKED: Admin ${maskEmail(adminUser.email)} attempted to modify another admin account ${maskEmail(existingUser.email)} from IP ${maskIp(clientIp)}`
       )
       return NextResponse.json(
         { error: "Cannot modify other admin accounts" },
@@ -273,15 +274,15 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Audit log for admin action (include IP for security monitoring)
+    // Audit log for admin action (PII masked for log aggregation security)
     const auditLog = {
       timestamp: new Date().toISOString(),
       action: "USER_TIER_UPDATE",
       adminId: adminUser.id,
-      adminEmail: adminUser.email,
-      clientIp,
+      adminEmail: maskEmail(adminUser.email),
+      clientIp: maskIp(clientIp),
       targetUserId: existingUser.id,
-      targetEmail: existingUser.email,
+      targetEmail: maskEmail(existingUser.email),
       changes: {
         tier: { from: existingUser.subscriptionStatus, to: tier },
         monthlyCredits: { from: existingUser.monthlyCredits, to: updatedUser.monthlyCredits },

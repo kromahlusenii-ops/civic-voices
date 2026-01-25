@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getLoopsClient, isLoopsEnabled, LOOPS_TEMPLATES } from "@/lib/loops"
 import type { AlertFrequency } from "@prisma/client"
 import { anthropicFetch } from "@/lib/services/anthropicClient"
+import { maskEmail } from "@/lib/utils/logging"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60 // 1 minute max for Vercel Hobby plan
@@ -315,7 +316,7 @@ export async function GET(request: NextRequest) {
 
     for (const alert of dueAlerts) {
       try {
-        console.log(`[Cron] Processing alert ${alert.id}: "${alert.searchQuery}" | Frequency: ${alert.frequency} | Recipients: ${alert.recipients.map(r => `${r.email}(verified:${r.verified})`).join(", ")}`)
+        console.log(`[Cron] Processing alert ${alert.id}: "${alert.searchQuery}" | Frequency: ${alert.frequency} | Recipients: ${alert.recipients.length} verified`)
 
         // Skip if no verified recipients
         if (alert.recipients.length === 0) {
@@ -377,15 +378,14 @@ export async function GET(request: NextRequest) {
                   frequency: alert.frequency.toLowerCase(),
                 },
               })
-              console.log(`[Cron] Loops response for ${recipient.email}:`, JSON.stringify(loopsResponse))
               if (loopsResponse.success) {
-                console.log(`[Cron] Successfully sent digest to ${recipient.email} for alert ${alert.id} (id: ${loopsResponse.id})`)
+                console.log(`[Cron] Successfully sent digest to ${maskEmail(recipient.email)} for alert ${alert.id}`)
               } else {
-                console.error(`[Cron] Loops reported failure for ${recipient.email}: ${loopsResponse.error}`)
+                console.error(`[Cron] Loops reported failure for ${maskEmail(recipient.email)}: ${loopsResponse.error}`)
               }
             } catch (emailError) {
               console.error(
-                `[Cron] Failed to send email to ${recipient.email}:`,
+                `[Cron] Failed to send email to ${maskEmail(recipient.email)}:`,
                 emailError
               )
             }

@@ -207,10 +207,6 @@ model SearchPost {
   authorVerified    Boolean? // Platform verification status
   authorBio         String?  // Author bio/description
 
-  // Demographic data for analysis
-  authorPronouns    String?  // Extracted pronouns (e.g., "she/her", "they/them")
-  authorGender      String?  // Inferred gender: "male" | "female" | "non-binary" | "other" | "unknown"
-
   // Metadata
   createdAt   DateTime // When post was created on external platform
   savedAt     DateTime @default(now()) // When we saved it
@@ -218,7 +214,6 @@ model SearchPost {
   @@index([searchId])
   @@index([searchId, createdAt])
   @@index([credibilityTier])
-  @@index([authorGender])
   @@map("search_posts")
 }
 
