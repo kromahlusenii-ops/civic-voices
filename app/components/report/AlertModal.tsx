@@ -200,6 +200,7 @@ export default function AlertModal({
       const token = await getAccessToken()
       if (!token) return
 
+      const isCreating = !existingAlert
       const payload = {
         ...(existingAlert && { id: existingAlert.id }),
         searchQuery,
@@ -210,6 +211,8 @@ export default function AlertModal({
         preferredDay: frequency === "WEEKLY" ? preferredDay : undefined,
         timezone,
         isActive,
+        // Send immediate alert when creating (for instant feedback)
+        ...(isCreating && { sendImmediately: true }),
       }
 
       const res = await fetch("/api/alerts", {
@@ -224,9 +227,27 @@ export default function AlertModal({
       if (res.ok) {
         const savedAlert = await res.json()
         setExistingAlert(savedAlert)
-        showToast({
-          message: existingAlert ? "Alert updated" : "Alert created",
-        })
+
+        // Show appropriate message based on immediate result
+        if (isCreating && savedAlert.immediateResult) {
+          if (savedAlert.immediateResult.success && savedAlert.immediateResult.totalPosts > 0) {
+            showToast({
+              message: `Alert created! First digest sent with ${savedAlert.immediateResult.totalPosts} posts.`,
+            })
+          } else if (savedAlert.immediateResult.totalPosts === 0) {
+            showToast({
+              message: "Alert created. No posts found in last 24h - you'll receive alerts when new content appears.",
+            })
+          } else {
+            showToast({
+              message: "Alert created. First digest will be sent at your scheduled time.",
+            })
+          }
+        } else {
+          showToast({
+            message: existingAlert ? "Alert updated" : "Alert created",
+          })
+        }
         onClose()
       } else {
         const error = await res.json()
