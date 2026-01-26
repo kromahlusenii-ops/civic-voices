@@ -105,6 +105,13 @@ export default function ReportProgressModal({
   const [reportId, setReportId] = useState<string | null>(null);
   const hasStarted = useRef(false);
 
+  // Use refs for callbacks to prevent startStream from changing identity
+  // when parent re-renders (which would cause useEffect cleanup to abort the stream)
+  const onErrorRef = useRef(onError);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   const startStream = useCallback(() => {
     if (!searchId || !accessToken) return;
 
@@ -156,8 +163,8 @@ export default function ReportProgressModal({
           }
 
           if (data.type === "error") {
-            onError(data.message || "An error occurred");
-            onClose();
+            onErrorRef.current(data.message || "An error occurred");
+            onCloseRef.current();
           }
         };
 
@@ -189,13 +196,13 @@ export default function ReportProgressModal({
       .catch((error) => {
         if (error.name !== "AbortError") {
           console.error("Stream error:", error);
-          onError(error.message);
-          onClose();
+          onErrorRef.current(error.message);
+          onCloseRef.current();
         }
       });
 
     return () => controller.abort();
-  }, [searchId, accessToken, router, onError, onClose]);
+  }, [searchId, accessToken, router]);
 
   useEffect(() => {
     if (isOpen && searchId && accessToken && !hasStarted.current) {
