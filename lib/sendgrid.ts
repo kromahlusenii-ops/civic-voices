@@ -39,6 +39,9 @@ class SendGridClient {
         from: FROM_EMAIL,
         subject: params.subject,
         html: params.html,
+        trackingSettings: {
+          clickTracking: { enable: false, enableText: false },
+        },
       })
       console.log(`[SendGrid] Email sent successfully (status: ${response.statusCode})`)
       return { success: true }
