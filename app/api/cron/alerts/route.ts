@@ -161,13 +161,14 @@ function generateBasicSummary(posts: RawPost[], searchQuery: string): string {
 // Run search and get summary (simplified version for alerts)
 async function runAlertSearch(
   searchQuery: string,
-  platforms: string[]
+  platforms: string[],
+  timeRange: string = "24h"
 ): Promise<{ totalPosts: number; topPosts: EmailPost[]; rawPosts: RawPost[] }> {
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     // Convert platforms to lowercase (Prisma stores as YOUTUBE, but API expects youtube)
     const sources = platforms.map(p => p.toLowerCase())
-    console.log(`[Cron] Running search for "${searchQuery}" on platforms: ${sources.join(", ")} | App URL: ${appUrl}`)
+    console.log(`[Cron] Running search for "${searchQuery}" on platforms: ${sources.join(", ")} | timeRange: ${timeRange} | App URL: ${appUrl}`)
 
     const response = await fetch(`${appUrl}/api/search`, {
       method: "POST",
@@ -175,7 +176,7 @@ async function runAlertSearch(
       body: JSON.stringify({
         query: searchQuery,
         sources,
-        timeFilter: "24h", // Last 24 hours for alerts
+        timeFilter: timeRange,
         sort: "relevance",
       }),
     })
@@ -320,8 +321,8 @@ export async function GET(request: NextRequest) {
           continue
         }
 
-        // Run search
-        const searchResult = await runAlertSearch(alert.searchQuery, alert.platforms)
+        // Run search using the alert's stored time range
+        const searchResult = await runAlertSearch(alert.searchQuery, alert.platforms, alert.timeRange)
 
         console.log(
           `[Cron] Alert ${alert.id}: Found ${searchResult.totalPosts} posts for "${alert.searchQuery}"`
@@ -351,6 +352,8 @@ export async function GET(request: NextRequest) {
             unsubscribeUrl: `${appUrl}/alerts/manage`,
             frequency: alert.frequency.toLowerCase(),
             searchUrl,
+            scope: alert.scope,
+            timeRange: alert.timeRange,
           })
 
           // Send to each verified recipient

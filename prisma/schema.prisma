@@ -304,6 +304,8 @@ model Alert {
 
   searchQuery     String
   platforms       String[] // ["reddit", "x", "tiktok", "instagram", "youtube"]
+  scope           String   @default("national") // "national" or "local"
+  timeRange       String   @default("24h")      // e.g. "24h", "7d", "30d"
 
   recipients      AlertRecipient[]
 

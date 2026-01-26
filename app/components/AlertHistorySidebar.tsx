@@ -18,6 +18,8 @@ interface Alert {
   id: string
   searchQuery: string
   platforms: string[]
+  scope: string
+  timeRange: string
   recipients: AlertRecipient[]
   frequency: AlertFrequency
   preferredTime: string
@@ -441,6 +443,8 @@ export default function AlertHistorySidebar({
           reportId=""
           searchQuery={editingAlert.searchQuery}
           platforms={editingAlert.platforms}
+          scope={editingAlert.scope}
+          timeRange={editingAlert.timeRange}
           getAccessToken={getAccessToken}
           userEmail={user.email}
         />

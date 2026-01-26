@@ -9,6 +9,8 @@ interface Alert {
   id: string
   searchQuery: string
   platforms: string[]
+  scope: string
+  timeRange: string
   recipients: {
     id: string
     email: string
@@ -28,6 +30,8 @@ interface AlertModalProps {
   reportId: string
   searchQuery: string
   platforms: string[]
+  scope?: string      // "national" or "local"
+  timeRange?: string  // e.g. "24h", "7d"
   getAccessToken: () => Promise<string | null>
   userEmail: string
 }
@@ -68,6 +72,8 @@ export default function AlertModal({
   onClose,
   searchQuery,
   platforms,
+  scope: initialScope = "national",
+  timeRange: initialTimeRange = "24h",
   getAccessToken,
   userEmail,
 }: AlertModalProps) {
@@ -205,6 +211,8 @@ export default function AlertModal({
         ...(existingAlert && { id: existingAlert.id }),
         searchQuery,
         platforms,
+        scope: existingAlert?.scope || initialScope,
+        timeRange: existingAlert?.timeRange || initialTimeRange,
         recipients,
         frequency,
         preferredTime,

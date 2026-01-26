@@ -17,6 +17,8 @@ interface CreateAlertRequest {
   preferredTime: string
   preferredDay?: number
   timezone?: string
+  scope?: string      // "national" or "local"
+  timeRange?: string  // e.g. "24h", "7d", "30d"
   sendImmediately?: boolean // Send first alert immediately for instant feedback
 }
 
@@ -150,13 +152,15 @@ async function sendImmediateAlert(
   searchQuery: string,
   platforms: string[],
   recipientEmail: string,
-  frequency: string
+  frequency: string,
+  scope: string = "national",
+  timeRange: string = "24h"
 ): Promise<{ success: boolean; totalPosts: number; error?: string }> {
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
     const sources = platforms.map(p => p.toLowerCase())
 
-    console.log(`[Alert] Running immediate search for "${searchQuery}" on platforms: ${sources.join(", ")}`)
+    console.log(`[Alert] Running immediate search for "${searchQuery}" on platforms: ${sources.join(", ")} | scope: ${scope} | timeRange: ${timeRange}`)
 
     const response = await fetch(`${appUrl}/api/search`, {
       method: "POST",
@@ -164,7 +168,7 @@ async function sendImmediateAlert(
       body: JSON.stringify({
         query: searchQuery,
         sources,
-        timeFilter: "24h",
+        timeFilter: timeRange,
         sort: "relevance",
       }),
     })
@@ -215,6 +219,8 @@ async function sendImmediateAlert(
       unsubscribeUrl: `${appUrl}/alerts/manage`,
       frequency: frequency.toLowerCase(),
       searchUrl,
+      scope,
+      timeRange,
     })
 
     const sendResult = await sendgrid.send({
@@ -319,6 +325,8 @@ export async function POST(request: NextRequest) {
       preferredTime,
       preferredDay,
       timezone,
+      scope,
+      timeRange,
       sendImmediately,
     } = body
 
@@ -355,6 +363,8 @@ export async function POST(request: NextRequest) {
         userId: user.id,
         searchQuery,
         platforms,
+        scope: scope || "national",
+        timeRange: timeRange || "24h",
         frequency: frequency || "DAILY",
         preferredTime: preferredTime || "09:00",
         timezone: timezone || "America/New_York",
@@ -410,7 +420,9 @@ export async function POST(request: NextRequest) {
         searchQuery,
         platforms,
         user.email,
-        frequency || "DAILY"
+        frequency || "DAILY",
+        scope || "national",
+        timeRange || "24h"
       )
     }
 
@@ -469,6 +481,8 @@ export async function PUT(request: NextRequest) {
       preferredTime,
       preferredDay,
       timezone,
+      scope,
+      timeRange,
       isActive,
     } = body
 
@@ -541,6 +555,8 @@ export async function PUT(request: NextRequest) {
         data: {
           searchQuery: searchQuery ?? existingAlert.searchQuery,
           platforms: platforms ?? existingAlert.platforms,
+          scope: scope ?? existingAlert.scope,
+          timeRange: timeRange ?? existingAlert.timeRange,
           frequency: frequency ?? existingAlert.frequency,
           preferredTime: preferredTime ?? existingAlert.preferredTime,
           timezone: timezone ?? existingAlert.timezone,

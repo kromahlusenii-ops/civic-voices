@@ -857,6 +857,7 @@ export default function ReportPage() {
                         reportId={reportData.report.id}
                         searchQuery={reportData.report.query}
                         platforms={reportData.report.sources}
+                        scope={reportData.aiAnalysis?.scope?.type || "national"}
                         getAccessToken={getAccessToken}
                         userEmail={user.email}
                       />

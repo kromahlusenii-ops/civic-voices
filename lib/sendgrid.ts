@@ -109,6 +109,19 @@ function emailWrapper(content: string): string {
 
 // ─── Alert Digest Email ────────────────────────────────────────────────────
 
+function formatTimeRange(timeRange: string): string {
+  switch (timeRange) {
+    case "1h": return "Last hour"
+    case "6h": return "Last 6 hours"
+    case "12h": return "Last 12 hours"
+    case "24h": return "Last 24 hours"
+    case "7d": return "Last 7 days"
+    case "30d": return "Last 30 days"
+    case "90d": return "Last 90 days"
+    default: return timeRange
+  }
+}
+
 interface AlertDigestParams {
   searchQuery: string
   totalPosts: number
@@ -118,16 +131,24 @@ interface AlertDigestParams {
   unsubscribeUrl: string
   frequency: string
   searchUrl: string
+  scope: string    // "national" or "local"
+  timeRange: string // e.g. "24h", "7d", "30d"
 }
 
 export function buildAlertDigestEmail(params: AlertDigestParams): { subject: string; html: string } {
   const subject = `Alert: ${params.totalPosts} new mentions for "${params.searchQuery}"`
+  const scopeLabel = params.scope === "local" ? "Local" : "National"
+  const timeRangeLabel = formatTimeRange(params.timeRange)
 
   const content = `
     <h2 style="margin: 0 0 8px; font-size: 22px; color: #111827;">${params.searchQuery}</h2>
-    <p style="margin: 0 0 24px; font-size: 14px; color: #6B7280;">
+    <p style="margin: 0 0 16px; font-size: 14px; color: #6B7280;">
       ${params.totalPosts} mentions found &middot; ${params.frequency} digest &middot; showing top ${params.postsIncluded}
     </p>
+    <div style="margin: 0 0 24px;">
+      <span style="display: inline-block; padding: 4px 12px; background-color: #F3F4F6; border-radius: 9999px; font-size: 12px; font-weight: 500; color: #374151;">${scopeLabel}</span>
+      <span style="display: inline-block; padding: 4px 12px; background-color: #F3F4F6; border-radius: 9999px; font-size: 12px; font-weight: 500; color: #374151; margin-left: 6px;">${timeRangeLabel}</span>
+    </div>
 
     <!-- Summary -->
     <div style="background-color: #F3F4F6; border-radius: 8px; padding: 16px; margin-bottom: 24px;">

@@ -7,6 +7,8 @@ interface AlertButtonProps {
   reportId: string
   searchQuery: string
   platforms: string[]
+  scope?: string
+  timeRange?: string
   getAccessToken: () => Promise<string | null>
   userEmail: string
 }
@@ -15,6 +17,8 @@ export default function AlertButton({
   reportId,
   searchQuery,
   platforms,
+  scope,
+  timeRange,
   getAccessToken,
   userEmail,
 }: AlertButtonProps) {
@@ -49,6 +53,8 @@ export default function AlertButton({
         reportId={reportId}
         searchQuery={searchQuery}
         platforms={platforms}
+        scope={scope}
+        timeRange={timeRange}
         getAccessToken={getAccessToken}
         userEmail={userEmail}
       />
