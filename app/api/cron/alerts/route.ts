@@ -354,10 +354,17 @@ export async function GET(request: NextRequest) {
           console.log(`[Cron] Alert ${alert.id}: Generating summary for ${searchResult.rawPosts.length} posts...`)
           const summary = await generateSummary(searchResult.rawPosts, alert.searchQuery)
           console.log(`[Cron] Alert ${alert.id}: Summary generated (${summary.length} chars): "${summary.substring(0, 100)}..."`)
-          console.log(`[Cron] Alert ${alert.id}: Posts HTML length: ${formatPostsForEmail(searchResult.topPosts, alert.searchQuery).length} chars`)
-
 
           // Send to each verified recipient
+          const postsHtml = formatPostsForEmail(searchResult.topPosts, alert.searchQuery)
+          const dataVarSizes = {
+            searchQuery: alert.searchQuery.length,
+            summary: summary.length,
+            postsHtml: postsHtml.length,
+            totalPayload: JSON.stringify({ searchQuery: alert.searchQuery, totalPosts: searchResult.totalPosts, postIncluded: postsIncluded, summary, postsHtml, unsubscribeUrl: `${appUrl}/alerts/manage`, frequency: alert.frequency.toLowerCase() }).length,
+          }
+          console.log(`[Cron] Alert ${alert.id}: Data variable sizes:`, JSON.stringify(dataVarSizes))
+
           for (const recipient of alert.recipients) {
             try {
               const loopsResponse = await loops.sendTransactionalEmail({
@@ -371,7 +378,7 @@ export async function GET(request: NextRequest) {
                   // Summary overview
                   summary,
                   // Formatted HTML posts (Octolens-style)
-                  postsHtml: formatPostsForEmail(searchResult.topPosts, alert.searchQuery),
+                  postsHtml,
                   // Links
                   unsubscribeUrl: `${appUrl}/alerts/manage`,
                   // Meta
@@ -379,9 +386,9 @@ export async function GET(request: NextRequest) {
                 },
               })
               if (loopsResponse.success) {
-                console.log(`[Cron] Successfully sent digest to ${maskEmail(recipient.email)} for alert ${alert.id}`)
+                console.log(`[Cron] Successfully sent digest to ${maskEmail(recipient.email)} for alert ${alert.id} | Loops ID: ${loopsResponse.id || "none"}`)
               } else {
-                console.error(`[Cron] Loops reported failure for ${maskEmail(recipient.email)}: ${loopsResponse.error}`)
+                console.error(`[Cron] Loops reported failure for ${maskEmail(recipient.email)}: ${JSON.stringify(loopsResponse)}`)
               }
             } catch (emailError) {
               console.error(

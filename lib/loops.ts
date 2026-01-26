@@ -44,7 +44,9 @@ class LoopsClient {
       throw new Error(`Loops API error: ${response.status} - ${error}`)
     }
 
-    return response.json()
+    const data = await response.json()
+    console.log(`[Loops] API response:`, JSON.stringify(data))
+    return data
   }
 
   async sendTransactionalEmail(params: SendTransactionalEmailParams): Promise<LoopsResponse> {
