@@ -154,7 +154,7 @@ IMPORTANT: If scope is "local", you MUST include the "location" object with city
 
 Provide a JSON response with the following structure:
 {
-  "interpretation": "A 2-3 sentence analysis that summarizes the ACTUAL CONTENT of the posts. DO NOT say 'Found X posts' or mention numbers. DO NOT use generic phrases like 'conversation spans multiple platforms'. Instead, describe WHAT people are saying - the key claims, events, opinions, or narratives you found. Example: 'Recent discussions focus on [specific event], with many expressing [specific opinion]. A notable narrative is [specific claim].'",
+  "interpretation": "2-3 sentences telling the reader the most important things people are saying. Lead with the dominant narrative or most surprising finding. Name specific policies, events, claims, or opinions from the posts. NEVER say 'posts discuss' or 'users are talking about' — instead state the substance directly, e.g., 'Insurance claim denials are spiking, with many reporting 6+ month wait times for approvals. A growing number blame recent policy changes for restricting coverage options.' Write as if briefing someone who needs to understand what's happening RIGHT NOW on this topic.",
   "keyThemes": ["theme1", "theme2", "theme3"],
   "sentimentBreakdown": {
     "overall": "positive|negative|neutral|mixed",
@@ -199,7 +199,7 @@ Respond ONLY with valid JSON, no additional text.`;
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-3-haiku-20240307",
+          model: "claude-3-5-haiku-20241022",
           max_tokens: 4096,
           messages: [{ role: "user", content: prompt }] as ClaudeMessage[],
         }),
@@ -345,18 +345,26 @@ Respond ONLY with valid JSON, no additional text.`;
     let keyThemes: string[] = [];
 
     if (hasResults) {
-      // Get platform breakdown for context
-      const platforms = [...new Set(posts.map(p => p.platform))];
-      const platformNames = platforms.map(p =>
-        p === "x" ? "X" : p === "tiktok" ? "TikTok" : p.charAt(0).toUpperCase() + p.slice(1)
-      );
+      // Extract snippets from top-engaged posts to give a substantive fallback
+      const topPosts = [...posts]
+        .sort((a, b) => (b.engagement.likes + b.engagement.comments) - (a.engagement.likes + a.engagement.comments))
+        .slice(0, 5);
 
-      // Create a clean, readable summary
-      const platformStr = platformNames.length === 1
-        ? platformNames[0]
-        : platformNames.slice(0, -1).join(", ") + " and " + platformNames.slice(-1);
+      // Pull the first meaningful sentence from each top post
+      const snippets = topPosts
+        .map(p => {
+          const text = p.text.replace(/https?:\/\/\S+/g, "").trim();
+          const sentence = text.split(/[.!?\n]/).find(s => s.trim().length > 20);
+          return sentence ? sentence.trim() : null;
+        })
+        .filter(Boolean)
+        .slice(0, 2);
 
-      interpretation = `Browse the posts on the right to explore discussions about "${query}" from ${platformStr}. Use the suggested searches below to refine your results.`;
+      if (snippets.length > 0) {
+        interpretation = `Top discussions include: "${snippets[0]}"${snippets[1] ? ` and "${snippets[1]}"` : ""}. Browse the posts to see the full conversation.`;
+      } else {
+        interpretation = `We found ${posts.length} posts about "${query}". Browse the results to see what people are saying.`;
+      }
 
       // Use query terms as themes instead of extracting from messy post content
       keyThemes = query.split(/\s+/).filter(w => w.length > 2 && !["and", "the", "for"].includes(w.toLowerCase())).slice(0, 3);
