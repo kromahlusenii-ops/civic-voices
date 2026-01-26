@@ -17,7 +17,7 @@ describe("useContextualTooltips", () => {
     expect(result.current.activeTooltip).toBeNull()
   })
 
-  it("activates source-filter tooltip 2 seconds after onResultsLoaded", () => {
+  it("activates scope-toggle tooltip 2 seconds after onResultsLoaded", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
     act(() => {
@@ -32,35 +32,35 @@ describe("useContextualTooltips", () => {
       vi.advanceTimersByTime(2000)
     })
 
-    expect(result.current.activeTooltip).toBe("source-filter")
+    expect(result.current.activeTooltip).toBe("scope-toggle")
   })
 
   it("dismisses tooltip and persists to localStorage", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Activate source-filter
+    // Activate scope-toggle
     act(() => {
       result.current.onResultsLoaded()
     })
     act(() => {
       vi.advanceTimersByTime(2000)
     })
-    expect(result.current.activeTooltip).toBe("source-filter")
+    expect(result.current.activeTooltip).toBe("scope-toggle")
 
     // Dismiss it
     act(() => {
-      result.current.dismissTooltip("source-filter")
+      result.current.dismissTooltip("scope-toggle")
     })
 
     expect(result.current.activeTooltip).toBeNull()
     const stored = JSON.parse(localStorage.getItem("civicvoices_tooltips_dismissed") || "[]")
-    expect(stored).toContain("source-filter")
+    expect(stored).toContain("scope-toggle")
   })
 
-  it("auto-advances to time-filter 1 second after dismissing source-filter", () => {
+  it("auto-advances to source-filter 1 second after dismissing scope-toggle", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Activate and dismiss source-filter
+    // Activate and dismiss scope-toggle
     act(() => {
       result.current.onResultsLoaded()
     })
@@ -68,29 +68,66 @@ describe("useContextualTooltips", () => {
       vi.advanceTimersByTime(2000)
     })
     act(() => {
-      result.current.dismissTooltip("source-filter")
+      result.current.dismissTooltip("scope-toggle")
     })
 
     // Immediately after dismiss, activeTooltip is null
     expect(result.current.activeTooltip).toBeNull()
 
-    // After 1 second, time-filter auto-advances
+    // After 1 second, source-filter auto-advances
     act(() => {
       vi.advanceTimersByTime(1000)
     })
 
+    expect(result.current.activeTooltip).toBe("source-filter")
+  })
+
+  it("auto-advances through scope-toggle → source-filter → time-filter", () => {
+    const { result } = renderHook(() => useContextualTooltips())
+
+    // Activate scope-toggle
+    act(() => {
+      result.current.onResultsLoaded()
+    })
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(result.current.activeTooltip).toBe("scope-toggle")
+
+    // Dismiss scope-toggle → auto-advance to source-filter
+    act(() => {
+      result.current.dismissTooltip("scope-toggle")
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(result.current.activeTooltip).toBe("source-filter")
+
+    // Dismiss source-filter → auto-advance to time-filter
+    act(() => {
+      result.current.dismissTooltip("source-filter")
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
     expect(result.current.activeTooltip).toBe("time-filter")
   })
 
   it("also activates time-filter via scroll trigger", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Activate and dismiss source-filter
+    // Dismiss scope-toggle and source-filter first
     act(() => {
       result.current.onResultsLoaded()
     })
     act(() => {
       vi.advanceTimersByTime(2000)
+    })
+    act(() => {
+      result.current.dismissTooltip("scope-toggle")
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
     })
     act(() => {
       result.current.dismissTooltip("source-filter")
@@ -107,12 +144,18 @@ describe("useContextualTooltips", () => {
   it("does not auto-advance to generate-report (requires hover)", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Activate source-filter, dismiss it, let time-filter auto-advance
+    // Go through scope-toggle → source-filter → time-filter
     act(() => {
       result.current.onResultsLoaded()
     })
     act(() => {
       vi.advanceTimersByTime(2000)
+    })
+    act(() => {
+      result.current.dismissTooltip("scope-toggle")
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
     })
     act(() => {
       result.current.dismissTooltip("source-filter")
@@ -142,10 +185,10 @@ describe("useContextualTooltips", () => {
     expect(result.current.activeTooltip).toBe("generate-report")
   })
 
-  it("does not activate time-filter if source-filter is not yet dismissed", () => {
+  it("does not activate time-filter if earlier tooltips are not yet dismissed", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Scroll without dismissing source-filter first
+    // Scroll without dismissing scope-toggle or source-filter first
     act(() => {
       result.current.onScroll(600, 120)
     })
@@ -156,7 +199,7 @@ describe("useContextualTooltips", () => {
   it("does not activate generate-report if time-filter is not yet dismissed", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Dismiss only source-filter
+    // Dismiss scope-toggle and source-filter only
     act(() => {
       result.current.onResultsLoaded()
     })
@@ -164,22 +207,28 @@ describe("useContextualTooltips", () => {
       vi.advanceTimersByTime(2000)
     })
     act(() => {
+      result.current.dismissTooltip("scope-toggle")
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    act(() => {
       result.current.dismissTooltip("source-filter")
     })
 
-    // Hover report button before time-filter auto-advance fires
+    // Hover report button before time-filter is dismissed
     act(() => {
       result.current.onReportButtonHover()
     })
 
-    // time-filter hasn't been shown/dismissed yet, so generate-report shouldn't activate
+    // time-filter hasn't been dismissed yet, so generate-report shouldn't activate
     expect(result.current.activeTooltip).toBeNull()
   })
 
   it("returns null when all tooltips are already dismissed in localStorage", () => {
     localStorage.setItem(
       "civicvoices_tooltips_dismissed",
-      JSON.stringify(["source-filter", "time-filter", "generate-report"])
+      JSON.stringify(["scope-toggle", "source-filter", "time-filter", "generate-report"])
     )
 
     const { result } = renderHook(() => useContextualTooltips())
@@ -204,12 +253,12 @@ describe("useContextualTooltips", () => {
   it("reads existing dismissed state from localStorage on mount", () => {
     localStorage.setItem(
       "civicvoices_tooltips_dismissed",
-      JSON.stringify(["source-filter"])
+      JSON.stringify(["scope-toggle", "source-filter"])
     )
 
     const { result } = renderHook(() => useContextualTooltips())
 
-    // source-filter already dismissed, so onResultsLoaded should not activate it
+    // scope-toggle and source-filter already dismissed, so onResultsLoaded should not activate them
     act(() => {
       result.current.onResultsLoaded()
     })
@@ -230,7 +279,7 @@ describe("useContextualTooltips", () => {
   it("does not activate tooltip if scroll is below threshold", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Scroll only 400px (below 5 * 120 = 600) — no source-filter dismissed yet
+    // Scroll only 400px (below 5 * 120 = 600)
     act(() => {
       result.current.onScroll(400, 120)
     })
@@ -241,12 +290,18 @@ describe("useContextualTooltips", () => {
   it("only triggers scroll once per session", () => {
     const { result } = renderHook(() => useContextualTooltips())
 
-    // Dismiss source-filter
+    // Dismiss scope-toggle and source-filter
     act(() => {
       result.current.onResultsLoaded()
     })
     act(() => {
       vi.advanceTimersByTime(2000)
+    })
+    act(() => {
+      result.current.dismissTooltip("scope-toggle")
+    })
+    act(() => {
+      vi.advanceTimersByTime(1000)
     })
     act(() => {
       result.current.dismissTooltip("source-filter")

@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
+import { USE_CASE_STORAGE_KEY, USE_CASE_LABELS, type UseCase } from "@/lib/search-suggestions";
 
-type SettingsTab = "credit_usage" | "plan_billing" | "team_members" | "integrations";
+type SettingsTab = "credit_usage" | "plan_billing" | "preferences" | "team_members" | "integrations";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -37,6 +38,13 @@ const TeamIcon = () => (
 const IntegrationsIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeWidth="2" d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+  </svg>
+);
+
+const PreferencesIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <circle cx="12" cy="12" r="3" strokeWidth="2" />
   </svg>
 );
 
@@ -125,6 +133,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const navItems = [
     { id: "credit_usage" as const, label: "Credit usage", icon: CreditIcon, disabled: false },
     { id: "plan_billing" as const, label: "Plan & Billing", icon: BillingIcon, disabled: false },
+    { id: "preferences" as const, label: "Preferences", icon: PreferencesIcon, disabled: false },
     { id: "team_members" as const, label: "Team & Members", icon: TeamIcon, disabled: !isTeamEnabled, disabledReason: "Upgrade to Agency or Business" },
     { id: "integrations" as const, label: "Integrations", icon: IntegrationsIcon, disabled: true, disabledReason: "Coming soon" },
   ];
@@ -216,6 +225,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="flex-1 overflow-y-auto">
           {activeTab === "credit_usage" && <CreditUsageTab />}
           {activeTab === "plan_billing" && <PlanBillingTab />}
+          {activeTab === "preferences" && <PreferencesTab />}
           {activeTab === "team_members" && <TeamMembersTab />}
           {activeTab === "integrations" && <IntegrationsTab />}
         </div>
@@ -890,6 +900,113 @@ function PlanBillingTab() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Preferences Tab
+function PreferencesTab() {
+  const { getAccessToken } = useAuth();
+  const [currentUseCase, setCurrentUseCase] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(USE_CASE_STORAGE_KEY);
+    setCurrentUseCase(stored);
+  }, []);
+
+  const handleUseCaseChange = async (useCase: string) => {
+    if (useCase === currentUseCase) return;
+
+    setIsSaving(true);
+    setSaved(false);
+    setCurrentUseCase(useCase);
+
+    // Save to localStorage
+    localStorage.setItem(USE_CASE_STORAGE_KEY, useCase);
+
+    // Persist to database if authenticated
+    try {
+      const accessToken = await getAccessToken();
+      if (accessToken) {
+        await fetch("/api/onboarding/use-case", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ useCase }),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to save use case:", err);
+    }
+
+    setIsSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const useCaseOptions: { id: UseCase; label: string; description: string }[] = [
+    { id: "civic", label: USE_CASE_LABELS.civic, description: "Track public opinion on policies, candidates, and civic issues" },
+    { id: "brand", label: USE_CASE_LABELS.brand, description: "Monitor brand mentions, competitor activity, and consumer sentiment" },
+    { id: "policy", label: USE_CASE_LABELS.policy, description: "Analyze discourse around policy topics and social trends" },
+    { id: "general", label: USE_CASE_LABELS.general, description: "Explore what people are saying about any topic" },
+  ];
+
+  return (
+    <div className="p-6">
+      <h3 className="text-xl font-semibold text-gray-900 mb-6">Preferences</h3>
+
+      {/* Persona / Use Case */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-medium text-gray-900">Your focus area</h4>
+          {isSaving && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <SpinnerIcon /> Saving...
+            </span>
+          )}
+          {saved && (
+            <span className="text-xs text-green-600 flex items-center gap-1">
+              <CheckIcon /> Saved
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          This tailors your search suggestions and placeholder text.
+        </p>
+
+        <div className="space-y-2">
+          {useCaseOptions.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => handleUseCaseChange(option.id)}
+              disabled={isSaving}
+              className={`w-full flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${
+                currentUseCase === option.id
+                  ? "border-gray-900 bg-gray-50 ring-1 ring-gray-900"
+                  : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+              } disabled:opacity-50`}
+            >
+              <div className={`flex-shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                currentUseCase === option.id
+                  ? "border-gray-900"
+                  : "border-gray-300"
+              }`}>
+                {currentUseCase === option.id && (
+                  <div className="w-2 h-2 rounded-full bg-gray-900" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 text-sm">{option.label}</p>
+                <p className="text-xs text-gray-500">{option.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

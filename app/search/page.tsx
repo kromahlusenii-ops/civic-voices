@@ -200,10 +200,12 @@ function SearchPageContent() {
   const currentPlaceholder = placeholders[placeholderIndex] || placeholders[0]
   const suggestedSearches = getSuggestionsForUseCase(userUseCase)
 
-  // Start tooltip sequence on page load (works for first-time visitors before signup)
+  // Start tooltip sequence on page load, but wait until persona modal is closed
   useEffect(() => {
-    onResultsLoaded()
-  }, [onResultsLoaded])
+    if (!showUseCaseModal) {
+      onResultsLoaded()
+    }
+  }, [onResultsLoaded, showUseCaseModal])
 
   // Handle use case modal close
   const handleUseCaseSelect = (useCase: string) => {
@@ -841,7 +843,12 @@ function SearchPageContent() {
       {/* Settings Modal */}
       <SettingsModal
         isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
+        onClose={() => {
+          setShowSettingsModal(false)
+          // Re-read persona in case it was changed in settings
+          const stored = localStorage.getItem(USE_CASE_STORAGE_KEY)
+          if (stored) setUserUseCase(stored)
+        }}
       />
 
       {/* Trial Modal */}
@@ -1037,11 +1044,20 @@ function SearchPageContent() {
                 {/* Search bar with inline scope toggle */}
                 <div className="mb-4 flex gap-3">
                   <div className="flex flex-1">
-                    <ScopeToggle
-                      scope={searchScope}
-                      onScopeChange={setSearchScope}
-                      variant="inline"
-                    />
+                    <ContextualTooltip
+                      isVisible={activeTooltip === "scope-toggle"}
+                      title="National or local"
+                      description="Toggle between national and local search to find conversations in your area."
+                      onDismiss={() => dismissTooltip("scope-toggle")}
+                      position="bottom"
+                      testId="tooltip-scope-toggle"
+                    >
+                      <ScopeToggle
+                        scope={searchScope}
+                        onScopeChange={setSearchScope}
+                        variant="inline"
+                      />
+                    </ContextualTooltip>
                     <input
                       type="text"
                       value={searchQuery}

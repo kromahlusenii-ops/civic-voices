@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 
 const STORAGE_KEY = "civicvoices_tooltips_dismissed"
-const TOOLTIP_SEQUENCE = ["source-filter", "time-filter", "generate-report"] as const
+const TOOLTIP_SEQUENCE = ["scope-toggle", "source-filter", "time-filter", "generate-report"] as const
 
 export type TooltipId = (typeof TOOLTIP_SEQUENCE)[number]
 
@@ -65,8 +65,8 @@ export function useContextualTooltips() {
     timerRef.current = setTimeout(() => {
       setDismissed((current) => {
         const next = TOOLTIP_SEQUENCE.find((id) => !current.has(id)) ?? null
-        if (next === "source-filter") {
-          setActiveTooltip("source-filter")
+        if (next === "scope-toggle") {
+          setActiveTooltip("scope-toggle")
         }
         return current
       })
