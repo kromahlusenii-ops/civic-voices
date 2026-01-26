@@ -15,16 +15,17 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
-// Mock loops
-const mockSendTransactionalEmail = vi.fn();
-vi.mock("@/lib/loops", () => ({
-  isLoopsEnabled: () => true,
-  getLoopsClient: () => ({
-    sendTransactionalEmail: mockSendTransactionalEmail,
+// Mock SendGrid
+const mockSend = vi.fn().mockResolvedValue({ success: true });
+vi.mock("@/lib/sendgrid", () => ({
+  isSendGridEnabled: () => true,
+  getSendGridClient: () => ({
+    send: mockSend,
   }),
-  LOOPS_TEMPLATES: {
-    alertDigest: "test-template-id",
-  },
+  buildAlertDigestEmail: (params: Record<string, unknown>) => ({
+    subject: `Alert: ${params.searchQuery}`,
+    html: `<html>${params.searchQuery}</html>`,
+  }),
 }));
 
 // Track fetch calls for verification
@@ -266,10 +267,9 @@ describe("Alert Cron Route", () => {
       const request = createRequest("Bearer test-secret");
       const response = await GET(request);
 
-      expect(mockSendTransactionalEmail).toHaveBeenCalledWith(
+      expect(mockSend).toHaveBeenCalledWith(
         expect.objectContaining({
-          transactionalId: "test-template-id",
-          email: "recipient@example.com",
+          to: "recipient@example.com",
         })
       );
 

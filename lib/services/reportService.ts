@@ -8,7 +8,7 @@
 import { prisma } from "@/lib/prisma";
 import { JobStatus, Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
-import { getLoopsClient, isLoopsEnabled, LOOPS_TEMPLATES } from "@/lib/loops";
+import { getSendGridClient, isSendGridEnabled, buildReportReadyEmail } from "@/lib/sendgrid";
 import {
   SentimentClassificationService,
   type Sentiment,
@@ -104,26 +104,24 @@ async function sendReportReadyEmail(
   totalPosts: number,
   topInsight?: string
 ): Promise<void> {
-  if (!isLoopsEnabled() || !LOOPS_TEMPLATES.reportReady) {
-    console.log("[Report] Loops not configured for report ready emails, skipping");
+  if (!isSendGridEnabled()) {
+    console.log("[Report] SendGrid not configured for report ready emails, skipping");
     return;
   }
 
   try {
-    const loops = getLoopsClient();
+    const sendgrid = getSendGridClient();
     const appUrl = getBaseUrl();
     const reportUrl = `${appUrl}/report/${reportId}`;
 
-    const response = await loops.sendTransactionalEmail({
-      transactionalId: LOOPS_TEMPLATES.reportReady,
-      email: userEmail,
-      dataVariables: {
-        searchQuery,
-        totalPosts,
-        reportUrl,
-        topInsight: topInsight || `Analysis of ${totalPosts} social media posts about "${searchQuery}"`,
-      },
+    const { subject, html } = buildReportReadyEmail({
+      searchQuery,
+      totalPosts,
+      reportUrl,
+      topInsight: topInsight || `Analysis of ${totalPosts} social media posts about "${searchQuery}"`,
     });
+
+    const response = await sendgrid.send({ to: userEmail, subject, html });
 
     if (response.success) {
       console.log(`[Report] Report ready email sent to ${maskEmail(userEmail)} for report ${reportId}`);

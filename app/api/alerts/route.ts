@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
 import { prisma } from "@/lib/prisma"
-import { getLoopsClient, isLoopsEnabled, LOOPS_TEMPLATES } from "@/lib/loops"
+import { getSendGridClient, isSendGridEnabled, buildAlertDigestEmail, buildVerifyRecipientEmail } from "@/lib/sendgrid"
 import { randomBytes } from "crypto"
 import type { AlertFrequency } from "@prisma/client"
 import { maskEmail } from "@/lib/utils/logging"
@@ -98,7 +98,7 @@ async function generateSummary(posts: RawPost[], searchQuery: string): Promise<s
         max_tokens: 150,
         messages: [{
           role: "user",
-          content: `You are writing a brief email summary. Based on these ${posts.length} social media posts about "${searchQuery}", write a 2-3 sentence summary of what people are discussing. Be specific about the topics, events, or opinions being shared. Don't mention sentiment or platform counts.
+          content: `You are writing a brief email summary. Based on these ${posts.length} social media posts about "${searchQuery}", write a 2-3 sentence summary of what people are actually saying. Focus on the key arguments, opinions, events, or news being discussed. Do NOT mention platform names (TikTok, YouTube, Reddit, etc.), sentiment labels, or post counts — only describe the substance of the conversation.
 
 Sample posts:
 ${samplePosts}
@@ -122,17 +122,7 @@ Write the summary now (2-3 sentences only, no intro):`,
 
 // Fallback basic summary without AI
 function generateBasicSummary(posts: RawPost[], searchQuery: string): string {
-  const platformCounts: Record<string, number> = {}
-  for (const post of posts) {
-    const platform = post.platform.toLowerCase()
-    platformCounts[platform] = (platformCounts[platform] || 0) + 1
-  }
-
-  const platformParts = Object.entries(platformCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([platform, count]) => `${count} on ${platform.charAt(0).toUpperCase() + platform.slice(1)}`)
-
-  return `We found ${posts.length} mentions of "${searchQuery}" across ${platformParts.join(", ")}.`
+  return `We found ${posts.length} new mentions of "${searchQuery}" in the last 24 hours. View the full feed to see what people are saying.`
 }
 
 // Format posts as HTML for email
@@ -145,10 +135,10 @@ function formatPostsForEmail(posts: EmailPost[], searchQuery: string): string {
       `<a href="${post.url}" style="color: #2563EB; font-weight: 600; text-decoration: none;">${searchQuery}</a>`,
       `<span style="color: #374151; font-weight: 600;"> in ${post.platformCapitalized}</span>`,
       `<span style="color: #9CA3AF;"> · by ${post.authorHandle} on ${post.date}</span>`,
-      `<p style="color: #374151; margin: 12px 0; line-height: 1.5;">${post.content}</p>`,
+      `<a href="${post.url}" style="display: block; color: #374151; text-decoration: none; margin: 12px 0; line-height: 1.5;">${post.content}</a>`,
       `<span style="color: ${post.sentimentColor}; font-weight: 500;">${post.sentiment}</span>`,
       `<br>`,
-      `<a href="${post.url}" style="display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid #E5E7EB; border-radius: 6px; color: #374151; text-decoration: none; font-size: 14px;">View post</a>`,
+      `<a href="${post.url}" style="display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid #E5E7EB; border-radius: 6px; color: #374151; text-decoration: none; font-size: 14px;">View post →</a>`,
       `</div>`,
     ].join(""))
     .join("")
@@ -195,7 +185,7 @@ async function sendImmediateAlert(
     }
 
     // Format posts for email
-    const topPosts: EmailPost[] = allPosts.slice(0, 20).map((post: RawPost) => {
+    const topPosts: EmailPost[] = allPosts.slice(0, 5).map((post: RawPost) => {
       const sentiment = post.sentiment || "neutral"
       return {
         platform: post.platform,
@@ -213,23 +203,27 @@ async function sendImmediateAlert(
     // Generate summary
     const summary = await generateSummary(allPosts, searchQuery)
 
-    // Send email
-    const loops = getLoopsClient()
-    const loopsResponse = await loops.sendTransactionalEmail({
-      transactionalId: LOOPS_TEMPLATES.alertDigest,
-      email: recipientEmail,
-      dataVariables: {
-        searchQuery,
-        totalPosts,
-        postIncluded: Math.min(topPosts.length, 20),
-        summary,
-        postsHtml: formatPostsForEmail(topPosts, searchQuery),
-        unsubscribeUrl: `${appUrl}/alerts/manage`,
-        frequency: frequency.toLowerCase(),
-      },
+    // Send email via SendGrid
+    const sendgrid = getSendGridClient()
+    const searchUrl = `${appUrl}/search?q=${encodeURIComponent(searchQuery)}`
+    const { subject, html } = buildAlertDigestEmail({
+      searchQuery,
+      totalPosts,
+      postsIncluded: Math.min(topPosts.length, 5),
+      summary,
+      postsHtml: formatPostsForEmail(topPosts, searchQuery),
+      unsubscribeUrl: `${appUrl}/alerts/manage`,
+      frequency: frequency.toLowerCase(),
+      searchUrl,
     })
 
-    if (loopsResponse.success) {
+    const sendResult = await sendgrid.send({
+      to: recipientEmail,
+      subject,
+      html,
+    })
+
+    if (sendResult.success) {
       console.log(`[Alert] Immediate alert sent to ${maskEmail(recipientEmail)}`)
 
       // Update lastSentAt for the alert
@@ -240,8 +234,8 @@ async function sendImmediateAlert(
 
       return { success: true, totalPosts }
     } else {
-      console.error(`[Alert] Failed to send immediate alert: ${loopsResponse.error}`)
-      return { success: false, totalPosts, error: loopsResponse.error }
+      console.error(`[Alert] Failed to send immediate alert: ${sendResult.error}`)
+      return { success: false, totalPosts, error: sendResult.error }
     }
   } catch (error) {
     console.error("[Alert] Error sending immediate alert:", error)
@@ -388,22 +382,19 @@ export async function POST(request: NextRequest) {
     })
 
     // Send verification emails to non-owner recipients
-    if (isLoopsEnabled() && LOOPS_TEMPLATES.verifyRecipient) {
-      const loops = getLoopsClient()
+    if (isSendGridEnabled()) {
+      const sgClient = getSendGridClient()
       const nonOwnerRecipients = alert.recipients.filter((r) => !r.isOwner)
 
       for (const recipient of nonOwnerRecipients) {
         try {
-          await loops.sendTransactionalEmail({
-            transactionalId: LOOPS_TEMPLATES.verifyRecipient,
-            email: recipient.email,
-            dataVariables: {
-              ownerName: user.name || user.email.split("@")[0],
-              ownerEmail: user.email,
-              searchQuery: alert.searchQuery,
-              verifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/alerts/verify?token=${recipient.verifyToken}`,
-            },
+          const { subject, html } = buildVerifyRecipientEmail({
+            ownerName: user.name || user.email.split("@")[0],
+            ownerEmail: user.email,
+            searchQuery: alert.searchQuery,
+            verifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/alerts/verify?token=${recipient.verifyToken}`,
           })
+          await sgClient.send({ to: recipient.email, subject, html })
         } catch (err) {
           console.error(`Failed to send verification email to ${maskEmail(recipient.email)}:`, err)
         }
@@ -412,7 +403,7 @@ export async function POST(request: NextRequest) {
 
     // Send immediate alert if requested (for instant feedback)
     let immediateResult: { success: boolean; totalPosts: number; error?: string } | undefined
-    if (sendImmediately && isLoopsEnabled() && LOOPS_TEMPLATES.alertDigest) {
+    if (sendImmediately && isSendGridEnabled()) {
       console.log(`[Alert] Sending immediate alert for "${searchQuery}" to ${maskEmail(user.email)}`)
       immediateResult = await sendImmediateAlert(
         alert.id,
@@ -566,24 +557,21 @@ export async function PUT(request: NextRequest) {
     })
 
     // Send verification emails to new non-owner recipients
-    if (isLoopsEnabled() && LOOPS_TEMPLATES.verifyRecipient && newEmails.length > 0) {
-      const loops = getLoopsClient()
+    if (isSendGridEnabled() && newEmails.length > 0) {
+      const sgClient = getSendGridClient()
       const newRecipients = updatedAlert.recipients.filter(
         (r) => newEmails.includes(r.email.toLowerCase()) && !r.isOwner
       )
 
       for (const recipient of newRecipients) {
         try {
-          await loops.sendTransactionalEmail({
-            transactionalId: LOOPS_TEMPLATES.verifyRecipient,
-            email: recipient.email,
-            dataVariables: {
-              ownerName: user.name || user.email.split("@")[0],
-              ownerEmail: user.email,
-              searchQuery: updatedAlert.searchQuery,
-              verifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/alerts/verify?token=${recipient.verifyToken}`,
-            },
+          const { subject, html } = buildVerifyRecipientEmail({
+            ownerName: user.name || user.email.split("@")[0],
+            ownerEmail: user.email,
+            searchQuery: updatedAlert.searchQuery,
+            verifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/alerts/verify?token=${recipient.verifyToken}`,
           })
+          await sgClient.send({ to: recipient.email, subject, html })
         } catch (err) {
           console.error(`Failed to send verification email to ${maskEmail(recipient.email)}:`, err)
         }

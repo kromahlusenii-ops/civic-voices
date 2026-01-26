@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { getLoopsClient, isLoopsEnabled, LOOPS_TEMPLATES } from "@/lib/loops"
+import { getSendGridClient, isSendGridEnabled, buildAlertDigestEmail } from "@/lib/sendgrid"
 import type { AlertFrequency } from "@prisma/client"
 import { anthropicFetch } from "@/lib/services/anthropicClient"
 import { maskEmail } from "@/lib/utils/logging"
@@ -125,7 +125,7 @@ async function generateSummary(posts: RawPost[], searchQuery: string): Promise<s
         max_tokens: 150,
         messages: [{
           role: "user",
-          content: `You are writing a brief email summary. Based on these ${posts.length} social media posts about "${searchQuery}", write a 2-3 sentence summary of what people are discussing. Be specific about the topics, events, or opinions being shared. Don't mention sentiment or platform counts.
+          content: `You are writing a brief email summary. Based on these ${posts.length} social media posts about "${searchQuery}", write a 2-3 sentence summary of what people are actually saying. Focus on the key arguments, opinions, events, or news being discussed. Do NOT mention platform names (TikTok, YouTube, Reddit, etc.), sentiment labels, or post counts — only describe the substance of the conversation.
 
 Sample posts:
 ${samplePosts}
@@ -155,17 +155,7 @@ Write the summary now (2-3 sentences only, no intro):`,
 
 // Fallback basic summary without AI
 function generateBasicSummary(posts: RawPost[], searchQuery: string): string {
-  const platformCounts: Record<string, number> = {}
-  for (const post of posts) {
-    const platform = post.platform.toLowerCase()
-    platformCounts[platform] = (platformCounts[platform] || 0) + 1
-  }
-
-  const platformParts = Object.entries(platformCounts)
-    .sort((a, b) => b[1] - a[1])
-    .map(([platform, count]) => `${count} on ${platform.charAt(0).toUpperCase() + platform.slice(1)}`)
-
-  return `We found ${posts.length} mentions of "${searchQuery}" in the last 24 hours across ${platformParts.join(", ")}.`
+  return `We found ${posts.length} new mentions of "${searchQuery}" in the last 24 hours. View the full feed to see what people are saying.`
 }
 
 // Run search and get summary (simplified version for alerts)
@@ -198,8 +188,8 @@ async function runAlertSearch(
     const data = await response.json()
     const allPosts: RawPost[] = data.posts || []
 
-    // Extract top 20 posts for the digest (like Octolens)
-    const topPosts: EmailPost[] = allPosts.slice(0, 20).map((post: RawPost) => {
+    // Extract top 5 posts for the digest
+    const topPosts: EmailPost[] = allPosts.slice(0, 5).map((post: RawPost) => {
       const sentiment = post.sentiment || "neutral"
       return {
         platform: post.platform,
@@ -245,19 +235,14 @@ function formatPostsForEmail(posts: EmailPost[], searchQuery: string): string {
 
   return posts
     .map((post) => [
-      // Container
       `<div style="border-bottom: 1px solid #E5E7EB; padding: 16px 0; text-align: left;">`,
-      // Header: Query + Platform + Author + Date (all on one line)
       `<a href="${post.url}" style="color: #2563EB; font-weight: 600; text-decoration: none;">${searchQuery}</a>`,
       `<span style="color: #374151; font-weight: 600;"> in ${post.platformCapitalized}</span>`,
       `<span style="color: #9CA3AF;"> · by ${post.authorHandle} on ${post.date}</span>`,
-      // Post content
-      `<p style="color: #374151; margin: 12px 0; line-height: 1.5;">${post.content}</p>`,
-      // Sentiment
+      `<a href="${post.url}" style="display: block; color: #374151; text-decoration: none; margin: 12px 0; line-height: 1.5;">${post.content}</a>`,
       `<span style="color: ${post.sentimentColor}; font-weight: 500;">${post.sentiment}</span>`,
       `<br>`,
-      // View post button
-      `<a href="${post.url}" style="display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid #E5E7EB; border-radius: 6px; color: #374151; text-decoration: none; font-size: 14px;">View post</a>`,
+      `<a href="${post.url}" style="display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid #E5E7EB; border-radius: 6px; color: #374151; text-decoration: none; font-size: 14px;">View post →</a>`,
       `</div>`,
     ].join(""))
     .join("")
@@ -273,16 +258,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // Check if Loops is configured
-  const loopsEnabled = isLoopsEnabled()
-  const hasTemplate = !!LOOPS_TEMPLATES.alertDigest
-  console.log("[Cron] Loops enabled:", loopsEnabled, "| Template configured:", hasTemplate, "| Template ID:", LOOPS_TEMPLATES.alertDigest || "(empty)")
+  // Check if SendGrid is configured
+  const emailEnabled = isSendGridEnabled()
+  console.log("[Cron] SendGrid enabled:", emailEnabled)
 
-  if (!loopsEnabled || !hasTemplate) {
-    console.warn("[Cron] Loops not configured - LOOPS_API_KEY:", loopsEnabled ? "SET" : "MISSING", "| LOOPS_ALERT_DIGEST_TEMPLATE_ID:", hasTemplate ? "SET" : "MISSING")
+  if (!emailEnabled) {
+    console.warn("[Cron] SendGrid not configured - SENDGRID_API_KEY is missing")
     return NextResponse.json({
       success: true,
-      message: "Loops not configured",
+      message: "Email provider not configured",
       processed: 0,
     })
   }
@@ -310,7 +294,7 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Cron] Found ${dueAlerts.length} due alerts`)
 
-    const loops = getLoopsClient()
+    const sendgrid = getSendGridClient()
     let processed = 0
     let errors = 0
 
@@ -344,51 +328,43 @@ export async function GET(request: NextRequest) {
         )
 
         // Only send if there are results
-        console.log(`[Cron] Alert ${alert.id}: Search returned ${searchResult.totalPosts} posts, ${searchResult.topPosts.length} top posts | Template ID: ${LOOPS_TEMPLATES.alertDigest}`)
+        console.log(`[Cron] Alert ${alert.id}: Search returned ${searchResult.totalPosts} posts, ${searchResult.topPosts.length} top posts`)
 
         if (searchResult.totalPosts > 0) {
           const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-          const postsIncluded = Math.min(searchResult.topPosts.length, 20)
+          const postsIncluded = Math.min(searchResult.topPosts.length, 5)
 
           // Generate summary from posts
           console.log(`[Cron] Alert ${alert.id}: Generating summary for ${searchResult.rawPosts.length} posts...`)
           const summary = await generateSummary(searchResult.rawPosts, alert.searchQuery)
           console.log(`[Cron] Alert ${alert.id}: Summary generated (${summary.length} chars): "${summary.substring(0, 100)}..."`)
 
-          // Send to each verified recipient
+          // Build email HTML
+          const searchUrl = `${appUrl}/search?q=${encodeURIComponent(alert.searchQuery)}`
           const postsHtml = formatPostsForEmail(searchResult.topPosts, alert.searchQuery)
-          const dataVarSizes = {
-            searchQuery: alert.searchQuery.length,
-            summary: summary.length,
-            postsHtml: postsHtml.length,
-            totalPayload: JSON.stringify({ searchQuery: alert.searchQuery, totalPosts: searchResult.totalPosts, postIncluded: postsIncluded, summary, postsHtml, unsubscribeUrl: `${appUrl}/alerts/manage`, frequency: alert.frequency.toLowerCase() }).length,
-          }
-          console.log(`[Cron] Alert ${alert.id}: Data variable sizes:`, JSON.stringify(dataVarSizes))
+          const { subject, html } = buildAlertDigestEmail({
+            searchQuery: alert.searchQuery,
+            totalPosts: searchResult.totalPosts,
+            postsIncluded,
+            summary,
+            postsHtml,
+            unsubscribeUrl: `${appUrl}/alerts/manage`,
+            frequency: alert.frequency.toLowerCase(),
+            searchUrl,
+          })
 
+          // Send to each verified recipient
           for (const recipient of alert.recipients) {
             try {
-              const loopsResponse = await loops.sendTransactionalEmail({
-                transactionalId: LOOPS_TEMPLATES.alertDigest,
-                email: recipient.email,
-                dataVariables: {
-                  // Header info
-                  searchQuery: alert.searchQuery,
-                  totalPosts: searchResult.totalPosts,
-                  postIncluded: postsIncluded,
-                  // Summary overview
-                  summary,
-                  // Formatted HTML posts (Octolens-style)
-                  postsHtml,
-                  // Links
-                  unsubscribeUrl: `${appUrl}/alerts/manage`,
-                  // Meta
-                  frequency: alert.frequency.toLowerCase(),
-                },
+              const sendResult = await sendgrid.send({
+                to: recipient.email,
+                subject,
+                html,
               })
-              if (loopsResponse.success) {
-                console.log(`[Cron] Successfully sent digest to ${maskEmail(recipient.email)} for alert ${alert.id} | Loops ID: ${loopsResponse.id || "none"}`)
+              if (sendResult.success) {
+                console.log(`[Cron] Successfully sent digest to ${maskEmail(recipient.email)} for alert ${alert.id}`)
               } else {
-                console.error(`[Cron] Loops reported failure for ${maskEmail(recipient.email)}: ${JSON.stringify(loopsResponse)}`)
+                console.error(`[Cron] SendGrid reported failure for ${maskEmail(recipient.email)}: ${sendResult.error}`)
               }
             } catch (emailError) {
               console.error(
