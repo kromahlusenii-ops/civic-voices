@@ -146,8 +146,8 @@ For intentionsBreakdown, analyze the primary purpose/intention of each post:
 
 For scope, determine the geographic/political scope of the conversation:
 - "local": Posts about specific cities, towns, neighborhoods, local businesses, local elections, local events
-- "national": Posts about federal policy, national politics, nationwide trends, presidential/congressional topics
-- "international": Posts about global issues, foreign countries, international relations
+- "national": Posts about US-wide topics: federal policy, national politics, nationwide trends, American brands/companies/products, US culture, domestic issues. This is the DEFAULT for most topics unless posts clearly focus on a specific city OR on foreign countries.
+- "international": ONLY use when posts are primarily about foreign countries, cross-border issues, or international relations. Do NOT use for American brands or products even if they are sold globally.
 - "mixed": Posts spanning multiple scope levels
 Include 1-3 indicators explaining WHY you chose this scope (e.g., "mentions Austin city council", "discusses federal tax policy")
 IMPORTANT: If scope is "local", you MUST include the "location" object with city and/or state. Extract the specific location mentioned in the posts.
