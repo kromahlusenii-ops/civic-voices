@@ -1692,6 +1692,7 @@ function SearchPageContent() {
                                 fill
                                 className="object-cover"
                                 unoptimized
+                                referrerPolicy="no-referrer"
                               />
                             </div>
                           )}

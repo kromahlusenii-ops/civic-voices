@@ -224,6 +224,7 @@ function TopicMentionCard({ post }: { post: Post }) {
             fill
             className="object-cover"
             unoptimized
+            referrerPolicy="no-referrer"
           />
           <div className={`absolute top-1 left-1 ${platformColor} text-white p-1 rounded`}>
             {PLATFORM_ICONS[post.platform]}
@@ -243,6 +244,7 @@ function TopicMentionCard({ post }: { post: Post }) {
               height={20}
               className="w-5 h-5 rounded-full object-cover"
               unoptimized
+              referrerPolicy="no-referrer"
             />
           ) : (
             <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center">

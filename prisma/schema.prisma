@@ -344,10 +344,11 @@ model AlertRecipient {
 }
 
 enum AlertFrequency {
-  INSTANTLY
-  HOURLY
+  INSTANTLY // legacy, no longer offered in UI
+  HOURLY    // legacy, no longer offered in UI
   DAILY
   WEEKLY
+  MONTHLY
 }
 
 // Organization for team seat management

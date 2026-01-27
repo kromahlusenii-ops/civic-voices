@@ -6,8 +6,9 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { JobStatus, Prisma } from "@prisma/client";
+import { JobStatus, Prisma, Source } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import crypto from "crypto";
 import { getSendGridClient, isSendGridEnabled, buildReportReadyEmail } from "@/lib/sendgrid";
 import {
   SentimentClassificationService,
@@ -1627,8 +1628,209 @@ export async function updateShareSettings(
   };
 }
 
+// ============================================
+// Alert Report Generation
+// ============================================
+
+export interface AlertReportPost {
+  id: string;
+  text: string;
+  author: string;
+  authorHandle: string;
+  authorAvatar?: string;
+  platform: string;
+  url: string;
+  thumbnail?: string;
+  createdAt: string;
+  sentiment?: string;
+  engagement?: { likes: number; comments: number; shares: number; views?: number };
+}
+
+const SOURCE_MAP: Record<string, Source> = {
+  x: Source.X,
+  tiktok: Source.TIKTOK,
+  reddit: Source.REDDIT,
+  youtube: Source.YOUTUBE,
+  instagram: Source.INSTAGRAM,
+  linkedin: Source.LINKEDIN,
+};
+
+/**
+ * Background processing for alert reports: sentiment classification + AI analysis
+ */
+async function processAlertReportInBackground(
+  jobId: string,
+  searchId: string,
+  searchQuery: string,
+  platforms: string[],
+  timeRange: string,
+  rawPosts: AlertReportPost[]
+): Promise<void> {
+  try {
+    console.log(`[Alert Report] Starting background processing for job ${jobId} (${rawPosts.length} posts)`);
+
+    // Sentiment classification using internal SearchPost IDs
+    let sentiments: Map<string, Sentiment> = new Map();
+    if (rawPosts.length > 0 && process.env.ANTHROPIC_API_KEY) {
+      const sentimentService = new SentimentClassificationService(
+        process.env.ANTHROPIC_API_KEY,
+        { batchSize: SENTIMENT_API_BATCH_SIZE, maxConcurrent: SENTIMENT_API_MAX_CONCURRENT }
+      );
+
+      const searchPosts = await prisma.searchPost.findMany({
+        where: { searchId },
+        select: { id: true, text: true },
+      });
+
+      const candidates = searchPosts.slice(0, SENTIMENT_MAX_POSTS);
+      sentiments = await sentimentService.classifyAll(
+        candidates.map(p => ({ id: p.id, text: p.text }))
+      );
+    }
+
+    // AI analysis
+    let aiAnalysis: AIAnalysis | null = null;
+    if (process.env.ANTHROPIC_API_KEY) {
+      const postsForAnalysis: Post[] = rawPosts.slice(0, REPORT_AI_MAX_POSTS).map(post => ({
+        id: post.id,
+        text: post.text,
+        author: post.author,
+        authorHandle: post.authorHandle,
+        authorAvatar: post.authorAvatar,
+        createdAt: post.createdAt,
+        platform: post.platform.toLowerCase() as Post["platform"],
+        engagement: (post.engagement || { likes: 0, comments: 0, shares: 0 }) as Post["engagement"],
+        url: post.url,
+        thumbnail: post.thumbnail,
+      }));
+
+      const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+      aiAnalysis = await aiService.generateAnalysis(searchQuery, postsForAnalysis, {
+        timeRange,
+        sources: platforms,
+      });
+    }
+
+    // Write results to DB
+    await updatePostSentiments(prisma, sentiments);
+
+    await prisma.$transaction(async (tx) => {
+      if (aiAnalysis) {
+        await tx.insight.create({
+          data: {
+            jobId,
+            outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
+            model: "claude-3-5-haiku-20241022",
+          },
+        });
+      }
+
+      await tx.researchJob.update({
+        where: { id: jobId },
+        data: {
+          status: JobStatus.COMPLETED,
+          completedAt: new Date(),
+        },
+      });
+    }, { timeout: TRANSACTION_TIMEOUT_MS });
+
+    console.log(`[Alert Report] Job ${jobId} completed successfully`);
+  } catch (error) {
+    console.error(`[Alert Report] Error processing job ${jobId}:`, error);
+    await prisma.researchJob.update({
+      where: { id: jobId },
+      data: { status: JobStatus.FAILED, completedAt: new Date() },
+    });
+  }
+}
+
+/**
+ * Create a report from alert search results.
+ * Returns the report URL immediately; heavy processing runs in background.
+ */
+export async function startAlertReport(params: {
+  userId: string;
+  searchQuery: string;
+  platforms: string[];
+  timeRange: string;
+  posts: AlertReportPost[];
+}): Promise<{ reportId: string; reportUrl: string }> {
+  const { userId, searchQuery, platforms, timeRange, posts } = params;
+
+  const validSources = platforms
+    .map(p => SOURCE_MAP[p.toLowerCase()])
+    .filter((s): s is Source => s !== undefined);
+
+  // Create Search record with all posts
+  const search = await prisma.search.create({
+    data: {
+      userId,
+      queryText: searchQuery,
+      name: `Alert: ${searchQuery}`,
+      sources: validSources,
+      filtersJson: { timeFilter: timeRange } as unknown as Prisma.InputJsonValue,
+      totalResults: posts.length,
+      posts: posts.length > 0 ? {
+        create: posts.map(post => ({
+          postId: post.id,
+          text: post.text,
+          author: post.author,
+          authorHandle: post.authorHandle || post.author,
+          authorAvatar: post.authorAvatar,
+          platform: post.platform.toUpperCase(),
+          url: post.url,
+          thumbnail: post.thumbnail,
+          engagement: (post.engagement || { likes: 0, comments: 0, shares: 0 }) as Prisma.InputJsonValue,
+          createdAt: post.createdAt ? new Date(post.createdAt) : new Date(),
+        })),
+      } : undefined,
+    },
+    select: { id: true },
+  });
+
+  // Create ResearchJob with share token
+  const shareToken = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+  const job = await prisma.researchJob.create({
+    data: {
+      userId,
+      queryJson: {
+        query: searchQuery,
+        sources: platforms.map(p => p.toLowerCase()),
+        filters: { timeFilter: timeRange },
+      } as Prisma.InputJsonValue,
+      status: JobStatus.RUNNING,
+      startedAt: new Date(),
+      totalResults: posts.length,
+      shareToken,
+      shareTokenCreatedAt: new Date(),
+      shareTokenExpiresAt: expiresAt,
+    },
+  });
+
+  // Link search to job
+  await prisma.search.update({
+    where: { id: search.id },
+    data: { reportId: job.id },
+  });
+
+  const appUrl = getBaseUrl();
+  const reportUrl = `${appUrl}/report/${job.id}?token=${shareToken}&tab=social-posts`;
+
+  console.log(`[Alert Report] Created job ${job.id} for "${searchQuery}" with ${posts.length} posts`);
+
+  // Fire off background processing (sentiment + AI analysis)
+  processAlertReportInBackground(job.id, search.id, searchQuery, platforms, timeRange, posts).catch(err => {
+    console.error(`[Alert Report] Background processing failed for job ${job.id}:`, err);
+  });
+
+  return { reportId: job.id, reportUrl };
+}
+
 const reportService = {
   startReport,
+  startAlertReport,
   generateReportInsights,
   getReport,
   getReportForSharing,

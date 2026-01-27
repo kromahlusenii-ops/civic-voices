@@ -4,6 +4,7 @@ import { getSendGridClient, isSendGridEnabled, buildAlertDigestEmail } from "@/l
 import type { AlertFrequency } from "@prisma/client"
 import { anthropicFetch } from "@/lib/services/anthropicClient"
 import { maskEmail } from "@/lib/utils/logging"
+import { startAlertReport } from "@/lib/services/reportService"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60 // 1 minute max for Vercel Hobby plan
@@ -57,6 +58,17 @@ function calculateNextScheduled(
       next.setHours(hours, minutes, 0, 0)
       const daysUntil = ((preferredDay ?? 1) - next.getDay() + 7) % 7 || 7
       next.setDate(next.getDate() + daysUntil)
+      return next
+    }
+    case "MONTHLY": {
+      const next = new Date(now)
+      const day = preferredDay ?? 1
+      next.setHours(hours, minutes, 0, 0)
+      next.setDate(day)
+      if (next <= now) {
+        next.setMonth(next.getMonth() + 1)
+        next.setDate(day)
+      }
       return next
     }
     default:
@@ -188,6 +200,9 @@ async function runAlertSearch(
 
     const data = await response.json()
     const allPosts: RawPost[] = data.posts || []
+
+    // Sort by date (most recent first) before selecting top posts
+    allPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
     // Extract top 5 posts for the digest
     const topPosts: EmailPost[] = allPosts.slice(0, 5).map((post: RawPost) => {
@@ -340,8 +355,23 @@ export async function GET(request: NextRequest) {
           const summary = await generateSummary(searchResult.rawPosts, alert.searchQuery)
           console.log(`[Cron] Alert ${alert.id}: Summary generated (${summary.length} chars): "${summary.substring(0, 100)}..."`)
 
+          // Generate a report dashboard from the alert results
+          let viewAllUrl = `${appUrl}/search?q=${encodeURIComponent(alert.searchQuery)}`
+          try {
+            const { reportUrl } = await startAlertReport({
+              userId: alert.userId,
+              searchQuery: alert.searchQuery,
+              platforms: alert.platforms.map((p: string) => p.toLowerCase()),
+              timeRange: alert.timeRange,
+              posts: searchResult.rawPosts,
+            })
+            viewAllUrl = reportUrl
+            console.log(`[Cron] Alert ${alert.id}: Report created, URL: ${reportUrl}`)
+          } catch (reportError) {
+            console.error(`[Cron] Alert ${alert.id}: Failed to create report, falling back to search URL:`, reportError)
+          }
+
           // Build email HTML
-          const searchUrl = `${appUrl}/search?q=${encodeURIComponent(alert.searchQuery)}`
           const postsHtml = formatPostsForEmail(searchResult.topPosts, alert.searchQuery)
           const { subject, html } = buildAlertDigestEmail({
             searchQuery: alert.searchQuery,
@@ -351,7 +381,7 @@ export async function GET(request: NextRequest) {
             postsHtml,
             unsubscribeUrl: `${appUrl}/alerts/manage`,
             frequency: alert.frequency.toLowerCase(),
-            searchUrl,
+            searchUrl: viewAllUrl,
             scope: alert.scope,
             timeRange: alert.timeRange,
           })

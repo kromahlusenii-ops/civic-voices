@@ -147,6 +147,7 @@ export default function TopPosts({ posts, limit = 5 }: TopPostsProps) {
                       height={32}
                       className="w-8 h-8 rounded-full object-cover flex-shrink-0"
                       unoptimized
+                      referrerPolicy="no-referrer"
                     />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">

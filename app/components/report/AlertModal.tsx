@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useToast } from "@/app/contexts/ToastContext"
 
-type AlertFrequency = "INSTANTLY" | "HOURLY" | "DAILY" | "WEEKLY"
+type AlertFrequency = "DAILY" | "WEEKLY" | "MONTHLY"
 
 interface Alert {
   id: string
@@ -37,10 +37,9 @@ interface AlertModalProps {
 }
 
 const FREQUENCY_OPTIONS: { value: AlertFrequency; label: string; description: string }[] = [
-  { value: "INSTANTLY", label: "Instantly", description: "Every 15 minutes" },
-  { value: "HOURLY", label: "Hourly", description: "Once per hour" },
   { value: "DAILY", label: "Daily", description: "Once per day" },
   { value: "WEEKLY", label: "Weekly", description: "Once per week" },
+  { value: "MONTHLY", label: "Monthly", description: "Once per month" },
 ]
 
 const DAY_OPTIONS = [
@@ -216,7 +215,7 @@ export default function AlertModal({
         recipients,
         frequency,
         preferredTime,
-        preferredDay: frequency === "WEEKLY" ? preferredDay : undefined,
+        preferredDay: (frequency === "WEEKLY" || frequency === "MONTHLY") ? preferredDay : undefined,
         timezone,
         isActive,
         // Send immediate alert when creating (for instant feedback)
@@ -507,8 +506,8 @@ export default function AlertModal({
                 </div>
               </div>
 
-              {/* Preferred Time (for Daily/Weekly) */}
-              {(frequency === "DAILY" || frequency === "WEEKLY") && (
+              {/* Preferred Time (for Daily/Weekly/Monthly) */}
+              {(frequency === "DAILY" || frequency === "WEEKLY" || frequency === "MONTHLY") && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -554,6 +553,26 @@ export default function AlertModal({
                     {DAY_OPTIONS.map((day) => (
                       <option key={day.value} value={day.value}>
                         {day.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Preferred Day of Month (for Monthly) */}
+              {frequency === "MONTHLY" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Day of Month
+                  </label>
+                  <select
+                    value={preferredDay}
+                    onChange={(e) => setPreferredDay(parseInt(e.target.value))}
+                    className="w-full text-sm bg-white border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-gray-200"
+                  >
+                    {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                      <option key={day} value={day}>
+                        {day}
                       </option>
                     ))}
                   </select>

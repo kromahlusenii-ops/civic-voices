@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext"
 import { useToast } from "../contexts/ToastContext"
 import AlertModal from "./report/AlertModal"
 
-type AlertFrequency = "INSTANTLY" | "HOURLY" | "DAILY" | "WEEKLY"
+type AlertFrequency = "INSTANTLY" | "HOURLY" | "DAILY" | "WEEKLY" | "MONTHLY"
 
 interface AlertRecipient {
   id: string
@@ -36,6 +36,7 @@ const FREQUENCY_LABELS: Record<AlertFrequency, string> = {
   HOURLY: "Hourly",
   DAILY: "Daily",
   WEEKLY: "Weekly",
+  MONTHLY: "Monthly",
 }
 
 interface AlertHistorySidebarProps {

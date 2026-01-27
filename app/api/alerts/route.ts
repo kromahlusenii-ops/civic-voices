@@ -6,6 +6,7 @@ import { randomBytes } from "crypto"
 import type { AlertFrequency } from "@prisma/client"
 import { maskEmail } from "@/lib/utils/logging"
 import { anthropicFetch } from "@/lib/services/anthropicClient"
+import { startAlertReport } from "@/lib/services/reportService"
 
 export const dynamic = "force-dynamic"
 
@@ -152,6 +153,7 @@ async function sendImmediateAlert(
   searchQuery: string,
   platforms: string[],
   recipientEmail: string,
+  userId: string,
   frequency: string,
   scope: string = "national",
   timeRange: string = "24h"
@@ -188,6 +190,9 @@ async function sendImmediateAlert(
       return { success: true, totalPosts: 0, error: "No posts found in the last 24 hours" }
     }
 
+    // Sort by date (most recent first) before selecting top posts
+    allPosts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
     // Format posts for email
     const topPosts: EmailPost[] = allPosts.slice(0, 5).map((post: RawPost) => {
       const sentiment = post.sentiment || "neutral"
@@ -207,9 +212,24 @@ async function sendImmediateAlert(
     // Generate summary
     const summary = await generateSummary(allPosts, searchQuery)
 
+    // Generate a report dashboard from the alert results
+    let viewAllUrl = `${appUrl}/search?q=${encodeURIComponent(searchQuery)}`
+    try {
+      const { reportUrl } = await startAlertReport({
+        userId,
+        searchQuery,
+        platforms: sources,
+        timeRange,
+        posts: allPosts,
+      })
+      viewAllUrl = reportUrl
+      console.log(`[Alert] Report created for immediate alert, URL: ${reportUrl}`)
+    } catch (reportError) {
+      console.error(`[Alert] Failed to create report for immediate alert, falling back to search URL:`, reportError)
+    }
+
     // Send email via SendGrid
     const sendgrid = getSendGridClient()
-    const searchUrl = `${appUrl}/search?q=${encodeURIComponent(searchQuery)}`
     const { subject, html } = buildAlertDigestEmail({
       searchQuery,
       totalPosts,
@@ -218,7 +238,7 @@ async function sendImmediateAlert(
       postsHtml: formatPostsForEmail(topPosts, searchQuery),
       unsubscribeUrl: `${appUrl}/alerts/manage`,
       frequency: frequency.toLowerCase(),
-      searchUrl,
+      searchUrl: viewAllUrl,
       scope,
       timeRange,
     })
@@ -277,6 +297,17 @@ function calculateNextScheduled(
       next.setHours(hours, minutes, 0, 0)
       const daysUntil = ((preferredDay ?? 1) - next.getDay() + 7) % 7 || 7
       next.setDate(next.getDate() + daysUntil)
+      return next
+    }
+    case "MONTHLY": {
+      const next = new Date(now)
+      const day = preferredDay ?? 1
+      next.setHours(hours, minutes, 0, 0)
+      next.setDate(day)
+      if (next <= now) {
+        next.setMonth(next.getMonth() + 1)
+        next.setDate(day)
+      }
       return next
     }
     default:
@@ -419,6 +450,7 @@ export async function POST(request: NextRequest) {
         searchQuery,
         platforms,
         user.email,
+        user.id,
         frequency || "DAILY",
         scope || "national",
         timeRange || "24h"

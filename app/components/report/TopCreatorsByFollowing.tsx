@@ -201,6 +201,7 @@ function CreatorCard({ creator, showFollowers }: { creator: CreatorData; showFol
             height={48}
             className="w-12 h-12 rounded-full object-cover mx-auto"
             unoptimized
+            referrerPolicy="no-referrer"
           />
         ) : (
           <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mx-auto">
@@ -351,20 +352,17 @@ function CreatorSection({
 export default function TopCreatorsByFollowing({ posts, limit = 6 }: TopCreatorsByFollowingProps) {
   const allCreators = aggregateCreators(posts);
 
-  // Separate creators with follower data from those without
-  const creatorsWithFollowers = allCreators
-    .filter(c => c.followersCount > 0)
-    .sort((a, b) => b.followersCount - a.followersCount);
-
-  const creatorsWithoutFollowers = allCreators
-    .filter(c => c.followersCount === 0)
-    .sort((a, b) => b.totalEngagement - a.totalEngagement);
-
-  // Prefer creators with follower data; only fall back to engagement if none have followers
-  const hasFollowerData = creatorsWithFollowers.length > 0;
-  const topVoices = hasFollowerData
-    ? creatorsWithFollowers.slice(0, limit)
-    : creatorsWithoutFollowers.slice(0, limit);
+  // Sort by follower count (descending), creators without follower data go last (sorted by engagement)
+  const topVoices = allCreators
+    .sort((a, b) => {
+      if (a.followersCount > 0 && b.followersCount > 0) {
+        return b.followersCount - a.followersCount;
+      }
+      if (a.followersCount > 0) return -1;
+      if (b.followersCount > 0) return 1;
+      return b.totalEngagement - a.totalEngagement;
+    })
+    .slice(0, limit);
 
   // Don't render if no creators at all
   if (topVoices.length === 0) {
@@ -374,10 +372,8 @@ export default function TopCreatorsByFollowing({ posts, limit = 6 }: TopCreators
   return (
     <CreatorSection
       title="Top Voices"
-      subtitle={hasFollowerData ? "By follower count" : "By engagement"}
-      tooltip={hasFollowerData
-        ? "Creators ranked by follower count across all platforms."
-        : "Creators ranked by engagement (follower data not available)."}
+      subtitle="By follower count"
+      tooltip="Creators ranked by follower count across all platforms."
       creators={topVoices}
       testId="top-voices"
       showFollowers={true}

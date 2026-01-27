@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import Image from "next/image";
 import type { Post } from "@/lib/types/api";
 
@@ -94,6 +94,8 @@ function formatTimeAgo(dateString: string): string {
 
 const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
   ({ post, index, isVisible = false }, ref) => {
+    const [thumbnailError, setThumbnailError] = useState(false);
+    const [avatarError, setAvatarError] = useState(false);
     const platformColor = PLATFORM_COLORS[post.platform] || "bg-gray-500";
     const sentimentColor = post.sentiment
       ? SENTIMENT_COLORS[post.sentiment]
@@ -116,7 +118,7 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
         data-testid="social-post-card"
       >
         {/* Media Thumbnail */}
-        {post.thumbnail && (
+        {post.thumbnail && !thumbnailError && (
           <div className="relative aspect-video bg-gray-100 overflow-hidden">
             <Image
               src={post.thumbnail}
@@ -124,6 +126,8 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
               fill
               className="object-cover"
               unoptimized
+              referrerPolicy="no-referrer"
+              onError={() => setThumbnailError(true)}
             />
             {/* Platform badge overlay */}
             <div
@@ -138,7 +142,7 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
           {/* Header: Author info + Platform (if no thumbnail) */}
           <div className="flex items-start gap-3 mb-3">
             {/* Avatar */}
-            {post.authorAvatar ? (
+            {post.authorAvatar && !avatarError ? (
               <Image
                 src={post.authorAvatar}
                 alt={post.author}
@@ -146,6 +150,8 @@ const SocialPostCard = forwardRef<HTMLAnchorElement, SocialPostCardProps>(
                 height={40}
                 className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                 unoptimized
+                referrerPolicy="no-referrer"
+                onError={() => setAvatarError(true)}
               />
             ) : (
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">

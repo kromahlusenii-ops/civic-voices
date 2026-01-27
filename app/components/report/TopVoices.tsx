@@ -292,6 +292,7 @@ export default function TopVoices({ posts, limit = 5, onViewAll }: TopVoicesProp
                     height={48}
                     className="w-12 h-12 rounded-full object-cover mx-auto"
                     unoptimized
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center mx-auto">
