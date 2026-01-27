@@ -411,11 +411,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send immediate alert if requested (for instant feedback)
-    let immediateResult: { success: boolean; totalPosts: number; error?: string } | undefined
+    // Fire immediate alert in background (don't block the response)
     if (sendImmediately && isSendGridEnabled()) {
-      console.log(`[Alert] Sending immediate alert for "${searchQuery}" to ${maskEmail(user.email)}`)
-      immediateResult = await sendImmediateAlert(
+      console.log(`[Alert] Queuing immediate alert for "${searchQuery}" to ${maskEmail(user.email)}`)
+      sendImmediateAlert(
         alert.id,
         searchQuery,
         platforms,
@@ -423,13 +422,12 @@ export async function POST(request: NextRequest) {
         frequency || "DAILY",
         scope || "national",
         timeRange || "24h"
-      )
+      ).catch((err) => {
+        console.error(`[Alert] Background immediate alert failed:`, err)
+      })
     }
 
-    return NextResponse.json({
-      ...alert,
-      immediateResult,
-    })
+    return NextResponse.json(alert)
   } catch (error) {
     console.error("[Alerts API] Error creating alert:", error)
     return NextResponse.json(

@@ -236,26 +236,11 @@ export default function AlertModal({
         const savedAlert = await res.json()
         setExistingAlert(savedAlert)
 
-        // Show appropriate message based on immediate result
-        if (isCreating && savedAlert.immediateResult) {
-          if (savedAlert.immediateResult.success && savedAlert.immediateResult.totalPosts > 0) {
-            showToast({
-              message: `Alert created! First digest sent with ${savedAlert.immediateResult.totalPosts} posts.`,
-            })
-          } else if (savedAlert.immediateResult.totalPosts === 0) {
-            showToast({
-              message: "Alert created. No posts found in last 24h - you'll receive alerts when new content appears.",
-            })
-          } else {
-            showToast({
-              message: "Alert created. First digest will be sent at your scheduled time.",
-            })
-          }
-        } else {
-          showToast({
-            message: existingAlert ? "Alert updated" : "Alert created",
-          })
-        }
+        showToast({
+          message: isCreating
+            ? "Alert created! Your first digest will be emailed shortly."
+            : "Alert updated",
+        })
         onClose()
       } else {
         const error = await res.json()
