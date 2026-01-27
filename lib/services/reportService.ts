@@ -112,7 +112,37 @@ async function sendReportReadyEmail(
   try {
     const sendgrid = getSendGridClient();
     const appUrl = getBaseUrl();
-    const reportUrl = `${appUrl}/report/${reportId}`;
+
+    // Generate a share token so the email link works without authentication
+    // (e.g., in Gmail's in-app browser which has no Supabase session)
+    let shareToken: string | null = null;
+    try {
+      const job = await prisma.researchJob.findUnique({
+        where: { id: reportId },
+        select: { shareToken: true },
+      });
+
+      if (job?.shareToken) {
+        shareToken = job.shareToken;
+      } else {
+        shareToken = crypto.randomUUID();
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+        await prisma.researchJob.update({
+          where: { id: reportId },
+          data: {
+            shareToken,
+            shareTokenCreatedAt: new Date(),
+            shareTokenExpiresAt: expiresAt,
+          },
+        });
+      }
+    } catch (tokenError) {
+      console.error("[Report] Failed to generate share token for email:", tokenError);
+    }
+
+    const reportUrl = shareToken
+      ? `${appUrl}/report/${reportId}?token=${shareToken}`
+      : `${appUrl}/report/${reportId}`;
 
     const { subject, html } = buildReportReadyEmail({
       searchQuery,
@@ -642,7 +672,7 @@ export async function startReport(
             data: {
               jobId,
               outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-              model: "claude-3-haiku-20240307",
+              model: "claude-3-5-haiku-20241022",
             },
           });
         }
@@ -960,7 +990,7 @@ export async function startReportWithProgress(
             data: {
               jobId,
               outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-              model: "claude-3-haiku-20240307",
+              model: "claude-3-5-haiku-20241022",
             },
           });
         }
@@ -1136,7 +1166,7 @@ export async function generateReportInsights(
     data: {
       jobId: reportId,
       outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-      model: "claude-3-haiku-20240307",
+      model: "claude-3-5-haiku-20241022",
     },
   });
 

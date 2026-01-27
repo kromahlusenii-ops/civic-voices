@@ -325,18 +325,10 @@ export default function ReportPage() {
             return fetchReportData({ ...options, retryCount: retryCount + 1 });
           }
 
-          // No auth and no valid share - show login (but not for silent/background fetches)
-          // Don't show auth modal if: report already loaded, OR user is authenticated (stale closure check via ref)
-          if (!shareToken && !options?.silent && !hasSuccessfullyLoadedRef.current && !isAuthenticatedRef.current) {
-            console.log('[Report] Showing auth modal after all retries exhausted');
+          // No auth or stale auth - show login modal (but not for silent/background fetches)
+          if (!shareToken && !options?.silent && !hasSuccessfullyLoadedRef.current) {
+            console.log('[Report] Showing auth modal after all retries exhausted (isAuth:', isAuthenticatedRef.current, ')');
             setShowAuthModal(true);
-            setIsLoading(false);
-            return;
-          }
-          // If authenticated but still got 401, might be a transient error - just show error instead of modal
-          if (!shareToken && !options?.silent && isAuthenticatedRef.current) {
-            console.log('[Report] Auth exists but got 401 - showing error instead of modal');
-            setError("Unable to load report. Please try refreshing the page.");
             setIsLoading(false);
             return;
           }
