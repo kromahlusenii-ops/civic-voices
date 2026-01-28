@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import AlertModal from "./AlertModal"
 
 interface AlertButtonProps {
@@ -11,6 +11,8 @@ interface AlertButtonProps {
   timeRange?: string
   getAccessToken: () => Promise<string | null>
   userEmail: string
+  forceOpen?: boolean
+  onModalClose?: () => void
 }
 
 export default function AlertButton({
@@ -21,8 +23,19 @@ export default function AlertButton({
   timeRange,
   getAccessToken,
   userEmail,
+  forceOpen,
+  onModalClose,
 }: AlertButtonProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
+
+  useEffect(() => {
+    if (forceOpen) setIsModalOpen(true)
+  }, [forceOpen])
+
+  const handleClose = () => {
+    setIsModalOpen(false)
+    onModalClose?.()
+  }
 
   return (
     <>
@@ -49,7 +62,7 @@ export default function AlertButton({
 
       <AlertModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleClose}
         reportId={reportId}
         searchQuery={searchQuery}
         platforms={platforms}

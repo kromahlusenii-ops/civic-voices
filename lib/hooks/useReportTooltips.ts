@@ -7,8 +7,8 @@ const TOOLTIP_SEQUENCE = [
   "summary",
   "activity-chart",
   "topics-table",
-  "chat-button",
   "create-alert",
+  "chat-button",
   "share-export",
 ] as const
 
@@ -38,6 +38,12 @@ function saveDismissed(dismissed: Set<string>) {
 export function useReportTooltips({ skip = [] }: UseReportTooltipsOptions = {}) {
   const [, setDismissed] = useState<Set<string>>(() => loadDismissed())
   const [activeTooltip, setActiveTooltip] = useState<ReportTooltipId | null>(null)
+  const [tourActive, setTourActive] = useState<boolean>(() => {
+    // If all non-skipped tooltips are already dismissed, tour is not active
+    const dismissed = loadDismissed()
+    const skipS = new Set(skip)
+    return !TOOLTIP_SEQUENCE.every((id) => dismissed.has(id) || skipS.has(id))
+  })
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const skipSet = useRef(new Set(skip))
@@ -71,6 +77,9 @@ export function useReportTooltips({ skip = [] }: UseReportTooltipsOptions = {}) 
               return current
             })
           }, 1000)
+        } else {
+          // Tour is complete — reveal everything
+          setTourActive(false)
         }
 
         return next
@@ -89,11 +98,25 @@ export function useReportTooltips({ skip = [] }: UseReportTooltipsOptions = {}) 
         const next = findNextTooltip(current)
         if (next) {
           setActiveTooltip(next)
+        } else {
+          // All already dismissed
+          setTourActive(false)
         }
         return current
       })
     }, 2000)
   }, [findNextTooltip])
+
+  // Returns true if a section should be visible
+  // During tour: only the active tooltip's section is shown
+  // Tour complete or never started: everything visible
+  const isRevealed = useCallback(
+    (sectionId: string): boolean => {
+      if (!tourActive) return true
+      return activeTooltip === sectionId
+    },
+    [tourActive, activeTooltip]
+  )
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -111,5 +134,7 @@ export function useReportTooltips({ skip = [] }: UseReportTooltipsOptions = {}) 
     activeTooltip,
     dismissTooltip,
     onReportLoaded,
+    tourActive,
+    isRevealed,
   }
 }

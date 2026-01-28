@@ -226,7 +226,7 @@ export default function ReportPage() {
   const [_insightsError, setInsightsError] = useState<string | null>(null);
 
   // Report tooltips for onboarding
-  const { activeTooltip, dismissTooltip, onReportLoaded } = useReportTooltips({
+  const { activeTooltip, dismissTooltip, onReportLoaded, tourActive, isRevealed } = useReportTooltips({
     skip: isOwner ? [] : ["create-alert", "share-export"],
   });
 
@@ -608,6 +608,13 @@ export default function ReportPage() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeTooltip]);
 
+  // Open chat sidebar when chat-button tooltip activates
+  useEffect(() => {
+    if (activeTooltip === "chat-button") {
+      setIsChatOpen(true);
+    }
+  }, [activeTooltip]);
+
   // Handle tab change with URL persistence
   const handleTabChange = useCallback((tab: DashboardTab) => {
     setActiveTab(tab);
@@ -844,6 +851,8 @@ export default function ReportPage() {
                             scope={reportData.aiAnalysis?.scope?.type || "national"}
                             getAccessToken={getAccessToken}
                             userEmail={user.email}
+                            forceOpen={activeTooltip === "create-alert"}
+                            onModalClose={() => dismissTooltip("create-alert")}
                           />
                         </div>
                       </ContextualTooltip>
@@ -924,6 +933,10 @@ export default function ReportPage() {
               <>
                 {/* AI Summary - Full Width */}
                 {reportData.aiAnalysis && (
+                  <div
+                    className={`transition-all duration-700 ease-out ${isRevealed("summary") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    style={{ transitionDelay: tourActive ? "0ms" : "0ms" }}
+                  >
                   <ContextualTooltip
                     isVisible={activeTooltip === "summary"}
                     title="Your AI briefing"
@@ -966,17 +979,27 @@ export default function ReportPage() {
                       </p>
                     </div>
                   </ContextualTooltip>
+                  </div>
                 )}
 
                 {/* Metrics Row - Full Width */}
-                <MetricsRow
-                  totalMentions={reportData.metrics.totalMentions}
-                  totalEngagement={reportData.metrics.totalEngagement}
-                  avgEngagement={reportData.metrics.avgEngagement}
-                  overallSentiment={getOverallSentiment(reportData.metrics.sentimentBreakdown)}
-                />
+                <div
+                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  style={{ transitionDelay: tourActive ? "0ms" : "100ms" }}
+                >
+                  <MetricsRow
+                    totalMentions={reportData.metrics.totalMentions}
+                    totalEngagement={reportData.metrics.totalEngagement}
+                    avgEngagement={reportData.metrics.avgEngagement}
+                    overallSentiment={getOverallSentiment(reportData.metrics.sentimentBreakdown)}
+                  />
+                </div>
 
                 {/* Activity Chart - Full Width */}
+                <div
+                  className={`transition-all duration-700 ease-out ${isRevealed("activity-chart") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  style={{ transitionDelay: tourActive ? "0ms" : "200ms" }}
+                >
                 <ContextualTooltip
                   isVisible={activeTooltip === "activity-chart"}
                   title="Track trends over time"
@@ -993,8 +1016,13 @@ export default function ReportPage() {
                     />
                   </div>
                 </ContextualTooltip>
+                </div>
 
                 {/* Two Column: Emotions + Content Breakdown */}
+                <div
+                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  style={{ transitionDelay: tourActive ? "0ms" : "300ms" }}
+                >
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full min-w-0">
                   {/* Emotions Breakdown */}
                   <EmotionsBreakdown
@@ -1019,14 +1047,24 @@ export default function ReportPage() {
                     />
                   )}
                 </div>
+                </div>
 
                 {/* Platform Sentiment - Full Width */}
                 {reportData.posts.length > 0 && (
-                  <PlatformSentiment posts={reportData.posts} />
+                  <div
+                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    style={{ transitionDelay: tourActive ? "0ms" : "400ms" }}
+                  >
+                    <PlatformSentiment posts={reportData.posts} />
+                  </div>
                 )}
 
                 {/* Topics Table - Full Width */}
                 {reportData.aiAnalysis?.keyThemes && (
+                  <div
+                    className={`transition-all duration-700 ease-out ${isRevealed("topics-table") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    style={{ transitionDelay: tourActive ? "0ms" : "500ms" }}
+                  >
                   <ContextualTooltip
                     isVisible={activeTooltip === "topics-table"}
                     title="Explore key topics"
@@ -1048,27 +1086,43 @@ export default function ReportPage() {
                       />
                     </div>
                   </ContextualTooltip>
+                  </div>
                 )}
 
                 {/* Keywords Cloud - Full Width */}
                 {reportData.posts.length > 0 && (
-                  <KeywordsCloud
-                    posts={reportData.posts}
-                    keyThemes={reportData.aiAnalysis?.keyThemes}
-                    maxKeywords={30}
-                  />
+                  <div
+                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    style={{ transitionDelay: tourActive ? "0ms" : "600ms" }}
+                  >
+                    <KeywordsCloud
+                      posts={reportData.posts}
+                      keyThemes={reportData.aiAnalysis?.keyThemes}
+                      maxKeywords={30}
+                    />
+                  </div>
                 )}
 
                 {/* Top Voices - Full Width */}
                 {reportData.posts.length > 0 && (
-                  <TopCreatorsByFollowing
-                    posts={reportData.posts}
-                    limit={6}
-                  />
+                  <div
+                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    style={{ transitionDelay: tourActive ? "0ms" : "700ms" }}
+                  >
+                    <TopCreatorsByFollowing
+                      posts={reportData.posts}
+                      limit={6}
+                    />
+                  </div>
                 )}
 
                 {/* Top Posts - Full Width */}
-                <TopPosts posts={reportData.topPosts} limit={5} />
+                <div
+                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  style={{ transitionDelay: tourActive ? "0ms" : "800ms" }}
+                >
+                  <TopPosts posts={reportData.topPosts} limit={5} />
+                </div>
               </>
             )}
 
@@ -1112,6 +1166,11 @@ export default function ReportPage() {
           onClose={() => {
             setIsChatOpen(false);
             setPendingChatMessage(null);
+            // If closed during tooltip tour, dismiss and switch to social posts
+            if (activeTooltip === "chat-button") {
+              dismissTooltip("chat-button");
+              setActiveTab("social-posts");
+            }
           }}
           reportData={reportData}
           getAccessToken={getAccessToken}

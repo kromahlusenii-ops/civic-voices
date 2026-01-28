@@ -77,7 +77,7 @@ describe("useReportTooltips", () => {
     expect(result.current.activeTooltip).toBe("activity-chart")
   })
 
-  it("advances through the full sequence: summary → activity-chart → topics-table → chat-button → create-alert → share-export", () => {
+  it("advances through the full sequence: summary → activity-chart → topics-table → create-alert → chat-button → share-export", () => {
     const { result } = renderHook(() => useReportTooltips())
 
     // Activate first tooltip
@@ -107,27 +107,27 @@ describe("useReportTooltips", () => {
     })
     expect(result.current.activeTooltip).toBe("topics-table")
 
-    // topics-table → chat-button
+    // topics-table → create-alert
     act(() => {
       result.current.dismissTooltip("topics-table")
     })
     act(() => {
       vi.advanceTimersByTime(1000)
     })
-    expect(result.current.activeTooltip).toBe("chat-button")
+    expect(result.current.activeTooltip).toBe("create-alert")
 
-    // chat-button → create-alert
+    // create-alert → chat-button
     act(() => {
-      result.current.dismissTooltip("chat-button")
+      result.current.dismissTooltip("create-alert")
     })
     act(() => {
       vi.advanceTimersByTime(1000)
     })
-    expect(result.current.activeTooltip).toBe("create-alert")
+    expect(result.current.activeTooltip).toBe("chat-button")
 
-    // create-alert → share-export
+    // chat-button → share-export
     act(() => {
-      result.current.dismissTooltip("create-alert")
+      result.current.dismissTooltip("chat-button")
     })
     act(() => {
       vi.advanceTimersByTime(1000)
