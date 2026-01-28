@@ -6,6 +6,8 @@ import { useAuth } from "@/app/contexts/AuthContext";
 import { useToast } from "@/app/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import AuthModal from "@/app/components/AuthModal";
+import ContextualTooltip from "@/components/ContextualTooltip";
+import { useReportTooltips } from "@/lib/hooks/useReportTooltips";
 import {
   ActivityChart,
   MetricsRow,
@@ -222,6 +224,11 @@ export default function ReportPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_insightsError, setInsightsError] = useState<string | null>(null);
+
+  // Report tooltips for onboarding
+  const { activeTooltip, dismissTooltip, onReportLoaded } = useReportTooltips({
+    skip: isOwner ? [] : ["create-alert", "share-export"],
+  });
 
   // Track if initial load has happened
   const hasLoadedRef = useRef(false);
@@ -589,6 +596,18 @@ export default function ReportPage() {
     }
   }, []);
 
+  // Trigger report tooltips when data loads
+  useEffect(() => {
+    if (reportData) onReportLoaded();
+  }, [reportData, onReportLoaded]);
+
+  // Scroll tooltip anchor into view when active tooltip changes
+  useEffect(() => {
+    if (!activeTooltip) return;
+    const el = document.querySelector(`[data-tooltip-anchor="${activeTooltip}"]`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeTooltip]);
+
   // Handle tab change with URL persistence
   const handleTabChange = useCallback((tab: DashboardTab) => {
     setActiveTab(tab);
@@ -783,76 +802,106 @@ export default function ReportPage() {
 
                   {/* Desktop-only action buttons (moved to bottom nav on mobile) */}
                   <div className="hidden sm:flex items-center gap-2">
-                    {/* Download PDF Button - only show for owner */}
-                    {isOwner && reportData.report.status === "COMPLETED" && (
-                      <button
-                        onClick={handleDownloadPDF}
-                        disabled={isDownloadingPDF}
-                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Download PDF report"
-                        title="Download PDF report"
-                      >
-                        {isDownloadingPDF ? (
-                          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                            />
-                          </svg>
-                        )}
-                      </button>
-                    )}
                     {/* Chat Button */}
-                    <button
-                      onClick={() => setIsChatOpen(true)}
-                      className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                      aria-label="Talk to audience"
-                      title="Talk to the audience"
+                    <ContextualTooltip
+                      isVisible={activeTooltip === "chat-button"}
+                      title="Chat with your data"
+                      description="Ask questions about sentiment, trends, or topics in natural language."
+                      onDismiss={() => dismissTooltip("chat-button")}
+                      position="bottom"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                        />
-                      </svg>
-                    </button>
-                    {/* Share Button - only show for owner */}
-                    {isOwner && (
                       <button
-                        onClick={() => setShowShareModal(true)}
+                        data-tooltip-anchor="chat-button"
+                        onClick={() => setIsChatOpen(true)}
                         className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                        aria-label="Share report"
-                        title="Share report"
+                        aria-label="Talk to audience"
+                        title="Talk to the audience"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             strokeWidth={2}
-                            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                           />
                         </svg>
                       </button>
-                    )}
+                    </ContextualTooltip>
                     {/* Alert Button - only show for owner */}
                     {isOwner && user?.email && (
-                      <AlertButton
-                        reportId={reportData.report.id}
-                        searchQuery={reportData.report.query}
-                        platforms={reportData.report.sources}
-                        scope={reportData.aiAnalysis?.scope?.type || "national"}
-                        getAccessToken={getAccessToken}
-                        userEmail={user.email}
-                      />
+                      <ContextualTooltip
+                        isVisible={activeTooltip === "create-alert"}
+                        title="Set up email alerts"
+                        description="Get notified when new posts match this query — daily, weekly, or monthly digests."
+                        onDismiss={() => dismissTooltip("create-alert")}
+                        position="bottom"
+                      >
+                        <div data-tooltip-anchor="create-alert">
+                          <AlertButton
+                            reportId={reportData.report.id}
+                            searchQuery={reportData.report.query}
+                            platforms={reportData.report.sources}
+                            scope={reportData.aiAnalysis?.scope?.type || "national"}
+                            getAccessToken={getAccessToken}
+                            userEmail={user.email}
+                          />
+                        </div>
+                      </ContextualTooltip>
+                    )}
+                    {/* Share & Export - only show for owner */}
+                    {isOwner && (
+                      <ContextualTooltip
+                        isVisible={activeTooltip === "share-export"}
+                        title="Share & export"
+                        description="Download a PDF report or share a link others can access without an account."
+                        onDismiss={() => dismissTooltip("share-export")}
+                        position="bottom"
+                      >
+                        <div data-tooltip-anchor="share-export" className="flex items-center gap-2">
+                          {/* Download PDF Button */}
+                          {reportData.report.status === "COMPLETED" && (
+                            <button
+                              onClick={handleDownloadPDF}
+                              disabled={isDownloadingPDF}
+                              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              aria-label="Download PDF report"
+                              title="Download PDF report"
+                            >
+                              {isDownloadingPDF ? (
+                                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                                  />
+                                </svg>
+                              )}
+                            </button>
+                          )}
+                          {/* Share Button */}
+                          <button
+                            onClick={() => setShowShareModal(true)}
+                            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                            aria-label="Share report"
+                            title="Share report"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </ContextualTooltip>
                     )}
                   </div>
                 </div>
@@ -875,39 +924,47 @@ export default function ReportPage() {
               <>
                 {/* AI Summary - Full Width */}
                 {reportData.aiAnalysis && (
-                  <div className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
-                    <div className="flex items-center justify-between mb-2 sm:mb-3">
-                      <h3 className="text-sm font-semibold text-gray-800">Summary</h3>
-                      {/* Sentiment Badge */}
-                      {reportData.aiAnalysis.sentimentBreakdown && (
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
-                          reportData.aiAnalysis.sentimentBreakdown.overall === "positive"
-                            ? "bg-green-100 text-green-700"
-                            : reportData.aiAnalysis.sentimentBreakdown.overall === "negative"
-                            ? "bg-red-100 text-red-700"
-                            : reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-gray-100 text-gray-600"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${
+                  <ContextualTooltip
+                    isVisible={activeTooltip === "summary"}
+                    title="Your AI briefing"
+                    description="This summary captures the key themes and overall sentiment from all posts analyzed."
+                    onDismiss={() => dismissTooltip("summary")}
+                    position="bottom"
+                  >
+                    <div data-tooltip-anchor="summary" className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
+                      <div className="flex items-center justify-between mb-2 sm:mb-3">
+                        <h3 className="text-sm font-semibold text-gray-800">Summary</h3>
+                        {/* Sentiment Badge */}
+                        {reportData.aiAnalysis.sentimentBreakdown && (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
                             reportData.aiAnalysis.sentimentBreakdown.overall === "positive"
-                              ? "bg-green-500"
+                              ? "bg-green-100 text-green-700"
                               : reportData.aiAnalysis.sentimentBreakdown.overall === "negative"
-                              ? "bg-red-500"
+                              ? "bg-red-100 text-red-700"
                               : reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
-                              ? "bg-amber-500"
-                              : "bg-gray-400"
-                          }`} />
-                          {reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
-                            ? "Mixed Sentiment"
-                            : `${reportData.aiAnalysis.sentimentBreakdown.overall.charAt(0).toUpperCase() + reportData.aiAnalysis.sentimentBreakdown.overall.slice(1)} Sentiment`}
-                        </span>
-                      )}
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-gray-100 text-gray-600"
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${
+                              reportData.aiAnalysis.sentimentBreakdown.overall === "positive"
+                                ? "bg-green-500"
+                                : reportData.aiAnalysis.sentimentBreakdown.overall === "negative"
+                                ? "bg-red-500"
+                                : reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
+                                ? "bg-amber-500"
+                                : "bg-gray-400"
+                            }`} />
+                            {reportData.aiAnalysis.sentimentBreakdown.overall === "mixed"
+                              ? "Mixed Sentiment"
+                              : `${reportData.aiAnalysis.sentimentBreakdown.overall.charAt(0).toUpperCase() + reportData.aiAnalysis.sentimentBreakdown.overall.slice(1)} Sentiment`}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        {renderSummaryWithHighlights(reportData.aiAnalysis.interpretation)}
+                      </p>
                     </div>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      {renderSummaryWithHighlights(reportData.aiAnalysis.interpretation)}
-                    </p>
-                  </div>
+                  </ContextualTooltip>
                 )}
 
                 {/* Metrics Row - Full Width */}
@@ -919,11 +976,21 @@ export default function ReportPage() {
                 />
 
                 {/* Activity Chart - Full Width */}
-                <ActivityChart
-                  data={reportData.activityOverTime}
-                  sentimentData={reportData.metrics.sentimentBreakdown}
-                  onDataPointClick={handleDataPointClick}
-                />
+                <ContextualTooltip
+                  isVisible={activeTooltip === "activity-chart"}
+                  title="Track trends over time"
+                  description="Toggle between Volume and Sentiment views. Click any data point to ask AI about that period."
+                  onDismiss={() => dismissTooltip("activity-chart")}
+                  position="bottom"
+                >
+                  <div data-tooltip-anchor="activity-chart">
+                    <ActivityChart
+                      data={reportData.activityOverTime}
+                      sentimentData={reportData.metrics.sentimentBreakdown}
+                      onDataPointClick={handleDataPointClick}
+                    />
+                  </div>
+                </ContextualTooltip>
 
                 {/* Two Column: Emotions + Content Breakdown */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full min-w-0">
@@ -958,16 +1025,26 @@ export default function ReportPage() {
 
                 {/* Topics Table - Full Width */}
                 {reportData.aiAnalysis?.keyThemes && (
-                  <TopicsTable
-                    topics={generateTopicsFromThemes(
-                      reportData.aiAnalysis.keyThemes,
-                      reportData.metrics.totalEngagement * 15,
-                      reportData.metrics.totalEngagement,
-                      reportData.aiAnalysis.topicAnalysis,
-                      reportData.posts
-                    )}
-                    onViewMore={() => handleTabChange("social-posts")}
-                  />
+                  <ContextualTooltip
+                    isVisible={activeTooltip === "topics-table"}
+                    title="Explore key topics"
+                    description="Click any row to expand AI analysis, comment insights, and related posts."
+                    onDismiss={() => dismissTooltip("topics-table")}
+                    position="bottom"
+                  >
+                    <div data-tooltip-anchor="topics-table">
+                      <TopicsTable
+                        topics={generateTopicsFromThemes(
+                          reportData.aiAnalysis.keyThemes,
+                          reportData.metrics.totalEngagement * 15,
+                          reportData.metrics.totalEngagement,
+                          reportData.aiAnalysis.topicAnalysis,
+                          reportData.posts
+                        )}
+                        onViewMore={() => handleTabChange("social-posts")}
+                      />
+                    </div>
+                  </ContextualTooltip>
                 )}
 
                 {/* Keywords Cloud - Full Width */}
