@@ -10,6 +10,7 @@ interface ContextualTooltipProps {
   onDismiss: () => void
   position?: "top" | "bottom"
   testId?: string
+  className?: string
 }
 
 export default function ContextualTooltip({
@@ -20,6 +21,7 @@ export default function ContextualTooltip({
   onDismiss,
   position = "bottom",
   testId,
+  className,
 }: ContextualTooltipProps) {
   const dismissRef = useRef<HTMLButtonElement>(null)
 
@@ -45,7 +47,7 @@ export default function ContextualTooltip({
   }, [isVisible, onDismiss])
 
   return (
-    <div className="relative inline-block">
+    <div className={className ?? "relative inline-block"}>
       {children}
 
       {isVisible && (

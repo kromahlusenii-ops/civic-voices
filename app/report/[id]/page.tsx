@@ -930,6 +930,7 @@ export default function ReportPage() {
                     description="This summary captures the key themes and overall sentiment from all posts analyzed."
                     onDismiss={() => dismissTooltip("summary")}
                     position="bottom"
+                    className="relative"
                   >
                     <div data-tooltip-anchor="summary" className="bg-white rounded-xl border border-gray-100 p-4 sm:p-5 shadow-sm overflow-hidden">
                       <div className="flex items-center justify-between mb-2 sm:mb-3">
@@ -982,6 +983,7 @@ export default function ReportPage() {
                   description="Toggle between Volume and Sentiment views. Click any data point to ask AI about that period."
                   onDismiss={() => dismissTooltip("activity-chart")}
                   position="bottom"
+                  className="relative"
                 >
                   <div data-tooltip-anchor="activity-chart">
                     <ActivityChart
@@ -1031,6 +1033,7 @@ export default function ReportPage() {
                     description="Click any row to expand AI analysis, comment insights, and related posts."
                     onDismiss={() => dismissTooltip("topics-table")}
                     position="bottom"
+                    className="relative"
                   >
                     <div data-tooltip-anchor="topics-table">
                       <TopicsTable
