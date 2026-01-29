@@ -7,9 +7,9 @@ const TOOLTIP_SEQUENCE = [
   "summary",
   "activity-chart",
   "topics-table",
-  "create-alert",
   "chat-button",
   "share-export",
+  "create-alert",
 ] as const
 
 export type ReportTooltipId = (typeof TOOLTIP_SEQUENCE)[number]
