@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import AIAnalysisService from "./aiAnalysis";
 import type { Post, AIAnalysis } from "@/lib/types/api";
 
-// Mock the anthropicFetch function
+// Mock the anthropicGenerate function
 vi.mock("./anthropicClient", () => ({
-  anthropicFetch: vi.fn(),
+  anthropicGenerate: vi.fn(),
 }));
 
-import { anthropicFetch } from "./anthropicClient";
+import { anthropicGenerate } from "./anthropicClient";
 
-const mockAnthropicFetch = vi.mocked(anthropicFetch);
+const mockAnthropicGenerate = vi.mocked(anthropicGenerate);
 
 // Helper to create mock post data
 const makePost = (
@@ -66,12 +66,10 @@ describe("AIAnalysisService", () => {
         followUpQuestion: "What would you like to explore?",
       };
 
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          content: [{ type: "text", text: JSON.stringify(mockResponse) }],
-        }),
-      } as Response);
+        text: JSON.stringify(mockResponse),
+      });
 
       const posts = [makePost("1", "Test post content")];
       const result = await service.generateAnalysis("test query", posts);
@@ -82,11 +80,11 @@ describe("AIAnalysisService", () => {
     });
 
     it("returns fallback analysis with intentionsBreakdown on API error", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: false,
-        status: 500,
-        text: async () => "Server error",
-      } as Response);
+        text: "",
+        error: "Server error",
+      });
 
       const posts = [makePost("1", "Test post")];
       const result = await service.generateAnalysis("test query", posts);
@@ -104,24 +102,17 @@ describe("AIAnalysisService", () => {
     });
 
     it("returns fallback analysis when no posts provided", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                interpretation: "No posts found",
-                keyThemes: ["no results"],
-                sentimentBreakdown: { overall: "neutral", summary: "" },
-                intentionsBreakdown: [],
-                suggestedQueries: [],
-                followUpQuestion: "",
-              }),
-            },
-          ],
+        text: JSON.stringify({
+          interpretation: "No posts found",
+          keyThemes: ["no results"],
+          sentimentBreakdown: { overall: "neutral", summary: "" },
+          intentionsBreakdown: [],
+          suggestedQueries: [],
+          followUpQuestion: "",
         }),
-      } as Response);
+      });
 
       const result = await service.generateAnalysis("test query", []);
 
@@ -129,11 +120,11 @@ describe("AIAnalysisService", () => {
     });
 
     it("fallback intentionsBreakdown percentages sum to 100", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: false,
-        status: 500,
-        text: async () => "Error",
-      } as Response);
+        text: "",
+        error: "Error",
+      });
 
       const posts = [makePost("1", "Test")];
       const result = await service.generateAnalysis("test", posts);
@@ -146,11 +137,11 @@ describe("AIAnalysisService", () => {
     });
 
     it("fallback intentionsBreakdown has valid engagement rates", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: false,
-        status: 500,
-        text: async () => "Error",
-      } as Response);
+        text: "",
+        error: "Error",
+      });
 
       const posts = [makePost("1", "Test")];
       const result = await service.generateAnalysis("test", posts);
@@ -162,12 +153,10 @@ describe("AIAnalysisService", () => {
     });
 
     it("handles JSON parse errors gracefully", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          content: [{ type: "text", text: "invalid json{" }],
-        }),
-      } as Response);
+        text: "invalid json{",
+      });
 
       const posts = [makePost("1", "Test")];
       const result = await service.generateAnalysis("test query", posts);
@@ -177,13 +166,11 @@ describe("AIAnalysisService", () => {
       expect(result.intentionsBreakdown!.length).toBe(4);
     });
 
-    it("handles missing text content gracefully", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+    it("handles empty text content gracefully", async () => {
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          content: [],
-        }),
-      } as Response);
+        text: "",
+      });
 
       const posts = [makePost("1", "Test")];
       const result = await service.generateAnalysis("test query", posts);
@@ -195,11 +182,11 @@ describe("AIAnalysisService", () => {
 
   describe("intentionsBreakdown structure", () => {
     it("only includes the 4 valid intention types", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: false,
-        status: 500,
-        text: async () => "Error",
-      } as Response);
+        text: "",
+        error: "Error",
+      });
 
       const posts = [makePost("1", "Test")];
       const result = await service.generateAnalysis("test", posts);
@@ -211,11 +198,11 @@ describe("AIAnalysisService", () => {
     });
 
     it("each intention has required properties", async () => {
-      mockAnthropicFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: false,
-        status: 500,
-        text: async () => "Error",
-      } as Response);
+        text: "",
+        error: "Error",
+      });
 
       const posts = [makePost("1", "Test")];
       const result = await service.generateAnalysis("test", posts);

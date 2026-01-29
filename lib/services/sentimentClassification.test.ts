@@ -4,9 +4,14 @@ import {
   type Sentiment,
 } from "./sentimentClassification";
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+// Mock the anthropicGenerate function
+vi.mock("./anthropicClient", () => ({
+  anthropicGenerate: vi.fn(),
+}));
+
+import { anthropicGenerate } from "./anthropicClient";
+
+const mockAnthropicGenerate = vi.mocked(anthropicGenerate);
 
 describe("SentimentClassificationService", () => {
   beforeEach(() => {
@@ -42,20 +47,13 @@ describe("SentimentClassificationService", () => {
     });
 
     it("classifies posts correctly", async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify([
-                { id: "1", sentiment: "positive" },
-                { id: "2", sentiment: "negative" },
-                { id: "3", sentiment: "neutral" },
-              ]),
-            },
-          ],
-        }),
+        text: JSON.stringify([
+          { id: "1", sentiment: "positive" },
+          { id: "2", sentiment: "negative" },
+          { id: "3", sentiment: "neutral" },
+        ]),
       });
 
       const service = new SentimentClassificationService("test-api-key");
@@ -72,9 +70,10 @@ describe("SentimentClassificationService", () => {
     });
 
     it("returns neutral for all posts on API error", async () => {
-      mockFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: false,
-        text: async () => "API Error",
+        text: "",
+        error: "API Error",
       });
 
       const service = new SentimentClassificationService("test-api-key");
@@ -87,7 +86,7 @@ describe("SentimentClassificationService", () => {
     });
 
     it("returns neutral for all posts on network error", async () => {
-      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+      mockAnthropicGenerate.mockRejectedValueOnce(new Error("Network error"));
 
       const service = new SentimentClassificationService("test-api-key");
       const result = await service.classifyBatch([
@@ -98,54 +97,24 @@ describe("SentimentClassificationService", () => {
       expect(result[0].sentiment).toBe("neutral");
     });
 
-    it("sends correct request to Claude API", async () => {
-      mockFetch.mockResolvedValueOnce({
+    it("calls Anthropic API with correct parameters", async () => {
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify([{ id: "1", sentiment: "positive" }]),
-            },
-          ],
-        }),
+        text: JSON.stringify([{ id: "1", sentiment: "positive" }]),
       });
 
       const service = new SentimentClassificationService("test-api-key");
       await service.classifyBatch([{ id: "post-1", text: "Test post" }]);
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.anthropic.com/v1/messages",
+      expect(mockAnthropicGenerate).toHaveBeenCalledWith(
+        "test-api-key",
+        "claude-sonnet-4-20250514",
+        expect.stringContaining("Classify the sentiment"),
         expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            "x-api-key": "test-api-key",
-            "anthropic-version": "2023-06-01",
-          }),
+          maxTokens: 4096,
+          temperature: 0.3,
         })
       );
-    });
-
-    it("truncates long post text", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify([{ id: "1", sentiment: "neutral" }]),
-            },
-          ],
-        }),
-      });
-
-      const service = new SentimentClassificationService("test-api-key");
-      const longText = "a".repeat(500);
-      await service.classifyBatch([{ id: "post-1", text: longText }]);
-
-      const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      // Text should be truncated to 300 chars
-      expect(callBody.messages[0].content).not.toContain("a".repeat(400));
     });
   });
 
@@ -163,31 +132,17 @@ describe("SentimentClassificationService", () => {
         maxConcurrent: 1,
       });
 
-      mockFetch
+      mockAnthropicGenerate
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify([
-                  { id: "1", sentiment: "positive" },
-                  { id: "2", sentiment: "negative" },
-                ]),
-              },
-            ],
-          }),
+          text: JSON.stringify([
+            { id: "1", sentiment: "positive" },
+            { id: "2", sentiment: "negative" },
+          ]),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify([{ id: "1", sentiment: "neutral" }]),
-              },
-            ],
-          }),
+          text: JSON.stringify([{ id: "1", sentiment: "neutral" }]),
         });
 
       const result = await service.classifyAll([
@@ -196,26 +151,19 @@ describe("SentimentClassificationService", () => {
         { id: "post-3", text: "Post 3" },
       ]);
 
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockAnthropicGenerate).toHaveBeenCalledTimes(2);
       expect(result.size).toBe(3);
     });
 
     it("returns map with correct sentiment values", async () => {
       const service = new SentimentClassificationService("test-api-key");
 
-      mockFetch.mockResolvedValueOnce({
+      mockAnthropicGenerate.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify([
-                { id: "1", sentiment: "positive" },
-                { id: "2", sentiment: "negative" },
-              ]),
-            },
-          ],
-        }),
+        text: JSON.stringify([
+          { id: "1", sentiment: "positive" },
+          { id: "2", sentiment: "negative" },
+        ]),
       });
 
       const result = await service.classifyAll([

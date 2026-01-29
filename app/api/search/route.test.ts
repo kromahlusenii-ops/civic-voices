@@ -17,7 +17,7 @@ const mockConfig = {
     apiKey: "", // Empty by default to use TikAPI for existing tests
   },
   llm: {
-    anthropic: {
+    gemini: {
       apiKey: "", // Disable AI analysis in tests
     },
   },

@@ -35,8 +35,11 @@ interface Config {
     openai: {
       apiKey: string;
     };
-    anthropic: {
+    gemini: {
       apiKey: string;
+    };
+    anthropic: {
+      apiKey?: string;
     };
   };
 
@@ -146,8 +149,11 @@ function loadConfig(): Config {
       openai: {
         apiKey: getRequiredEnv('OPENAI_API_KEY'),
       },
+      gemini: {
+        apiKey: getRequiredEnv('GOOGLE_GEMINI_API_KEY'),
+      },
       anthropic: {
-        apiKey: getRequiredEnv('ANTHROPIC_API_KEY'),
+        apiKey: getOptionalEnv('ANTHROPIC_API_KEY'),
       },
     },
 

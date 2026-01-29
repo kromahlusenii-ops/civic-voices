@@ -1,13 +1,11 @@
 /**
  * Sentiment Classification Service
  *
- * Uses Claude Haiku to classify sentiment of social media posts in batches.
+ * Uses Anthropic Claude to classify sentiment of social media posts in batches.
  * Optimized for speed and cost-effectiveness.
  */
 
-import { anthropicFetch } from "./anthropicClient";
-
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+import { anthropicGenerate } from "./anthropicClient";
 
 export type Sentiment = "positive" | "negative" | "neutral";
 
@@ -19,11 +17,6 @@ export interface SentimentResult {
 interface PostInput {
   id: string;
   text: string;
-}
-
-interface ClaudeResponse {
-  content: Array<{ type: "text"; text: string }>;
-  stop_reason: string;
 }
 
 export class SentimentClassificationService {
@@ -100,23 +93,18 @@ Respond with ONLY a JSON array in this exact format (no other text):
 Use the number from the brackets as the id. Classify ALL ${posts.length} posts.`;
 
     try {
-      const response = await anthropicFetch(ANTHROPIC_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-3-haiku-20240307",
-          max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
+      const result = await anthropicGenerate(
+        this.apiKey,
+        "claude-sonnet-4-20250514",
+        prompt,
+        {
+          maxTokens: 4096,
+          temperature: 0.3,
+        }
+      );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Claude API error:", response.status, errorText);
+      if (!result.ok) {
+        console.error("Anthropic API error:", result.error);
         // Return neutral for all posts on error
         return posts.map((post) => ({
           postId: post.id,
@@ -124,26 +112,20 @@ Use the number from the brackets as the id. Classify ALL ${posts.length} posts.`
         }));
       }
 
-      const data: ClaudeResponse = await response.json();
-      const textContent = data.content.find((c) => c.type === "text");
-
-      if (!textContent) {
+      // Parse the JSON response with error recovery
+      const results = this.parseJsonResponse(result.text);
+      if (!results) {
+        console.error("Sentiment classification: Failed to parse JSON response");
         return posts.map((post) => ({
           postId: post.id,
           sentiment: "neutral" as Sentiment,
         }));
       }
 
-      // Parse the JSON response
-      const results = JSON.parse(textContent.text) as Array<{
-        id: string;
-        sentiment: string;
-      }>;
-
       // Map results back to original post IDs
-      return results.map((result, index) => ({
-        postId: posts[index]?.id || result.id,
-        sentiment: this.validateSentiment(result.sentiment),
+      return results.map((r, index) => ({
+        postId: posts[index]?.id || r.id,
+        sentiment: this.validateSentiment(r.sentiment),
       }));
     } catch (error) {
       console.error("Sentiment classification error:", error);
@@ -152,6 +134,52 @@ Use the number from the brackets as the id. Classify ALL ${posts.length} posts.`
         postId: post.id,
         sentiment: "neutral" as Sentiment,
       }));
+    }
+  }
+
+  /**
+   * Parse JSON response with error recovery
+   */
+  private parseJsonResponse(
+    text: string
+  ): Array<{ id: string; sentiment: string }> | null {
+    let jsonText = text.trim();
+
+    // Extract JSON from markdown code blocks if present
+    const jsonBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonBlockMatch) {
+      jsonText = jsonBlockMatch[1].trim();
+    }
+
+    // Try to find JSON array boundaries
+    const jsonStart = jsonText.indexOf("[");
+    const jsonEnd = jsonText.lastIndexOf("]");
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      jsonText = jsonText.slice(jsonStart, jsonEnd + 1);
+    }
+
+    // Try parsing directly first
+    try {
+      return JSON.parse(jsonText);
+    } catch (firstError) {
+      console.warn("Sentiment: First JSON parse attempt failed:", firstError);
+
+      // Try fixing common issues
+      try {
+        // Remove trailing commas before ] or }
+        let fixedJson = jsonText.replace(/,\s*([}\]])/g, "$1");
+
+        // Fix unescaped quotes in strings
+        fixedJson = fixedJson.replace(/"([^"\\]|\\.)*"/g, (match) => {
+          return match.replace(/\n/g, "\\n").replace(/\r/g, "\\r");
+        });
+
+        return JSON.parse(fixedJson);
+      } catch (secondError) {
+        console.error("Sentiment: JSON parse failed after fixes:", secondError);
+        console.error("Sentiment: Raw response (first 300 chars):", text.slice(0, 300));
+        return null;
+      }
     }
   }
 

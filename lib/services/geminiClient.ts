@@ -1,11 +1,11 @@
 /**
- * Anthropic API Client
+ * Gemini API Client
  *
- * Rate-limited, retry-enabled HTTP client for Anthropic Claude API.
+ * Rate-limited, retry-enabled HTTP client for Google Gemini API.
  */
 
-const DEFAULT_MIN_DELAY_MS = Number(process.env.ANTHROPIC_MIN_DELAY_MS ?? "1200")
-const DEFAULT_MAX_RETRIES = Number(process.env.ANTHROPIC_MAX_RETRIES ?? "3")
+const DEFAULT_MIN_DELAY_MS = Number(process.env.GEMINI_MIN_DELAY_MS ?? "500")
+const DEFAULT_MAX_RETRIES = Number(process.env.GEMINI_MAX_RETRIES ?? "3")
 
 let lastRequestTimeMs = 0
 let rateLimitQueue: Promise<unknown> = Promise.resolve()
@@ -49,8 +49,8 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
     const response = await fetch(url, init)
     if (response.ok) return response
 
-    // Retry on rate limits (429) and overloaded (529)
-    if (response.status !== 429 && response.status !== 529) {
+    // Don't retry on client errors (except 429)
+    if (response.status !== 429 && response.status < 500) {
       return response
     }
 
@@ -66,106 +66,107 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
   }
 }
 
-export async function anthropicFetch(
+export async function geminiFetch(
   url: string,
   init: RequestInit
 ): Promise<Response> {
   return scheduleRateLimited(() => fetchWithRetry(url, init))
 }
 
-// Anthropic API types
-export interface AnthropicMessage {
-  role: "user" | "assistant"
-  content: string | Array<{ type: "text"; text: string }>
+// Gemini API types
+export interface GeminiContent {
+  parts: Array<{ text: string }>
+  role?: "user" | "model"
 }
 
-export interface AnthropicRequest {
-  model: string
-  max_tokens: number
-  messages: AnthropicMessage[]
-  temperature?: number
-  system?: string
+export interface GeminiRequest {
+  contents: GeminiContent[]
+  generationConfig?: {
+    temperature?: number
+    topP?: number
+    topK?: number
+    maxOutputTokens?: number
+    responseMimeType?: string
+  }
 }
 
-export interface AnthropicResponse {
-  id: string
-  type: "message"
-  role: "assistant"
-  content: Array<{
-    type: "text"
-    text: string
+export interface GeminiResponse {
+  candidates: Array<{
+    content: {
+      parts: Array<{ text: string }>
+      role: string
+    }
+    finishReason: string
   }>
-  model: string
-  stop_reason: string
-  stop_sequence: string | null
-  usage: {
-    input_tokens: number
-    output_tokens: number
+  usageMetadata?: {
+    promptTokenCount: number
+    candidatesTokenCount: number
+    totalTokenCount: number
   }
 }
 
 /**
- * Make a request to the Anthropic API
+ * Make a request to the Gemini API
  */
-export async function anthropicGenerate(
+export async function geminiGenerate(
   apiKey: string,
   model: string,
   prompt: string,
   options: {
     maxTokens?: number
     temperature?: number
-    systemPrompt?: string
+    jsonMode?: boolean
   } = {}
 ): Promise<{ text: string; ok: boolean; error?: string }> {
-  const url = "https://api.anthropic.com/v1/messages"
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`
 
-  const request: AnthropicRequest = {
-    model,
-    max_tokens: options.maxTokens ?? 4096,
-    messages: [
+  const request: GeminiRequest = {
+    contents: [
       {
+        parts: [{ text: prompt }],
         role: "user",
-        content: prompt,
       },
     ],
-    temperature: options.temperature ?? 0.7,
+    generationConfig: {
+      maxOutputTokens: options.maxTokens ?? 4096,
+      temperature: options.temperature ?? 0.7,
+    },
   }
 
-  if (options.systemPrompt) {
-    request.system = options.systemPrompt
+  // Enable JSON mode if requested
+  if (options.jsonMode) {
+    request.generationConfig!.responseMimeType = "application/json"
   }
 
   try {
-    const response = await anthropicFetch(url, {
+    const response = await geminiFetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(request),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error("Anthropic API error:", response.status, errorText)
+      console.error("Gemini API error:", response.status, errorText)
       return { text: "", ok: false, error: `API error ${response.status}: ${errorText}` }
     }
 
-    const data: AnthropicResponse = await response.json()
+    const data: GeminiResponse = await response.json()
 
-    if (!data.content || data.content.length === 0) {
-      return { text: "", ok: false, error: "No response content" }
+    if (!data.candidates || data.candidates.length === 0) {
+      return { text: "", ok: false, error: "No response candidates" }
     }
 
-    const textContent = data.content.find(c => c.type === "text")?.text
+    const textContent = data.candidates[0]?.content?.parts?.[0]?.text
     if (!textContent) {
       return { text: "", ok: false, error: "No text content in response" }
     }
 
     return { text: textContent, ok: true }
   } catch (error) {
-    console.error("Anthropic request error:", error)
+    console.error("Gemini request error:", error)
     return { text: "", ok: false, error: String(error) }
   }
 }

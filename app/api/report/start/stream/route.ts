@@ -5,9 +5,12 @@ import { startReportWithProgress, ReportProgressEvent } from "@/lib/services/rep
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  console.log("[Report Stream] Route handler started");
+
   // Get searchId from query params
   const searchParams = request.nextUrl.searchParams;
   const searchId = searchParams.get("searchId");
+  console.log("[Report Stream] searchId:", searchId);
 
   if (!searchId) {
     return new Response(JSON.stringify({ error: "Missing searchId parameter" }), {
@@ -29,7 +32,9 @@ export async function GET(request: NextRequest) {
   const accessToken = authHeader.split("Bearer ")[1];
 
   // Verify Supabase access token
+  console.log("[Report Stream] Verifying token...");
   const user = await verifySupabaseToken(accessToken);
+  console.log("[Report Stream] Token verified, user:", user?.id);
 
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized - Invalid token" }), {
@@ -47,6 +52,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  console.log(`[Report Stream] Starting report generation for searchId: ${searchId}, userId: ${userId}`);
+
   // Create a readable stream for SSE
   const encoder = new TextEncoder();
 
@@ -59,6 +66,7 @@ export async function GET(request: NextRequest) {
         if (isClosed) return;
         try {
           const data = `data: ${JSON.stringify(event)}\n\n`;
+          console.log(`[SSE] Sending event: ${event.type}${event.step ? ` - ${event.step}` : ""}`);
           controller.enqueue(encoder.encode(data));
         } catch {
           // Controller already closed, ignore

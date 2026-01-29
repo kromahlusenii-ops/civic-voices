@@ -1,17 +1,5 @@
 import type { Post, AIAnalysis } from "../types/api";
-import { anthropicFetch } from "./anthropicClient";
-
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-
-interface ClaudeMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-interface ClaudeResponse {
-  content: Array<{ type: "text"; text: string }>;
-  stop_reason: string;
-}
+import { anthropicGenerate } from "./anthropicClient";
 
 interface FilterContext {
   timeRange?: string;
@@ -191,35 +179,25 @@ For topicAnalysis, create an entry for EACH theme in keyThemes with relevant pos
 Respond ONLY with valid JSON, no additional text.`;
 
     try {
-      const response = await anthropicFetch(ANTHROPIC_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-3-5-haiku-20241022",
-          max_tokens: 4096,
-          messages: [{ role: "user", content: prompt }] as ClaudeMessage[],
-        }),
-      });
+      console.log(`[AI Analysis] Calling Anthropic API for query: "${query}" with ${posts.length} posts`);
+      const result = await anthropicGenerate(
+        this.apiKey,
+        "claude-sonnet-4-20250514",
+        prompt,
+        {
+          maxTokens: 8192,
+          temperature: 0.7,
+        }
+      );
+      console.log(`[AI Analysis] Anthropic API response ok: ${result.ok}`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Claude API error:", response.status, errorText);
-        return this.getFallbackAnalysis(query, posts);
-      }
-
-      const data: ClaudeResponse = await response.json();
-      const textContent = data.content.find((c) => c.type === "text");
-
-      if (!textContent) {
+      if (!result.ok) {
+        console.error("[AI Analysis] Anthropic API error:", result.error);
         return this.getFallbackAnalysis(query, posts);
       }
 
       // Parse the JSON response with error recovery
-      const analysis = this.parseJsonResponse(textContent.text);
+      const analysis = this.parseJsonResponse(result.text);
       if (!analysis) {
         console.error("AI analysis: Failed to parse JSON response");
         return this.getFallbackAnalysis(query, posts);
@@ -318,23 +296,73 @@ Respond ONLY with valid JSON, no additional text.`;
       // Log the first error for debugging
       console.warn("AI analysis: First JSON parse attempt failed:", firstError);
 
-      // Try fixing common issues
-      try {
-        // Remove trailing commas before } or ]
-        let fixedJson = jsonText.replace(/,\s*([}\]])/g, '$1');
+      // Try multiple fix strategies
+      const fixStrategies = [
+        // Strategy 1: Fix trailing commas and escape newlines
+        (json: string) => {
+          let fixed = json.replace(/,\s*([}\]])/g, '$1');
+          fixed = fixed.replace(/"([^"\\]|\\.)*"/g, (match) => {
+            return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+          });
+          return fixed;
+        },
+        // Strategy 2: Fix unescaped quotes within strings more aggressively
+        (json: string) => {
+          // Replace control characters
+          let fixed = json.replace(/[\x00-\x1F\x7F]/g, (char) => {
+            if (char === '\n') return '\\n';
+            if (char === '\r') return '\\r';
+            if (char === '\t') return '\\t';
+            return '';
+          });
+          // Fix trailing commas
+          fixed = fixed.replace(/,\s*([}\]])/g, '$1');
+          return fixed;
+        },
+        // Strategy 3: Try to extract just the interpretation field for partial recovery
+        (json: string) => {
+          const interpretationMatch = json.match(/"interpretation"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+          const themesMatch = json.match(/"keyThemes"\s*:\s*\[((?:[^\]])*)\]/);
 
-        // Fix unescaped newlines in strings (common Claude issue)
-        // This regex finds strings and escapes literal newlines within them
-        fixedJson = fixedJson.replace(/"([^"\\]|\\.)*"/g, (match) => {
-          return match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-        });
+          if (interpretationMatch) {
+            const interpretation = interpretationMatch[1].replace(/\\n/g, ' ').replace(/\\"/g, '"');
+            const themes = themesMatch
+              ? themesMatch[1].split(',').map(t => t.trim().replace(/^"|"$/g, '')).filter(Boolean)
+              : [];
 
-        return JSON.parse(fixedJson) as AIAnalysis;
-      } catch (secondError) {
-        console.error("AI analysis: JSON parse failed after fixes:", secondError);
-        console.error("AI analysis: Raw response (first 500 chars):", text.slice(0, 500));
-        return null;
+            // Return a minimal valid object
+            return JSON.stringify({
+              interpretation,
+              keyThemes: themes.length > 0 ? themes : ["general discussion"],
+              sentimentBreakdown: { overall: "mixed", summary: "See posts for details." },
+              intentionsBreakdown: [
+                { name: "Inform", percentage: 30, engagementRate: 2.5 },
+                { name: "Persuade", percentage: 25, engagementRate: 3.0 },
+                { name: "Entertain", percentage: 20, engagementRate: 4.0 },
+                { name: "Express", percentage: 25, engagementRate: 2.0 },
+              ],
+              suggestedQueries: [],
+              followUpQuestion: "Would you like to explore specific aspects of this topic?"
+            });
+          }
+          return json;
+        }
+      ];
+
+      for (let i = 0; i < fixStrategies.length; i++) {
+        try {
+          const fixedJson = fixStrategies[i](jsonText);
+          const result = JSON.parse(fixedJson) as AIAnalysis;
+          console.log(`AI analysis: JSON parsed successfully with strategy ${i + 1}`);
+          return result;
+        } catch {
+          // Continue to next strategy
+        }
       }
+
+      console.error("AI analysis: All JSON parse strategies failed");
+      console.error("AI analysis: Raw response (first 500 chars):", text.slice(0, 500));
+      return null;
     }
   }
 

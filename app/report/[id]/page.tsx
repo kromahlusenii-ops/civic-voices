@@ -27,6 +27,7 @@ import {
   SocialPostGrid,
   MobileBottomNav,
   AudienceChatSidebar,
+  InlineChatPanel,
 } from "@/app/components/report";
 import type { DashboardTab } from "@/app/components/report";
 import type { Post, AIAnalysis } from "@/lib/types/api";
@@ -214,6 +215,7 @@ export default function ReportPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [pendingChatMessage, setPendingChatMessage] = useState<string | null>(null);
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [reportData, setReportData] = useState<ReportData | null>(null);
@@ -608,10 +610,10 @@ export default function ReportPage() {
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeTooltip]);
 
-  // Open chat sidebar when chat-button tooltip activates
+  // Expand chat panel when chat-button tooltip activates
   useEffect(() => {
     if (activeTooltip === "chat-button") {
-      setIsChatOpen(true);
+      setIsChatCollapsed(false);
     }
   }, [activeTooltip]);
 
@@ -710,7 +712,9 @@ export default function ReportPage() {
 
       {/* Main Content */}
       {!authLoading && !isLoading && !error && reportData && (
-        <div className="flex flex-col">
+        <div className="flex min-h-screen">
+          {/* Main content area - add right margin for fixed chat panel on desktop */}
+          <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isChatCollapsed ? "lg:mr-14" : "lg:mr-[380px]"}`}>
           {/* Header */}
           <header className="bg-white border-b border-gray-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
@@ -809,7 +813,7 @@ export default function ReportPage() {
 
                   {/* Desktop-only action buttons (moved to bottom nav on mobile) */}
                   <div className="hidden sm:flex items-center gap-2">
-                    {/* Chat Button */}
+                    {/* Chat Button - toggles inline panel collapse */}
                     <ContextualTooltip
                       isVisible={activeTooltip === "chat-button"}
                       title="Chat with your data"
@@ -819,10 +823,14 @@ export default function ReportPage() {
                     >
                       <button
                         data-tooltip-anchor="chat-button"
-                        onClick={() => setIsChatOpen(true)}
-                        className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                        aria-label="Talk to audience"
-                        title="Talk to the audience"
+                        onClick={() => setIsChatCollapsed(!isChatCollapsed)}
+                        className={`p-2 rounded-lg transition-colors ${
+                          !isChatCollapsed
+                            ? "text-violet-600 bg-violet-50 hover:bg-violet-100"
+                            : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                        }`}
+                        aria-label={isChatCollapsed ? "Expand chat" : "Collapse chat"}
+                        title={isChatCollapsed ? "Expand chat" : "Collapse chat"}
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
@@ -1134,6 +1142,33 @@ export default function ReportPage() {
               </>
             )}
           </main>
+          </div>
+
+          {/* Inline Chat Panel - Desktop only */}
+          <InlineChatPanel
+            isCollapsed={isChatCollapsed}
+            onToggleCollapse={() => setIsChatCollapsed(!isChatCollapsed)}
+            reportData={reportData}
+            getAccessToken={getAccessToken}
+            onScrollToPost={(postId) => {
+              // Switch to social posts tab and scroll to the post
+              setActiveTab("social-posts");
+              // Give time for tab to switch, then scroll
+              setTimeout(() => {
+                const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+                if (postElement) {
+                  postElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                  // Add highlight effect
+                  postElement.classList.add("ring-2", "ring-blue-500", "ring-offset-2");
+                  setTimeout(() => {
+                    postElement.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
+                  }, 2000);
+                }
+              }, 100);
+            }}
+            initialMessage={pendingChatMessage ?? undefined}
+            onInitialMessageSent={() => setPendingChatMessage(null)}
+          />
         </div>
       )}
 
@@ -1159,40 +1194,42 @@ export default function ReportPage() {
         />
       )}
 
-      {/* Audience Chat Sidebar - only render when chat is open */}
+      {/* Audience Chat Sidebar - Mobile only, renders when chat is open */}
       {reportData && isChatOpen && (
-        <AudienceChatSidebar
-          isOpen={isChatOpen}
-          onClose={() => {
-            setIsChatOpen(false);
-            setPendingChatMessage(null);
-            // If closed during tooltip tour, dismiss and switch to social posts
-            if (activeTooltip === "chat-button") {
-              dismissTooltip("chat-button");
-              setActiveTab("social-posts");
-            }
-          }}
-          reportData={reportData}
-          getAccessToken={getAccessToken}
-          onScrollToPost={(postId) => {
-            // Switch to social posts tab and scroll to the post
-            setActiveTab("social-posts");
-            // Give time for tab to switch, then scroll
-            setTimeout(() => {
-              const postElement = document.querySelector(`[data-post-id="${postId}"]`);
-              if (postElement) {
-                postElement.scrollIntoView({ behavior: "smooth", block: "center" });
-                // Add highlight effect
-                postElement.classList.add("ring-2", "ring-blue-500", "ring-offset-2");
-                setTimeout(() => {
-                  postElement.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
-                }, 2000);
+        <div className="lg:hidden">
+          <AudienceChatSidebar
+            isOpen={isChatOpen}
+            onClose={() => {
+              setIsChatOpen(false);
+              setPendingChatMessage(null);
+              // If closed during tooltip tour, dismiss and switch to social posts
+              if (activeTooltip === "chat-button") {
+                dismissTooltip("chat-button");
+                setActiveTab("social-posts");
               }
-            }, 100);
-          }}
-          initialMessage={pendingChatMessage ?? undefined}
-          onInitialMessageSent={() => setPendingChatMessage(null)}
-        />
+            }}
+            reportData={reportData}
+            getAccessToken={getAccessToken}
+            onScrollToPost={(postId) => {
+              // Switch to social posts tab and scroll to the post
+              setActiveTab("social-posts");
+              // Give time for tab to switch, then scroll
+              setTimeout(() => {
+                const postElement = document.querySelector(`[data-post-id="${postId}"]`);
+                if (postElement) {
+                  postElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                  // Add highlight effect
+                  postElement.classList.add("ring-2", "ring-blue-500", "ring-offset-2");
+                  setTimeout(() => {
+                    postElement.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
+                  }, 2000);
+                }
+              }, 100);
+            }}
+            initialMessage={pendingChatMessage ?? undefined}
+            onInitialMessageSent={() => setPendingChatMessage(null)}
+          />
+        </div>
       )}
     </div>
   );

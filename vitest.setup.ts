@@ -61,5 +61,5 @@ process.env.REDDIT_CLIENT_ID = "test-reddit-client-id";
 process.env.REDDIT_CLIENT_SECRET = "test-reddit-client-secret";
 process.env.REDDIT_USER_AGENT = "test-reddit-user-agent";
 process.env.OPENAI_API_KEY = "test-openai-key";
-process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
+process.env.GOOGLE_GEMINI_API_KEY = "test-gemini-key";
 process.env.X_BEARER_TOKEN = "test-x-bearer-token";

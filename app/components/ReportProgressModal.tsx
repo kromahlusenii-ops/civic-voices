@@ -104,19 +104,32 @@ export default function ReportProgressModal({
   const [isComplete, setIsComplete] = useState(false);
   const [reportId, setReportId] = useState<string | null>(null);
   const hasStarted = useRef(false);
+  const controllerRef = useRef<AbortController | null>(null);
 
-  // Use refs for callbacks to prevent startStream from changing identity
+  // Use refs for callbacks and router to prevent startStream from changing identity
   // when parent re-renders (which would cause useEffect cleanup to abort the stream)
   const onErrorRef = useRef(onError);
   const onCloseRef = useRef(onClose);
+  const routerRef = useRef(router);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+  useEffect(() => { routerRef.current = router; }, [router]);
 
   const startStream = useCallback(() => {
     if (!searchId || !accessToken) return;
 
+    // If there's already a controller (stream in progress), don't start another
+    if (controllerRef.current) {
+      console.log("[ReportProgress] Stream already in progress, skipping");
+      return;
+    }
+
     // Use fetch with streaming
     const controller = new AbortController();
+    controllerRef.current = controller;
+
+    console.log("[ReportProgress] Starting stream for searchId:", searchId);
+    console.log("[ReportProgress] Access token present:", !!accessToken, "length:", accessToken?.length);
 
     fetch(`/api/report/start/stream?searchId=${encodeURIComponent(searchId)}`, {
       method: "GET",
@@ -126,8 +139,11 @@ export default function ReportProgressModal({
       signal: controller.signal,
     })
       .then(async (response) => {
+        console.log("[ReportProgress] Response status:", response.status, response.statusText);
+
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
+          console.error("[ReportProgress] Response error:", errorData);
           throw new Error(errorData.error || "Failed to start report generation");
         }
 
@@ -136,11 +152,14 @@ export default function ReportProgressModal({
           throw new Error("No response body");
         }
 
+        console.log("[ReportProgress] Got reader, starting to read stream...");
+
         const decoder = new TextDecoder();
         let buffer = "";
 
         // Helper to process SSE data
         const processData = (data: { type: string; step?: string; reportId?: string; message?: string }) => {
+          console.log("[ReportProgress] Received SSE event:", data);
           if (data.type === "progress" && data.step) {
             // Use functional setState to get previous step without dependency
             setCurrentStep((prevStep) => {
@@ -159,7 +178,7 @@ export default function ReportProgressModal({
             setReportId(data.reportId);
 
             // Navigate immediately to the report
-            router.push(`/report/${data.reportId}`);
+            routerRef.current.push(`/report/${data.reportId}`);
           }
 
           if (data.type === "error") {
@@ -192,8 +211,11 @@ export default function ReportProgressModal({
 
           if (done) break;
         }
+        // Stream completed successfully
+        controllerRef.current = null;
       })
       .catch((error) => {
+        controllerRef.current = null;
         if (error.name !== "AbortError") {
           console.error("Stream error:", error);
           onErrorRef.current(error.message);
@@ -201,8 +223,15 @@ export default function ReportProgressModal({
         }
       });
 
-    return () => controller.abort();
-  }, [searchId, accessToken, router]);
+    // Only abort on unmount if this is still the active controller
+    return () => {
+      if (controllerRef.current === controller) {
+        console.log("[ReportProgress] Cleanup: aborting stream");
+        controller.abort();
+        controllerRef.current = null;
+      }
+    };
+  }, [searchId, accessToken]);
 
   useEffect(() => {
     if (isOpen && searchId && accessToken && !hasStarted.current) {

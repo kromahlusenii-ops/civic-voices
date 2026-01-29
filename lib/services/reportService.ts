@@ -577,9 +577,9 @@ export async function startReport(
 
     // Sentiment classification - results stored in memory
     let sentiments: Map<string, Sentiment> = new Map();
-    if (searchData.posts.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    if (searchData.posts.length > 0 && process.env.GOOGLE_GEMINI_API_KEY) {
       const sentimentService = new SentimentClassificationService(
-        process.env.ANTHROPIC_API_KEY,
+        process.env.GOOGLE_GEMINI_API_KEY,
         {
           batchSize: SENTIMENT_API_BATCH_SIZE,
           maxConcurrent: SENTIMENT_API_MAX_CONCURRENT,
@@ -636,8 +636,8 @@ export async function startReport(
       }
 
       // AI analysis - results stored in memory
-      if (process.env.ANTHROPIC_API_KEY) {
-        const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+      if (process.env.GOOGLE_GEMINI_API_KEY) {
+        const aiService = new AIAnalysisService(process.env.GOOGLE_GEMINI_API_KEY);
 
         const totalCommentsCount = topPostComments.reduce(
           (sum, r) => sum + r.comments.length,
@@ -673,7 +673,7 @@ export async function startReport(
             data: {
               jobId,
               outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-              model: "claude-3-5-haiku-20241022",
+              model: "gemini-2.5-flash",
             },
           });
         }
@@ -757,13 +757,17 @@ export async function startReportWithProgress(
   // ============================================
   // PHASE 1: Quick DB reads - get all data needed
   // ============================================
+  console.log(`[Report] Phase 1: Starting for searchId=${searchId}, supabaseUid=${supabaseUid}`);
+
   onProgress({
     type: "progress",
     step: "initializing",
     message: "Firing up the engines",
   });
 
+  console.log(`[Report] Getting userId from supabaseUid...`);
   const userId = await getUserIdFromSupabaseUid(supabaseUid);
+  console.log(`[Report] Got userId: ${userId}`);
 
   // Get user email for notification
   const user = await prisma.user.findUnique({
@@ -895,9 +899,9 @@ export async function startReportWithProgress(
     });
 
     let sentiments: Map<string, Sentiment> = new Map();
-    if (searchData.posts.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    if (searchData.posts.length > 0 && process.env.GOOGLE_GEMINI_API_KEY) {
       const sentimentService = new SentimentClassificationService(
-        process.env.ANTHROPIC_API_KEY,
+        process.env.GOOGLE_GEMINI_API_KEY,
         {
           batchSize: SENTIMENT_API_BATCH_SIZE,
           maxConcurrent: SENTIMENT_API_MAX_CONCURRENT,
@@ -954,8 +958,8 @@ export async function startReportWithProgress(
         message: "Packaging your insights",
       });
 
-      if (process.env.ANTHROPIC_API_KEY) {
-        const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+      if (process.env.GOOGLE_GEMINI_API_KEY) {
+        const aiService = new AIAnalysisService(process.env.GOOGLE_GEMINI_API_KEY);
 
         const totalCommentsCount = topPostComments.reduce(
           (sum, r) => sum + r.comments.length,
@@ -991,7 +995,7 @@ export async function startReportWithProgress(
             data: {
               jobId,
               outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-              model: "claude-3-5-haiku-20241022",
+              model: "gemini-2.5-flash",
             },
           });
         }
@@ -1102,8 +1106,8 @@ export async function generateReportInsights(
     throw new Error("Report search not found");
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error("Anthropic API key not configured");
+  if (!process.env.GOOGLE_GEMINI_API_KEY) {
+    throw new Error("Gemini API key not configured");
   }
 
   const queryJson = job.queryJson as {
@@ -1151,7 +1155,7 @@ export async function generateReportInsights(
     }
   }
 
-  const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+  const aiService = new AIAnalysisService(process.env.GOOGLE_GEMINI_API_KEY);
   const aiAnalysis = await aiService.generateAnalysis(
     queryJson.query,
     limitedPosts,
@@ -1167,7 +1171,7 @@ export async function generateReportInsights(
     data: {
       jobId: reportId,
       outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-      model: "claude-3-5-haiku-20241022",
+      model: "gemini-2.5-flash",
     },
   });
 
@@ -1671,9 +1675,9 @@ async function processAlertReportInBackground(
 
     // Sentiment classification using internal SearchPost IDs
     let sentiments: Map<string, Sentiment> = new Map();
-    if (rawPosts.length > 0 && process.env.ANTHROPIC_API_KEY) {
+    if (rawPosts.length > 0 && process.env.GOOGLE_GEMINI_API_KEY) {
       const sentimentService = new SentimentClassificationService(
-        process.env.ANTHROPIC_API_KEY,
+        process.env.GOOGLE_GEMINI_API_KEY,
         { batchSize: SENTIMENT_API_BATCH_SIZE, maxConcurrent: SENTIMENT_API_MAX_CONCURRENT }
       );
 
@@ -1690,7 +1694,7 @@ async function processAlertReportInBackground(
 
     // AI analysis
     let aiAnalysis: AIAnalysis | null = null;
-    if (process.env.ANTHROPIC_API_KEY) {
+    if (process.env.GOOGLE_GEMINI_API_KEY) {
       const postsForAnalysis: Post[] = rawPosts.slice(0, REPORT_AI_MAX_POSTS).map(post => ({
         id: post.id,
         text: post.text,
@@ -1704,7 +1708,7 @@ async function processAlertReportInBackground(
         thumbnail: post.thumbnail,
       }));
 
-      const aiService = new AIAnalysisService(process.env.ANTHROPIC_API_KEY);
+      const aiService = new AIAnalysisService(process.env.GOOGLE_GEMINI_API_KEY);
       aiAnalysis = await aiService.generateAnalysis(searchQuery, postsForAnalysis, {
         timeRange,
         sources: platforms,
@@ -1720,7 +1724,7 @@ async function processAlertReportInBackground(
           data: {
             jobId,
             outputJson: aiAnalysis as unknown as Prisma.InputJsonValue,
-            model: "claude-3-5-haiku-20241022",
+            model: "gemini-2.5-flash",
           },
         });
       }

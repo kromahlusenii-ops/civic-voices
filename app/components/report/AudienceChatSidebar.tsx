@@ -175,12 +175,14 @@ export default function AudienceChatSidebar({
             </button>
 
             <div>
-              <h2 className="text-base font-semibold text-gray-900">
-                Talk to the Audience
-              </h2>
-              <p className="text-xs text-gray-500">
-                Speaking for {postCount.toLocaleString()} posts
-              </p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-900">
+                  Chat with your data
+                </h2>
+                <span className="px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide bg-violet-100 text-violet-700 rounded">
+                  Beta
+                </span>
+              </div>
             </div>
           </div>
 
@@ -329,7 +331,7 @@ export default function AudienceChatSidebar({
         <ChatInput
           onSend={sendMessage}
           disabled={status === "streaming" || (isTokenLoading && !shareToken)}
-          placeholder={isTokenLoading && !shareToken ? "Loading..." : "Ask about this audience..."}
+          placeholder={isTokenLoading && !shareToken ? "Loading..." : "Ask anything about your data..."}
         />
       </aside>
     </>

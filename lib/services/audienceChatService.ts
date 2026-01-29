@@ -2,18 +2,22 @@ import type { Post } from "../types/api"
 import type { ChatContext, Citation, ChatRole } from "../types/chat"
 import { anthropicFetch } from "./anthropicClient"
 
-const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-
-interface ClaudeMessage {
+interface AnthropicMessage {
   role: "user" | "assistant"
   content: string
 }
 
-interface ClaudeStreamEvent {
+interface AnthropicStreamEvent {
   type: string
-  delta?: { type: string; text?: string }
-  message?: { id: string }
   index?: number
+  delta?: {
+    type?: string
+    text?: string
+  }
+  content_block?: {
+    type?: string
+    text?: string
+  }
 }
 
 export class AudienceChatService {
@@ -110,7 +114,7 @@ Respond naturally as if you are these people speaking together. Be specific abou
   }
 
   /**
-   * Generate a streaming response from Claude
+   * Generate a streaming response from Anthropic
    * Returns an async generator that yields content chunks
    */
   async *generateStreamingResponse(
@@ -121,10 +125,15 @@ Respond naturally as if you are these people speaking together. Be specific abou
     const systemPrompt = this.buildSystemPrompt(context)
 
     // Build messages array with conversation history
-    const messages: ClaudeMessage[] = history.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-    }))
+    const messages: AnthropicMessage[] = []
+
+    // Add conversation history
+    for (const msg of history) {
+      messages.push({
+        role: msg.role === "user" ? "user" : "assistant",
+        content: msg.content,
+      })
+    }
 
     // Add the new user message
     messages.push({
@@ -132,8 +141,10 @@ Respond naturally as if you are these people speaking together. Be specific abou
       content: userMessage,
     })
 
+    const url = "https://api.anthropic.com/v1/messages"
+
     try {
-      const response = await anthropicFetch(ANTHROPIC_API_URL, {
+      const response = await anthropicFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -141,17 +152,17 @@ Respond naturally as if you are these people speaking together. Be specific abou
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-3-5-haiku-latest",
+          model: "claude-sonnet-4-20250514",
           max_tokens: 1024,
-          stream: true,
           system: systemPrompt,
           messages,
+          stream: true,
         }),
       })
 
       if (!response.ok) {
         const errorText = await response.text()
-        console.error("Claude API error:", response.status, errorText)
+        console.error("Anthropic API error:", response.status, errorText)
         yield { type: "error", data: { error: `API error: ${response.status}` } }
         return
       }
@@ -165,7 +176,7 @@ Respond naturally as if you are these people speaking together. Be specific abou
 
       const decoder = new TextDecoder()
       let buffer = ""
-      let messageId = ""
+      const messageId = `anthropic-${Date.now()}`
       let hasStarted = false
 
       while (true) {
@@ -181,19 +192,17 @@ Respond naturally as if you are these people speaking together. Be specific abou
         for (const line of lines) {
           if (line.startsWith("data: ")) {
             const data = line.slice(6)
-            if (data === "[DONE]") continue
+            if (data === "[DONE]" || data.trim() === "") continue
 
             try {
-              const event: ClaudeStreamEvent = JSON.parse(data)
+              const event: AnthropicStreamEvent = JSON.parse(data)
 
-              if (event.type === "message_start" && event.message?.id) {
-                messageId = event.message.id
-                if (!hasStarted) {
-                  yield { type: "start", data: { messageId } }
-                  hasStarted = true
-                }
+              if (!hasStarted && (event.type === "content_block_start" || event.type === "content_block_delta")) {
+                yield { type: "start", data: { messageId } }
+                hasStarted = true
               }
 
+              // Handle content_block_delta events
               if (event.type === "content_block_delta" && event.delta?.text) {
                 yield { type: "delta", data: { content: event.delta.text } }
               }
@@ -222,18 +231,26 @@ Respond naturally as if you are these people speaking together. Be specific abou
   ): Promise<{ content: string; citations: Citation[] }> {
     const systemPrompt = this.buildSystemPrompt(context)
 
-    const messages: ClaudeMessage[] = history.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-    }))
+    // Build messages array with conversation history
+    const messages: AnthropicMessage[] = []
 
+    for (const msg of history) {
+      messages.push({
+        role: msg.role === "user" ? "user" : "assistant",
+        content: msg.content,
+      })
+    }
+
+    // Add the new user message
     messages.push({
       role: "user",
       content: userMessage,
     })
 
+    const url = "https://api.anthropic.com/v1/messages"
+
     try {
-      const response = await anthropicFetch(ANTHROPIC_API_URL, {
+      const response = await anthropicFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -241,7 +258,7 @@ Respond naturally as if you are these people speaking together. Be specific abou
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-3-5-haiku-latest",
+          model: "claude-sonnet-4-20250514",
           max_tokens: 1024,
           system: systemPrompt,
           messages,
@@ -254,8 +271,7 @@ Respond naturally as if you are these people speaking together. Be specific abou
       }
 
       const data = await response.json()
-      const textContent = data.content.find((c: { type: string }) => c.type === "text")
-      const content = textContent?.text || "I couldn't generate a response. Please try again."
+      const content = data.content?.[0]?.text || "I couldn't generate a response. Please try again."
 
       const citations = this.extractCitations(content, context.posts.slice(0, 50))
 

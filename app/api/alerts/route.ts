@@ -5,7 +5,7 @@ import { getSendGridClient, isSendGridEnabled, buildAlertDigestEmail, buildVerif
 import { randomBytes } from "crypto"
 import type { AlertFrequency } from "@prisma/client"
 import { maskEmail } from "@/lib/utils/logging"
-import { anthropicFetch } from "@/lib/services/anthropicClient"
+import { anthropicGenerate } from "@/lib/services/anthropicClient"
 import { startAlertReport } from "@/lib/services/reportService"
 
 export const dynamic = "force-dynamic"
@@ -89,34 +89,23 @@ async function generateSummary(posts: RawPost[], searchQuery: string): Promise<s
       `${i + 1}. [${post.platform}] ${post.text.substring(0, 200)}${post.text.length > 200 ? "..." : ""}`
     ).join("\n")
 
-    const response = await anthropicFetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-3-haiku-20240307",
-        max_tokens: 150,
-        messages: [{
-          role: "user",
-          content: `You are writing a brief email summary. Based on these ${posts.length} social media posts about "${searchQuery}", write a 2-3 sentence summary of what people are actually saying. Focus on the key arguments, opinions, events, or news being discussed. Do NOT mention platform names (TikTok, YouTube, Reddit, etc.), sentiment labels, or post counts — only describe the substance of the conversation.
+    const prompt = `You are writing a brief email summary. Based on these ${posts.length} social media posts about "${searchQuery}", write a 2-3 sentence summary of what people are actually saying. Focus on the key arguments, opinions, events, or news being discussed. Do NOT mention platform names (TikTok, YouTube, Reddit, etc.), sentiment labels, or post counts — only describe the substance of the conversation.
 
 Sample posts:
 ${samplePosts}
 
-Write the summary now (2-3 sentences only, no intro):`,
-        }],
-      }),
+Write the summary now (2-3 sentences only, no intro):`
+
+    const result = await anthropicGenerate(apiKey, "claude-sonnet-4-20250514", prompt, {
+      maxTokens: 500,
+      temperature: 0.7,
     })
 
-    if (!response.ok) {
+    if (!result.ok) {
       return generateBasicSummary(posts, searchQuery)
     }
 
-    const data = await response.json()
-    const summary = data.content?.[0]?.text?.trim()
+    const summary = result.text?.trim()
     return summary || generateBasicSummary(posts, searchQuery)
   } catch {
     return generateBasicSummary(posts, searchQuery)

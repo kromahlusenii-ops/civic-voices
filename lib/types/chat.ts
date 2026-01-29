@@ -83,36 +83,30 @@ export interface ChatRequest {
   }[]
 }
 
-// MVP suggested prompts
+// Suggested prompts for chat welcome screen (2x2 grid)
 export const SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   {
     id: "pain-points",
-    label: "Pain Points",
+    label: "Analyze pain points",
     prompt: "What are the main pain points people are expressing?",
+    icon: "target",
   },
   {
-    id: "sentiment",
-    label: "Overall Sentiment",
-    prompt: "What's the overall sentiment about this topic?",
+    id: "summary",
+    label: "Executive summary",
+    prompt: "Give me an executive summary of what people are saying about this topic.",
+    icon: "document",
+  },
+  {
+    id: "quotes",
+    label: "Positive & negative quotes",
+    prompt: "Show me some notable positive and negative quotes from the conversation.",
+    icon: "quotes",
   },
   {
     id: "topics",
-    label: "Hot Topics",
-    prompt: "What topics are people most passionate about?",
-  },
-  {
-    id: "questions",
-    label: "Questions",
-    prompt: "What questions are people asking?",
-  },
-  {
-    id: "concerns",
-    label: "Concerns",
-    prompt: "What are the biggest concerns or worries being expressed?",
-  },
-  {
-    id: "praise",
-    label: "Praise",
-    prompt: "What do people praise or love about this?",
+    label: "Explore key topics",
+    prompt: "What are the key topics and themes people are discussing?",
+    icon: "compass",
   },
 ]

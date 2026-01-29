@@ -765,7 +765,7 @@ export async function POST(request: NextRequest) {
     const commentsData: PostCommentData[] = [];
 
     // Only fetch comments if we have posts and an API key for the AI analysis
-    if (config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
+    if (config.llm.gemini.apiKey && cleanedPosts.length > 0) {
       // Fetch comments for top posts per platform for richer AI analysis
       // Reddit is a strong platform - maximize comment data for better insights
       const MAX_POSTS_FOR_COMMENTS = 100;
@@ -873,16 +873,16 @@ export async function POST(request: NextRequest) {
     }
 
     let aiAnalysis: AIAnalysis | undefined;
-    if (config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
+    if (config.llm.gemini.apiKey && cleanedPosts.length > 0) {
       try {
-        const aiService = new AIAnalysisService(config.llm.anthropic.apiKey);
+        const aiService = new AIAnalysisService(config.llm.gemini.apiKey);
         aiAnalysis = await withTimeout(
           aiService.generateAnalysis(query, cleanedPosts, {
             timeRange: timeFilter,
             language: language || "all",
             sources,
           }, commentsData.length > 0 ? commentsData : undefined),
-          45000,
+          90000,
           "AI Analysis"
         );
       } catch (error) {

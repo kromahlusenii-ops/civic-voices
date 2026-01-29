@@ -146,6 +146,7 @@ function SearchPageContent() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [pendingSearch, setPendingSearch] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchProgress, setSearchProgress] = useState<string>("Searching across platforms...");
   const [searchError, setSearchError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResults | null>(null);
   const [followUpQuery, setFollowUpQuery] = useState("");
@@ -378,6 +379,29 @@ function SearchPageContent() {
   ) => {
     setIsSearching(true);
     setSearchError(null);
+    setSearchProgress("Starting search...");
+
+    // Platform display names
+    const platformNames: Record<string, string> = {
+      x: "X (Twitter)",
+      tiktok: "TikTok",
+      youtube: "YouTube",
+      reddit: "Reddit",
+      bluesky: "Bluesky",
+      truthsocial: "Truth Social",
+    };
+
+    // Simulate progress through platforms while search runs
+    let progressIndex = 0;
+    const progressInterval = setInterval(() => {
+      if (progressIndex < sources.length) {
+        const platform = sources[progressIndex];
+        setSearchProgress(`Searching ${platformNames[platform] || platform}...`);
+        progressIndex++;
+      } else {
+        setSearchProgress("Analyzing results...");
+      }
+    }, 2500); // Update every 2.5 seconds
 
     try {
       // Convert URL time_range to API timeFilter
@@ -505,6 +529,7 @@ function SearchPageContent() {
       console.error("Search error:", error);
       setSearchError(error instanceof Error ? error.message : "An error occurred");
     } finally {
+      clearInterval(progressInterval);
       setIsSearching(false);
       setPendingSearch(false);
     }
@@ -1201,7 +1226,7 @@ function SearchPageContent() {
               <div className="mb-8 flex items-center gap-3">
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
                 <span className="text-gray-600" data-testid="thinking-indicator">
-                  Searching across platforms...
+                  {searchProgress}
                 </span>
               </div>
 

@@ -23,6 +23,7 @@ export { default as SocialPostCard } from "./SocialPostCard";
 export { default as SocialPostGrid } from "./SocialPostGrid";
 export { default as MobileBottomNav } from "./MobileBottomNav";
 export { default as AudienceChatSidebar } from "./AudienceChatSidebar";
+export { default as InlineChatPanel } from "./InlineChatPanel";
 export { default as ChatMessage } from "./ChatMessage";
 export { default as ChatInput } from "./ChatInput";
 export { default as ChatWelcome } from "./ChatWelcome";
