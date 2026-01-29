@@ -103,8 +103,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       },
     }
 
-    // Check if Gemini API key is configured
-    const apiKey = config.llm.gemini.apiKey
+    // Check if Anthropic API key is configured
+    const apiKey = config.llm.anthropic.apiKey
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "Chat service not configured" }), {
         status: 503,
