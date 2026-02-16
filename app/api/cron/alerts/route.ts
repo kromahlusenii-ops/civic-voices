@@ -5,6 +5,7 @@ import type { AlertFrequency } from "@prisma/client"
 import { anthropicGenerate } from "@/lib/services/anthropicClient"
 import { maskEmail } from "@/lib/utils/logging"
 import { startAlertReport } from "@/lib/services/reportService"
+import { timingSafeEqual } from "@/lib/auth/timingSafeCompare"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60 // 1 minute max for Vercel Hobby plan
@@ -25,12 +26,12 @@ function verifyCronSecret(request: NextRequest): boolean {
     return false
   }
 
-  // Constant-time comparison to prevent timing attacks
-  if (!authHeader || authHeader.length !== `Bearer ${cronSecret}`.length) {
+  if (!authHeader) {
     return false
   }
 
-  return authHeader === `Bearer ${cronSecret}`
+  const expected = `Bearer ${cronSecret}`
+  return timingSafeEqual(authHeader, expected)
 }
 
 // Calculate next scheduled time based on frequency

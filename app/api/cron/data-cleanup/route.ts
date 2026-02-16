@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { timingSafeEqual } from "@/lib/auth/timingSafeCompare"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -18,7 +19,11 @@ function verifyCronSecret(request: NextRequest): boolean {
     return false
   }
 
-  return authHeader === `Bearer ${cronSecret}`
+  if (!authHeader) {
+    return false
+  }
+
+  return timingSafeEqual(authHeader, `Bearer ${cronSecret}`)
 }
 
 // Retention periods in days

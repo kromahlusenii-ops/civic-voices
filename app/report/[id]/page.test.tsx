@@ -81,20 +81,14 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// Mock Firebase Auth
-vi.mock("firebase/auth", () => ({
-  getAuth: vi.fn(),
-  GoogleAuthProvider: vi.fn(),
-  createUserWithEmailAndPassword: vi.fn(),
-  signInWithEmailAndPassword: vi.fn(),
-  signInWithPopup: vi.fn(),
-  updateProfile: vi.fn(),
-}));
-
-// Mock Firebase config
-vi.mock("@/lib/firebase", () => ({
-  auth: {},
-  googleProvider: {},
+// Mock Supabase (page uses AuthContext which uses Supabase)
+vi.mock("@/lib/supabase", () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
+      signOut: vi.fn(),
+    },
+  },
 }));
 
 // Mock fetch API

@@ -46,22 +46,3 @@ export async function verifySupabaseToken(token: string) {
     return null
   }
 }
-
-/**
- * Get the current user from the session cookie (for server components)
- * Use this in server components and API routes that need the current user
- * 
- * Note: For Next.js App Router, consider using @supabase/ssr helpers instead
- * This is a simplified version for basic use cases
- */
-export async function getServerUser() {
-  try {
-    // Note: In production, use @supabase/ssr createServerClient with cookies
-    // This simplified version requires token to be passed explicitly
-    // The createServerClient() would be called here with cookie handling
-    return null
-  } catch (error) {
-    console.error('Error getting server user:', error)
-    return null
-  }
-}

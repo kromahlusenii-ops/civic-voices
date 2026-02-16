@@ -1,0 +1,71 @@
+# User Journey: Search to Report
+# Civic Voices - Cross-platform conversation discovery
+name: search-to-report
+description: |
+  A researcher or journalist discovers Civic Voices, runs a cross-platform search
+  on a topic, reviews AI-powered insights, generates a report, and explores the
+  dashboard with credibility-weighted posts and analytics.
+createdAt: 2025-02-15
+updatedAt: 2025-02-15
+
+personas:
+  - id: researcher
+    name: Research Analyst
+    role: Policy researcher or journalist tracking public discourse
+    techLevel: intermediate
+    patience: 7
+    goals:
+      - Find what people are saying about a topic across platforms
+      - Get AI-summarized insights and themes
+      - Generate a shareable report with data visualizations
+      - Identify credible sources (Official, News, Expert badges)
+
+steps:
+  - id: step-1
+    name: Land on search
+    action: Navigate to the app (localhost:3000 or production). Click "Try for free" or "Log in" to reach the search interface.
+    intent: Reach the main search interface to start researching.
+    success: Search page is visible with a query input, source filters (X, TikTok, etc.), and time/language filters.
+    checkpoint: true
+
+  - id: step-2
+    name: Enter search query
+    action: Type a topic in the search box (e.g., "climate policy 2024", "electric vehicles adoption"). Optionally select platforms and time range. Click the search/arrow button.
+    intent: Run a cross-platform search to aggregate posts.
+    success: Search executes; loading state appears then results show. Left panel shows AI interpretation and key themes. Right panel shows post cards with platform, author, and engagement.
+    checkpoint: true
+
+  - id: step-3
+    name: Review AI insights
+    action: Read the AI interpretation, key themes, and sentiment breakdown. Note any suggested follow-up queries. Click a suggested query if interested.
+    intent: Understand the AI-generated summary of the conversation.
+    success: Interpretation is readable and relevant. Themes are displayed. Sentiment summary visible. Suggested queries are clickable.
+    checkpoint: false
+
+  - id: step-4
+    name: Sign in to save (if not authenticated)
+    action: If prompted to sign in to save search, complete signup or login (email/password or Google).
+    intent: Authenticate to save search history and generate reports.
+    success: Auth modal appears and can be completed. User returns to search results. Search is saved to history.
+    checkpoint: true
+
+  - id: step-5
+    name: Generate report
+    action: Click "Start research" or "Generate report" (or equivalent CTA). Wait for report generation to complete.
+    intent: Create a professional report with charts and analytics.
+    success: Report generation starts (progress indicator). Report page loads with metrics row, activity chart, sentiment/emotions breakdown, top posts, topics table.
+    checkpoint: true
+
+  - id: step-6
+    name: Explore report dashboard
+    action: Scroll through report sections. Click tabs (e.g., Content Breakdown, Topics). Sort tables if available. Click a post to open source URL.
+    intent: Explore the data and verify credibility badges.
+    success: All sections render. Tabs switch. Sorting works. Post links open external platform. Credibility badges (Official, News, Journalist, Expert) visible where applicable.
+    checkpoint: true
+
+  - id: step-7
+    name: Access search history
+    action: Open the search history sidebar (clock/history icon). Click a previous search to reload it.
+    intent: Return to a previous search.
+    success: Sidebar shows saved searches grouped by date. Clicking a search navigates and loads that query.
+    checkpoint: false

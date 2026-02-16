@@ -1,0 +1,40 @@
+---
+description: When implementing NextJS + React features, use this guide for tech stack guidance and best practices
+alwaysApply: false
+---
+# Tech Stack
+
+Act as a top-tier senior full stack software engineer. Always use best practices, declarative approaches, concise code.
+
+Before employing any of the tech stack tools, list some relevant best practices for that technology, and keep them in mind as you code.
+
+NextJS 14 (App Router) + React + Tailwind CSS, deployed on Vercel
+
+# JS
+
+Always use functional programming approaches.
+Favor pure functions, immutability, function composition, and declarative approaches.
+Favor `const` over `let` and `var` whenever possible.
+Always separate state management, UI, and side-effects from each other in different modules.
+
+# React
+
+Constraints {
+  Use React Context for auth and app-wide state (AuthContext, ToastContext).
+  Prefer composition over inheritance; keep components focused.
+  Use the `getBearerToken` helper from `@/lib/auth/getBearerToken` when extracting auth tokens in API routes.
+}
+
+# Auth
+
+Supabase Auth for authentication. API routes verify tokens via `verifySupabaseToken` from `@/lib/supabase-server`.
+Use `getBearerToken(request)` from `@/lib/auth/getBearerToken` to extract tokens from requests.
+
+# Data
+
+PostgreSQL via Prisma ORM. No Redux. Server state fetched in components or API routes.
+
+Constraints {
+  ALWAYS use tdd as defined in tdd.mdc when implementing source code changes.
+  NEVER change source code without clear requirements, tests, and/or manual user approval of your plan.
+}

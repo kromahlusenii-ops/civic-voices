@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySupabaseToken } from "@/lib/supabase-server";
 import { getSearchHistory } from "@/lib/services/searchStorage";
+import { getBearerToken } from "@/lib/auth/getBearerToken";
 
 // Mark route as dynamic since it uses request.headers
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    // Get Supabase access token from Authorization header
-    const authHeader = request.headers.get("Authorization");
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const accessToken = getBearerToken(request);
+    if (!accessToken) {
       return NextResponse.json(
         { error: "Unauthorized - No token provided" },
         { status: 401 }
       );
     }
-
-    const accessToken = authHeader.split("Bearer ")[1];
 
     // Verify Supabase access token
     const user = await verifySupabaseToken(accessToken);
