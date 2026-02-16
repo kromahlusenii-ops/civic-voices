@@ -128,9 +128,11 @@ export function useAudienceChat(
           const lines = buffer.split("\n")
           buffer = lines.pop() || ""
 
+          let currentEventType = ""
           for (const line of lines) {
             if (line.startsWith("event: ")) {
-              // Event type line - skip to data line
+              // Track event type for the next data line
+              currentEventType = line.slice(7).trim()
               continue
             }
 
@@ -138,6 +140,12 @@ export function useAudienceChat(
               const data = line.slice(6)
               try {
                 const parsed = JSON.parse(data)
+
+                // Handle based on event type
+                if (currentEventType === "error" || (parsed.message && !parsed.content && !parsed.fullMessage)) {
+                  // Error event - throw to be caught by outer catch
+                  throw new Error(parsed.message || "Unknown error")
+                }
 
                 if (parsed.content) {
                   // Delta event - append content
@@ -163,17 +171,18 @@ export function useAudienceChat(
                     )
                   )
                 }
-
-                if (parsed.message && !parsed.content && !parsed.fullMessage) {
-                  // Error event
-                  throw new Error(parsed.message)
-                }
               } catch (parseError) {
-                // Ignore parse errors for incomplete data
-                if (parseError instanceof Error && parseError.message !== "Unexpected end of JSON input") {
-                  console.error("Parse error:", parseError)
+                // Re-throw actual errors, only ignore JSON parse errors for incomplete data
+                if (parseError instanceof Error) {
+                  if (parseError.message === "Unexpected end of JSON input") {
+                    // Ignore incomplete JSON - will be completed in next chunk
+                    continue
+                  }
+                  // Re-throw all other errors (including our error events)
+                  throw parseError
                 }
               }
+              currentEventType = "" // Reset after processing
             }
           }
         }
