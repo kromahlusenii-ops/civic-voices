@@ -34,9 +34,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useToast } from "../contexts/ToastContext";
 import { STRIPE_CONFIG } from "@/lib/stripe-config";
-// Streaming search is available but disabled by default - enable with NEXT_PUBLIC_FEATURE_STREAMING_SEARCH=true
-// import { useStreamingSearch } from "@/lib/hooks/useStreamingSearch";
-// import { PlatformStatusList } from "../components/PlatformStatusBadge";
+import { useStreamingSearch } from "@/lib/hooks/useStreamingSearch";
 import {
   formatMentions,
   calculateTotalMentions,
@@ -112,8 +110,12 @@ interface SearchResults {
   warnings?: string[]; // Non-fatal warnings (e.g., time range clamped)
 }
 
+const useStreamingSearchFlag =
+  typeof process !== "undefined" && process.env.NEXT_PUBLIC_FEATURE_STREAMING_SEARCH === "true";
+
 function SearchPageContent() {
-  const { isAuthenticated, loading, user, session, billing, billingLoading, refreshBilling } = useAuth();
+  const { isAuthenticated, loading, user, session, billing, refreshBilling } = useAuth();
+  const streamingState = useStreamingSearch();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { showToast } = useToast();
@@ -168,6 +170,102 @@ function SearchPageContent() {
   const [userUseCase, setUserUseCase] = useState<string | null>(null);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
+  // When streaming completes, convert to searchResults and run save/deduct
+  const streamingCompleteRef = useRef(false);
+  useEffect(() => {
+    if (
+      !useStreamingSearchFlag ||
+      !streamingState.isComplete ||
+      streamingState.posts.length === 0 ||
+      streamingCompleteRef.current
+    )
+      return;
+    streamingCompleteRef.current = true;
+    const query = searchParams.get("message") || searchQuery;
+    const results: SearchResults = {
+      query,
+      posts: streamingState.posts,
+      totalMentions: calculateTotalMentions(streamingState.posts),
+      qualityBadge: getMentionsBadge(calculateTotalMentions(streamingState.posts)),
+      dateRange: streamingState.summary?.timeRange
+        ? {
+            start: String(streamingState.summary.timeRange.start).split("T")[0],
+            end: String(streamingState.summary.timeRange.end).split("T")[0],
+          }
+        : { start: "", end: "" },
+      aiAnalysis: streamingState.aiAnalysis || null,
+      keyThemes: streamingState.aiAnalysis?.keyThemes || [],
+      warnings: streamingState.warnings,
+    };
+    setSearchResults(results);
+    setPendingSearch(false);
+
+    const runPostSearch = async () => {
+      if (isAuthenticated && user) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            const saveRes = await fetch("/api/search/save", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({
+                queryText: query,
+                sources: selectedSources,
+                filters: { timeFilter: timeRange, language },
+                totalResults: streamingState.posts.length,
+                posts: streamingState.posts.map((p) => ({
+                  id: p.id,
+                  text: p.text,
+                  author: p.author,
+                  authorHandle: p.authorHandle,
+                  authorAvatar: p.authorAvatar,
+                  platform: p.platform,
+                  url: p.url,
+                  thumbnail: p.thumbnail,
+                  createdAt: p.createdAt,
+                  engagement: p.engagement,
+                })),
+              }),
+            });
+            if (saveRes.ok) {
+              const saveData = await saveRes.json();
+              setSearchResults((prev) => (prev ? { ...prev, searchId: saveData.searchId } : null));
+            }
+            await fetch("/api/billing/deduct", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ action: "search", description: `Search: ${query}` }),
+            });
+            refreshBilling();
+          }
+        } catch (e) {
+          console.error("Streaming post-search:", e);
+        }
+      }
+    };
+    runPostSearch();
+  }, [
+    streamingState.isComplete,
+    streamingState.posts,
+    streamingState.aiAnalysis,
+    streamingState.summary,
+    streamingState.warnings,
+    searchQuery,
+    selectedSources,
+    timeRange,
+    language,
+    isAuthenticated,
+    user,
+    refreshBilling,
+    searchParams,
+  ]);
+
   // When switching to local search, reset sources to Reddit only
   useEffect(() => {
     if (searchScope === "local") {
@@ -200,6 +298,28 @@ function SearchPageContent() {
 
   const currentPlaceholder = placeholders[placeholderIndex] || placeholders[0]
   const suggestedSearches = getSuggestionsForUseCase(userUseCase)
+
+  const displayIsSearching =
+    isSearching || (useStreamingSearchFlag && streamingState.isSearching)
+  const displayResults: SearchResults | null =
+    searchResults ??
+    (useStreamingSearchFlag && streamingState.posts.length > 0
+      ? {
+          query: searchQuery || searchParams.get("message") || "",
+          posts: streamingState.posts,
+          totalMentions: calculateTotalMentions(streamingState.posts),
+          qualityBadge: getMentionsBadge(calculateTotalMentions(streamingState.posts)),
+          dateRange: streamingState.summary?.timeRange
+            ? {
+                start: String(streamingState.summary.timeRange.start).split("T")[0],
+                end: String(streamingState.summary.timeRange.end).split("T")[0],
+              }
+            : { start: "", end: "" },
+          aiAnalysis: streamingState.aiAnalysis ?? null,
+          keyThemes: streamingState.aiAnalysis?.keyThemes ?? [],
+          warnings: streamingState.warnings,
+        }
+      : null)
 
   // Start tooltip sequence on page load, but wait until persona modal is closed
   useEffect(() => {
@@ -289,8 +409,7 @@ function SearchPageContent() {
 
       // Execute the pending search
       setSearchQuery(pendingMessage);
-      const geoParams = searchScope === "local" ? { state: selectedState, city: selectedCity } : undefined;
-      executeSearchWithFilters(pendingMessage, selectedSources, timeRange, language, geoParams);
+      executeSearch(pendingMessage);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, isAuthenticated, loading, isSearching, searchResults, router]);
@@ -300,7 +419,7 @@ function SearchPageContent() {
     const isSubscriptionSuccess = searchParams.get("subscription") === "success";
 
     if (!isSubscriptionSuccess || hasHandledSubscriptionSuccess.current) return;
-    if (loading || billingLoading) return; // Wait for auth and billing to load
+    if (loading) return; // Wait for auth; billing loads in background
 
     hasHandledSubscriptionSuccess.current = true;
 
@@ -344,7 +463,7 @@ function SearchPageContent() {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, loading, billingLoading, router, refreshBilling, showToast]);
+  }, [searchParams, loading, router, refreshBilling, showToast]);
 
   // Handle time range change
   const handleTimeRangeChange = useCallback((value: string) => {
@@ -537,6 +656,20 @@ function SearchPageContent() {
 
   const executeSearch = async (query: string) => {
     const geoParams = searchScope === "local" ? { state: selectedState, city: selectedCity } : undefined;
+    if (useStreamingSearchFlag && !geoParams?.state) {
+      streamingCompleteRef.current = false;
+      streamingState.reset();
+      setSearchError(null);
+      setSearchResults(null);
+      streamingState.startSearch({
+        query,
+        sources: selectedSources,
+        timeFilter: TIME_RANGE_TO_API[timeRange] || "3m",
+        language: language === "all" ? undefined : language,
+        sort: "relevance",
+      });
+      return;
+    }
     await executeSearchWithFilters(query, selectedSources, timeRange, language, geoParams);
   };
 
@@ -1056,7 +1189,7 @@ function SearchPageContent() {
         )}
 
         {/* Initial Search State */}
-        {!searchResults && !isSearching && !showLocalComingSoon && (
+        {!displayResults && !displayIsSearching && !showLocalComingSoon && (
           <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-2xl">
               <h1 className="mb-8 text-center text-3xl font-light text-gray-400" data-testid="dashboard-greeting">
@@ -1099,12 +1232,12 @@ function SearchPageContent() {
                   </div>
                   <button
                     onClick={handleStartResearch}
-                    disabled={!searchQuery.trim() || isSearching}
+                    disabled={!searchQuery.trim() || displayIsSearching}
                     className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     data-testid="start-research-btn"
-                    aria-label={isSearching ? "Searching..." : "Start research"}
+                    aria-label={displayIsSearching ? "Searching..." : "Start research"}
                   >
-                    {isSearching ? (
+                    {displayIsSearching ? (
                       <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-400 border-t-white" />
                     ) : (
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1212,7 +1345,7 @@ function SearchPageContent() {
         )}
 
         {/* Loading State - Centered */}
-        {isSearching && (
+        {displayIsSearching && (
           <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4" role="status" aria-live="polite" aria-busy="true">
             <div className="w-full max-w-2xl">
               {/* Query Badge */}
@@ -1226,7 +1359,11 @@ function SearchPageContent() {
               <div className="mb-8 flex items-center gap-3">
                 <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
                 <span className="text-gray-600" data-testid="thinking-indicator">
-                  {searchProgress}
+                  {useStreamingSearchFlag && streamingState.isSearching
+                    ? streamingState.posts.length > 0
+                      ? `${formatMentions(streamingState.posts.length)} posts so far...`
+                      : "Searching platforms..."
+                    : searchProgress}
                 </span>
               </div>
 
@@ -1256,29 +1393,29 @@ function SearchPageContent() {
         )}
 
         {/* Results State - Centered Summary (before Preview) */}
-        {searchResults && !isSearching && !showMentionsPreview && (
+        {displayResults && !displayIsSearching && !showMentionsPreview && (
           <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
             <div className="w-full max-w-2xl">
               {/* Query Badge */}
               <div className="flex justify-end mb-6">
                 <div className="inline-block rounded-full bg-white border border-gray-200 px-4 py-2 text-sm text-gray-800 shadow-sm">
-                  {searchResults.query}
+                  {displayResults.query}
                 </div>
               </div>
 
               {/* AI Analysis */}
               <div className="mb-8 space-y-4">
-                {searchResults.aiAnalysis ? (
+                {displayResults.aiAnalysis ? (
                   <>
                     <p className="text-gray-700 leading-relaxed" data-testid="ai-interpretation">
-                      {renderFormattedText(searchResults.aiAnalysis.interpretation)}
+                      {renderFormattedText(displayResults.aiAnalysis.interpretation)}
                     </p>
 
                     {/* Suggested Boolean Search */}
-                    {searchResults.aiAnalysis.suggestedQueries && searchResults.aiAnalysis.suggestedQueries.length > 0 && (
+                    {displayResults.aiAnalysis.suggestedQueries && displayResults.aiAnalysis.suggestedQueries.length > 0 && (
                       <div className="space-y-3">
                         <QuerySuggestions
-                          suggestions={searchResults.aiAnalysis.suggestedQueries}
+                          suggestions={displayResults.aiAnalysis.suggestedQueries}
                           onQuerySelect={(query) => {
                             setFollowUpQuery(query);
                           }}
@@ -1288,7 +1425,7 @@ function SearchPageContent() {
                   </>
                 ) : (
                   <p className="text-gray-700 leading-relaxed" data-testid="ai-interpretation">
-                    Found {searchResults.totalMentions} posts about &quot;{searchResults.query}&quot;.
+                    Found {displayResults.totalMentions} posts about &quot;{displayResults.query}&quot;.
                   </p>
                 )}
               </div>
@@ -1296,10 +1433,10 @@ function SearchPageContent() {
               {/* Search Builder Card */}
               <div className="rounded-2xl bg-white border border-gray-200 p-6 shadow-sm">
                 {/* Boolean Query Display */}
-                {searchResults.aiAnalysis?.suggestedQueries && searchResults.aiAnalysis.suggestedQueries.length > 0 && (
+                {displayResults.aiAnalysis?.suggestedQueries && displayResults.aiAnalysis.suggestedQueries.length > 0 && (
                   <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
                     <span className="rounded bg-white border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800">
-                      {searchResults.query}
+                      {displayResults.query}
                     </span>
                   </div>
                 )}
@@ -1338,21 +1475,21 @@ function SearchPageContent() {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-semibold text-gray-900" data-testid="total-mentions">
-                        {formatMentions(searchResults.totalMentions)} mentions
+                        {formatMentions(displayResults.totalMentions)} mentions
                       </span>
-                      {searchResults.qualityBadge && (
+                      {displayResults.qualityBadge && (
                         <span
                           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            MENTIONS_BADGE_STYLES[searchResults.qualityBadge]
+                            MENTIONS_BADGE_STYLES[displayResults.qualityBadge]
                           }`}
                           data-testid="mentions-badge"
                         >
-                          {MENTIONS_BADGE_LABELS[searchResults.qualityBadge]}
+                          {MENTIONS_BADGE_LABELS[displayResults.qualityBadge]}
                         </span>
                       )}
                     </div>
                     <p className="text-sm text-gray-500">
-                      {formatDateRange(searchResults.dateRange.start, searchResults.dateRange.end)}
+                      {formatDateRange(displayResults.dateRange.start, displayResults.dateRange.end)}
                     </p>
                   </div>
 
@@ -1395,9 +1532,9 @@ function SearchPageContent() {
                 )}
 
                 {/* API Warnings */}
-                {searchResults.warnings && searchResults.warnings.length > 0 && (
+                {displayResults.warnings && displayResults.warnings.length > 0 && (
                   <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-                    {searchResults.warnings.map((warning, index) => (
+                    {displayResults.warnings.map((warning, index) => (
                       <p key={index} className="text-sm text-amber-800 flex items-center gap-2">
                         <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
@@ -1436,14 +1573,14 @@ function SearchPageContent() {
         )}
 
         {/* Results State - Split Screen with Mentions Preview */}
-        {searchResults && !isSearching && showMentionsPreview && (
+        {displayResults && !displayIsSearching && showMentionsPreview && (
           <div className="flex h-screen">
             {/* Left Panel - AI Analysis (hidden on mobile) */}
             <div className="hidden w-1/2 flex-col border-r border-gray-200 md:flex">
               {/* Header with query */}
               <div className="border-b border-gray-200 p-6">
                 <div className="inline-block rounded-full bg-gray-100 px-4 py-2 text-sm text-gray-800">
-                  {searchResults.query}
+                  {displayResults.query}
                 </div>
               </div>
 
@@ -1458,18 +1595,18 @@ function SearchPageContent() {
                       </svg>
                     </div>
                     <div className="flex-1 space-y-4">
-                      {searchResults.aiAnalysis ? (
+                      {displayResults.aiAnalysis ? (
                         <>
                           <p className="text-gray-800 leading-relaxed" data-testid="ai-interpretation">
-                            {renderFormattedText(searchResults.aiAnalysis.interpretation)}
+                            {renderFormattedText(displayResults.aiAnalysis.interpretation)}
                           </p>
 
                           {/* Suggested Boolean Search */}
-                          {searchResults.aiAnalysis.suggestedQueries && searchResults.aiAnalysis.suggestedQueries.length > 0 && (
+                          {displayResults.aiAnalysis.suggestedQueries && displayResults.aiAnalysis.suggestedQueries.length > 0 && (
                             <div className="space-y-2">
                               <h3 className="text-sm font-medium text-gray-700">Suggested Boolean Search</h3>
                               <QuerySuggestions
-                                suggestions={searchResults.aiAnalysis.suggestedQueries}
+                                suggestions={displayResults.aiAnalysis.suggestedQueries}
                                 onQuerySelect={(query) => {
                                   setFollowUpQuery(query);
                                 }}
@@ -1479,7 +1616,7 @@ function SearchPageContent() {
                         </>
                       ) : (
                         <p className="text-gray-800 leading-relaxed" data-testid="ai-interpretation">
-                          Found {searchResults.totalMentions} posts about &quot;{searchResults.query}&quot;.
+                          Found {displayResults.totalMentions} posts about &quot;{displayResults.query}&quot;.
                           Browse the posts on the right to see what people are saying.
                         </p>
                       )}
@@ -1639,26 +1776,26 @@ function SearchPageContent() {
               <div className="border-b border-gray-200 bg-white px-6 py-3">
                 <div className="flex items-center gap-3">
                   <span className="text-lg font-semibold text-gray-900" data-testid="total-mentions">
-                    {formatMentions(searchResults.totalMentions)} total mentions
+                    {formatMentions(displayResults.totalMentions)} total mentions
                   </span>
-                  {searchResults.qualityBadge && (
+                  {displayResults.qualityBadge && (
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-medium ${
-                        MENTIONS_BADGE_STYLES[searchResults.qualityBadge]
+                        MENTIONS_BADGE_STYLES[displayResults.qualityBadge]
                       }`}
                       data-testid="mentions-badge"
                     >
-                      {MENTIONS_BADGE_LABELS[searchResults.qualityBadge]}
+                      {MENTIONS_BADGE_LABELS[displayResults.qualityBadge]}
                     </span>
                   )}
                 </div>
                 <p className="text-sm text-gray-500">
-                  {formatDateRange(searchResults.dateRange.start, searchResults.dateRange.end)}
+                  {formatDateRange(displayResults.dateRange.start, displayResults.dateRange.end)}
                 </p>
                 {/* API Warnings */}
-                {searchResults.warnings && searchResults.warnings.length > 0 && (
+                {displayResults.warnings && displayResults.warnings.length > 0 && (
                   <div className="mt-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-                    {searchResults.warnings.map((warning, index) => (
+                    {displayResults.warnings.map((warning, index) => (
                       <p key={index} className="text-sm text-amber-800 flex items-center gap-2">
                         <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
@@ -1677,7 +1814,7 @@ function SearchPageContent() {
                 onScroll={(e) => onTooltipScroll(e.currentTarget.scrollTop, 120)}
               >
                 <div className="space-y-4">
-                  {searchResults.posts
+                  {displayResults.posts
                     .filter((post) => !verifiedOnly || post.verificationBadge || (post.credibilityScore && post.credibilityScore >= 0.7))
                     .map((post) => (
                     <div
@@ -1735,9 +1872,29 @@ function SearchPageContent() {
   );
 }
 
+function SearchPageSkeleton() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-2xl">
+        <div className="mb-8 h-10 w-48 animate-pulse rounded bg-gray-200" />
+        <div className="rounded-2xl bg-white p-6 shadow-sm">
+          <div className="mb-4 flex gap-3">
+            <div className="h-12 flex-1 animate-pulse rounded-lg bg-gray-100" />
+            <div className="h-12 w-12 animate-pulse rounded-lg bg-gray-200" />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <div className="h-8 w-24 animate-pulse rounded-full bg-gray-100" />
+            <div className="h-8 w-28 animate-pulse rounded-full bg-gray-100" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<SearchPageSkeleton />}>
       <SearchPageContent />
     </Suspense>
   );

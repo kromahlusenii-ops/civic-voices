@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { useToast } from "@/app/contexts/ToastContext";
@@ -9,7 +10,6 @@ import AuthModal from "@/app/components/AuthModal";
 import ContextualTooltip from "@/components/ContextualTooltip";
 import { useReportTooltips } from "@/lib/hooks/useReportTooltips";
 import {
-  ActivityChart,
   MetricsRow,
   EmotionsBreakdown,
   convertSentimentToEmotions,
@@ -18,7 +18,6 @@ import {
   generateFormatData,
   TopicsTable,
   generateTopicsFromThemes,
-  KeywordsCloud,
   TopPosts,
   TopCreatorsByFollowing,
   ShareModal,
@@ -30,6 +29,26 @@ import {
   InlineChatPanel,
 } from "@/app/components/report";
 import type { DashboardTab } from "@/app/components/report";
+
+const ActivityChart = dynamic(
+  () => import("@/app/components/report/ActivityChart").then((m) => m.default),
+  {
+    loading: () => (
+      <div className="h-64 animate-pulse rounded-lg bg-gray-100" aria-hidden />
+    ),
+    ssr: false,
+  }
+);
+
+const KeywordsCloud = dynamic(
+  () => import("@/app/components/report/KeywordsCloud").then((m) => m.default),
+  {
+    loading: () => (
+      <div className="h-48 animate-pulse rounded-lg bg-gray-100" aria-hidden />
+    ),
+    ssr: false,
+  }
+);
 import type { Post, AIAnalysis } from "@/lib/types/api";
 import type { JobStatus } from "@prisma/client";
 
@@ -248,7 +267,7 @@ export default function ReportPage() {
     }
 
     const retryCount = options?.retryCount || 0;
-    const maxRetries = 5; // More retries for production resilience
+    const maxRetries = 3;
 
     try {
       // Check for share token in URL
@@ -272,7 +291,7 @@ export default function ReportPage() {
         console.log('[Report] No token on first attempt, trying recovery strategies...');
 
         // Strategy 1: Wait for auth to initialize
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 200));
         token = await getAccessToken();
 
         // Strategy 2: Force session refresh from Supabase
@@ -324,11 +343,9 @@ export default function ReportPage() {
             retryCount,
           });
 
-          // Retry with progressive delay for auth race conditions
-          // This handles: 1) session still initializing, 2) token refresh in progress
-          // Total max wait: 500+750+1000+1250+1500 = 5 seconds
+          // Retry with progressive delay for auth race conditions (session init, token refresh)
           if (retryCount < maxRetries && !options?.silent) {
-            const delay = 500 + (retryCount * 250); // 500ms, 750ms, 1000ms, 1250ms, 1500ms
+            const delay = 300 + (retryCount * 150); // 300ms, 450ms, 600ms
             console.log(`[Report] Auth retry ${retryCount + 1}/${maxRetries} after ${delay}ms (had token: ${!!token})`);
             await new Promise(resolve => setTimeout(resolve, delay));
             return fetchReportData({ ...options, retryCount: retryCount + 1 });
