@@ -35,10 +35,17 @@ function saveDismissed(dismissed: Set<string>) {
   }
 }
 
+function isMobileDevice(): boolean {
+  if (typeof window === "undefined") return false
+  return window.innerWidth < 768
+}
+
 export function useReportTooltips({ skip = [] }: UseReportTooltipsOptions = {}) {
   const [, setDismissed] = useState<Set<string>>(() => loadDismissed())
   const [activeTooltip, setActiveTooltip] = useState<ReportTooltipId | null>(null)
   const [tourActive, setTourActive] = useState<boolean>(() => {
+    // Disable tour on mobile devices
+    if (isMobileDevice()) return false
     // If all non-skipped tooltips are already dismissed, tour is not active
     const dismissed = loadDismissed()
     const skipS = new Set(skip)
@@ -90,6 +97,9 @@ export function useReportTooltips({ skip = [] }: UseReportTooltipsOptions = {}) 
   )
 
   const onReportLoaded = useCallback(() => {
+    // Don't start tour on mobile
+    if (isMobileDevice()) return
+
     if (timerRef.current) {
       clearTimeout(timerRef.current)
     }
