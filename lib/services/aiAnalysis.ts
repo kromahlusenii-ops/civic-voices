@@ -373,29 +373,45 @@ Respond ONLY with valid JSON, no additional text.`;
     let keyThemes: string[] = [];
 
     if (hasResults) {
-      // Extract snippets from top-engaged posts to give a substantive fallback
-      const topPosts = [...posts]
-        .sort((a, b) => (b.engagement.likes + b.engagement.comments) - (a.engagement.likes + a.engagement.comments))
-        .slice(0, 5);
+      // Calculate engagement and platform stats for a meaningful summary
+      const totalEngagement = posts.reduce((sum, p) => sum + p.engagement.likes + p.engagement.comments + p.engagement.shares, 0);
+      const platforms = [...new Set(posts.map(p => p.platform))];
+      const platformNames = platforms.map(p => p === "x" ? "X" : p.charAt(0).toUpperCase() + p.slice(1)).join(", ");
 
-      // Pull the first meaningful sentence from each top post
-      const snippets = topPosts
-        .map(p => {
-          const text = p.text.replace(/https?:\/\/\S+/g, "").trim();
-          const sentence = text.split(/[.!?\n]/).find(s => s.trim().length > 20);
-          return sentence ? sentence.trim() : null;
-        })
-        .filter(Boolean)
-        .slice(0, 2);
+      // Analyze sentiment distribution from posts that have sentiment
+      const postsWithSentiment = posts.filter(p => p.sentiment);
+      const sentimentCounts = {
+        positive: postsWithSentiment.filter(p => p.sentiment === "positive").length,
+        negative: postsWithSentiment.filter(p => p.sentiment === "negative").length,
+        neutral: postsWithSentiment.filter(p => p.sentiment === "neutral").length,
+      };
+      const totalSentiment = sentimentCounts.positive + sentimentCounts.negative + sentimentCounts.neutral;
 
-      if (snippets.length > 0) {
-        interpretation = `Top discussions include: "${snippets[0]}"${snippets[1] ? ` and "${snippets[1]}"` : ""}. Browse the posts to see the full conversation.`;
-      } else {
-        interpretation = `We found ${posts.length} posts about "${query}". Browse the results to see what people are saying.`;
+      // Build a descriptive summary
+      let sentimentDesc = "";
+      if (totalSentiment > 0) {
+        const posPercent = Math.round((sentimentCounts.positive / totalSentiment) * 100);
+        const negPercent = Math.round((sentimentCounts.negative / totalSentiment) * 100);
+        if (posPercent > 50) {
+          sentimentDesc = "Sentiment is largely positive";
+        } else if (negPercent > 50) {
+          sentimentDesc = "Sentiment skews negative";
+        } else {
+          sentimentDesc = "Sentiment is mixed";
+        }
       }
 
-      // Use query terms as themes instead of extracting from messy post content
-      keyThemes = query.split(/\s+/).filter(w => w.length > 2 && !["and", "the", "for"].includes(w.toLowerCase())).slice(0, 3);
+      // Create a proper analytical summary
+      const engagementDesc = totalEngagement > 10000
+        ? `with high engagement (${(totalEngagement / 1000).toFixed(0)}K+ interactions)`
+        : totalEngagement > 1000
+          ? `with moderate engagement (${(totalEngagement / 1000).toFixed(1)}K interactions)`
+          : `with ${totalEngagement.toLocaleString()} total interactions`;
+
+      interpretation = `Found **${posts.length} posts** about "${query}" across ${platformNames} ${engagementDesc}. ${sentimentDesc ? sentimentDesc + ". " : ""}Generate a full report to see detailed AI analysis of themes, sentiment breakdown, and key insights.`;
+
+      // Use query terms as themes
+      keyThemes = query.split(/\s+/).filter(w => w.length > 2 && !["and", "the", "for", "with", "about"].includes(w.toLowerCase())).slice(0, 3);
       if (keyThemes.length === 0) keyThemes = [query];
     } else {
       keyThemes = ["no results"];

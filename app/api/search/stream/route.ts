@@ -586,11 +586,11 @@ export async function GET(request: NextRequest) {
 
       // Run AI analysis if configured and we have posts
       let aiAnalysis: AIAnalysis | undefined
-      if (config.llm.gemini.apiKey && cleanedPosts.length > 0) {
+      if (config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
         sendEvent({ type: "ai_analysis_started", data: {} })
 
         try {
-          const aiService = new AIAnalysisService(config.llm.gemini.apiKey)
+          const aiService = new AIAnalysisService(config.llm.anthropic.apiKey)
           aiAnalysis = await withTimeout(
             aiService.generateAnalysis(query, cleanedPosts, {
               timeRange: timeFilter,
