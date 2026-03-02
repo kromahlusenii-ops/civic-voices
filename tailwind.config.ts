@@ -12,8 +12,9 @@ const config: Config = {
         'xs': '375px', // iPhone SE and similar small devices
       },
       fontFamily: {
-        display: ['var(--font-playfair)', 'Georgia', 'serif'],
+        display: ['var(--font-anybody)', 'var(--font-dm-sans)', 'system-ui', 'sans-serif'],
         body: ['var(--font-dm-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-dm-mono)', 'monospace'],
       },
       colors: {
         // Keep legacy colors for existing pages

@@ -185,23 +185,44 @@ export async function GET(request: NextRequest) {
     // Auto-create user if they don't exist in the database
     // This handles cases where user signed up via Supabase but record wasn't created
     if (!user) {
-      console.log(`Auto-creating user for Supabase UID: ${authUser.id}`)
-      const newUser = await prisma.user.create({
-        data: {
-          supabaseUid: authUser.id,
-          email: authUser.email || `${authUser.id}@unknown.com`,
-          subscriptionStatus: "free",
-          monthlyCredits: 0,
-          bonusCredits: 0,
-        },
+      // Try to find by email in case user was created without supabaseUid
+      user = await prisma.user.findFirst({
+        where: { email: authUser.email || `${authUser.id}@unknown.com` },
         select: {
           id: true,
           stripeCustomerId: true,
           stripeSubscriptionId: true,
           subscriptionStatus: true,
         },
-      })
-      user = newUser
+      });
+
+      if (user) {
+        // User exists by email but missing supabaseUid - link it
+        console.log(`Linking existing user (email: ${authUser.email}) to Supabase UID: ${authUser.id}`);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { supabaseUid: authUser.id },
+        });
+      } else {
+        // User doesn't exist at all - create new
+        console.log(`Auto-creating user for Supabase UID: ${authUser.id}`)
+        const newUser = await prisma.user.create({
+          data: {
+            supabaseUid: authUser.id,
+            email: authUser.email || `${authUser.id}@unknown.com`,
+            subscriptionStatus: "free",
+            monthlyCredits: 0,
+            bonusCredits: 0,
+          },
+          select: {
+            id: true,
+            stripeCustomerId: true,
+            stripeSubscriptionId: true,
+            subscriptionStatus: true,
+          },
+        })
+        user = newUser
+      }
     }
 
     // Sync subscription from Stripe if status needs verification

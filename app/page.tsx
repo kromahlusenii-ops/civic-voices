@@ -359,10 +359,10 @@ export default function Home() {
                 LOG IN
               </Link>
               <Link
-                href="/search"
+                href="/signup"
                 className="px-4 py-2 text-xs font-mono font-bold text-stone-100 bg-stone-900 hover:bg-red-600 transition-colors tracking-wider"
               >
-                TRY FREE →
+                GET STARTED →
               </Link>
             </div>
           </div>
@@ -400,10 +400,10 @@ export default function Home() {
               {/* CTA */}
               <div className="flex flex-col sm:flex-row gap-4 mb-4">
                 <Link
-                  href="/search"
+                  href="/signup"
                   className="inline-flex items-center justify-center px-8 py-4 font-mono text-sm font-bold text-stone-100 bg-stone-900 hover:bg-red-600 transition-all duration-300 tracking-wider group"
                 >
-                  TRY A SEARCH FREE
+                  GET STARTED FREE
                   <svg className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                   </svg>
@@ -454,8 +454,8 @@ export default function Home() {
 
                 {/* Feed Footer */}
                 <div className="px-4 py-3 border-t-2 border-stone-900 bg-stone-900 text-stone-100">
-                  <Link href="/search" className="flex items-center justify-center gap-2 text-[10px] font-mono tracking-wider hover:text-red-400 transition-colors">
-                    SEARCH YOUR CITY
+                  <Link href="/signup" className="flex items-center justify-center gap-2 text-[10px] font-mono tracking-wider hover:text-red-400 transition-colors">
+                    GET STARTED
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -853,8 +853,8 @@ export default function Home() {
                   <span className="text-emerald-400">✓</span> CSV export
                 </li>
               </ul>
-              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 bg-white hover:bg-red-600 hover:text-white transition-colors">
-                START 3-DAY FREE TRIAL →
+              <Link href="/signup" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 bg-white hover:bg-red-600 hover:text-white transition-colors">
+                GET STARTED →
               </Link>
             </div>
 
@@ -876,8 +876,8 @@ export default function Home() {
                   <span className="text-emerald-600">✓</span> Priority support
                 </li>
               </ul>
-              <Link href="/search" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
-                START 3-DAY FREE TRIAL →
+              <Link href="/signup" className="block w-full py-3 text-center font-mono text-xs font-bold text-stone-900 border border-stone-900 hover:bg-stone-900 hover:text-white transition-colors">
+                GET STARTED →
               </Link>
             </div>
 
@@ -966,10 +966,10 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              href="/search"
+              href="/signup"
               className="inline-flex items-center justify-center px-10 py-5 font-mono text-sm font-bold text-stone-900 bg-white hover:bg-red-600 hover:text-white transition-all duration-300 tracking-wider group"
             >
-              TRY A SEARCH FREE
+              GET STARTED FREE
               <svg className="ml-2 w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
               </svg>

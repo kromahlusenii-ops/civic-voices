@@ -1,0 +1,107 @@
+# User Journey: Subcategory Detail & Analysis
+# Civic Voices - Drilling down into specific civic issues to view posts and AI insights
+name: subcategory-detail-analysis
+description: |
+  A policy researcher or journalist navigates to a specific civic issue subcategory
+  (e.g., Affordable Housing, Gun Violence, Healthcare Access) to view real-time social
+  media conversations, AI-generated analysis, sentiment breakdown, and key insights
+  about what people are saying and what they want from policymakers.
+createdAt: 2026-02-17
+updatedAt: 2026-02-17
+
+personas:
+  - id: policy-researcher
+    name: Dr. Sarah Chen
+    role: Policy Research Director at think tank
+    techLevel: intermediate
+    patience: 8
+    goals:
+      - Understand public sentiment on specific civic issues
+      - Identify key pain points and concerns from real conversations
+      - Find representative quotes and social posts for policy briefs
+      - Determine what solutions people are asking for
+      - Filter by platform and sentiment to analyze different audiences
+
+steps:
+  - id: step-1
+    name: Navigate to category
+    action: From /search dashboard, click on a policy category (e.g., "Housing & Development") to view its subcategories.
+    intent: Access the category view to see available civic issue topics.
+    success: Category view loads showing 6-10 subcategories with post counts. Category name and icon displayed in header. Back button visible.
+    checkpoint: true
+
+  - id: step-2
+    name: Select subcategory
+    action: Click on a specific subcategory card (e.g., "Affordable Housing", "Gun Violence", "Mental Health").
+    intent: Drill down into the issue detail view to see conversations and analysis.
+    success: IssueDetailView loads showing the subcategory name, loading state, then data. API call completes within 5-10 seconds.
+    checkpoint: true
+
+  - id: step-3
+    name: Review AI briefing
+    action: Read the "AI BRIEFING" section on the left side which shows post count, sentiment breakdown, and AI-generated summary.
+    intent: Get a high-level understanding of the conversation from AI analysis.
+    success: AI briefing section is visible showing total post count (e.g., "142 posts"), sentiment bar chart (positive/neutral/negative percentages), and AI interpretation text summarizing key themes.
+    checkpoint: true
+
+  - id: step-4
+    name: Review synthesize insights
+    action: Scroll to the "SYNTHESIZE" section on the right side showing Key Insights, Pain Points, and What People Want.
+    intent: Quickly understand the main takeaways, problems, and desired solutions.
+    success: Synthesize section displays bullet lists for Key Insights (2-3 items), Pain Points (2-3 items), and What People Want (2-3 items). Content is relevant to the selected subcategory.
+    checkpoint: true
+
+  - id: step-5
+    name: Browse social posts feed
+    action: Scroll through the "CONVERSATIONS" feed showing individual social media posts from X, Reddit, TikTok, YouTube.
+    intent: Read actual public conversations and quotes from real people discussing the issue.
+    success: Post cards display with platform badge, author info, post text excerpt, engagement metrics (likes, comments), timestamp, sentiment badge (positive/neutral/negative), and verification badges where applicable.
+    checkpoint: true
+
+  - id: step-6
+    name: Filter by platform
+    action: Click platform filter buttons (Reddit, X, TikTok, YouTube) to see posts from specific platforms only.
+    intent: Analyze conversations from a specific social media audience.
+    success: Post feed updates to show only posts from selected platform. Post count in header updates to reflect filtered count. Can toggle back to "All" to see all platforms again.
+    checkpoint: false
+
+  - id: step-7
+    name: Filter by sentiment
+    action: Click sentiment filter buttons (Negative, Neutral, Positive) to focus on specific emotional tones.
+    intent: Identify strongly negative or positive reactions to the issue.
+    success: Post feed filters to show only posts with selected sentiment. Sentiment badges on posts match the filter. Can see count of filtered posts.
+    checkpoint: false
+
+  - id: step-8
+    name: Toggle verified only
+    action: Click "Verified Only" toggle to filter for posts from verified accounts (journalists, officials, experts, news orgs).
+    intent: Focus on credible, authoritative voices discussing the issue.
+    success: Post feed shows only posts with verification badges (Journalist, Official, Expert, News). Post count decreases appropriately. Can toggle off to see all posts again.
+    checkpoint: false
+
+  - id: step-9
+    name: Read individual post details
+    action: Click on a social post card to examine full text, author details, engagement metrics.
+    intent: Get complete context on a specific conversation or quote.
+    success: Post card expands or link opens (depending on implementation). Can read full post text, see author handle, view engagement numbers, and access platform badge link.
+    checkpoint: false
+
+  - id: step-10
+    name: Navigate back to category
+    action: Click the back button at top-left to return to subcategory list view.
+    intent: Explore other related civic issues within the same category.
+    success: View returns to SubcategoryView showing all subcategories for the category. Previously viewed subcategory is still available. Data is cached and loads instantly.
+    checkpoint: true
+
+validation:
+  - IssueDetailView loads with AI briefing, synthesize section, and post feed
+  - AI analysis provides interpretation and key themes
+  - Synthesize section shows insights, pain points, and desired solutions
+  - Post feed displays social media conversations with platform, sentiment, engagement data
+  - Platform filter works (Reddit, X, TikTok, YouTube, All)
+  - Sentiment filter works (Negative, Neutral, Positive, All)
+  - Verified Only toggle filters for credible sources
+  - Back navigation returns to subcategory list without data loss
+  - API calls complete within 10 seconds
+  - Post count accurately reflects filtered state
+  - No console errors or broken UI elements

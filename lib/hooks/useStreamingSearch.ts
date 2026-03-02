@@ -93,6 +93,12 @@ export function useStreamingSearch(): UseStreamingSearchReturn {
     if (params.sort) {
       url.searchParams.set("sort", params.sort)
     }
+    if (params.state) {
+      url.searchParams.set("state", params.state)
+    }
+    if (params.city) {
+      url.searchParams.set("city", params.city)
+    }
 
     // Initialize all platforms as pending
     const platformStatus: Record<string, PlatformStatus> = {}

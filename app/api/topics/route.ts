@@ -1,247 +1,139 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifySupabaseToken } from "@/lib/supabase-server";
-import { prisma } from "@/lib/prisma";
-
-// Mark route as dynamic since it uses request.headers
-export const dynamic = "force-dynamic";
-
 /**
- * Get or create user by Supabase UID
+ * Topics API - Save and retrieve user's selected topics
+ * Used during onboarding and for personalized dashboard
  */
-async function getUserBySupabaseUid(supabaseUid: string, email?: string): Promise<string | null> {
-  // First try to find by supabaseUid
-  let user = await prisma.user.findUnique({
-    where: { supabaseUid },
-    select: { id: true },
-  });
 
-  if (user) {
-    return user.id;
-  }
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { PrismaClient } from '@prisma/client'
 
-  // If not found by supabaseUid, try by email and update supabaseUid
-  if (email) {
-    user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
+const prisma = new PrismaClient()
 
-    if (user) {
-      // Update user with supabaseUid
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { supabaseUid },
-      });
-      return user.id;
-    }
-
-    // Create new user if not found
-    const newUser = await prisma.user.create({
-      data: {
-        supabaseUid,
-        email,
-      },
-      select: { id: true },
-    });
-    return newUser.id;
-  }
-
-  return null;
-}
-
-// GET - List user's tracked topics
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Get Supabase access token from Authorization header
-    const authHeader = request.headers.get("Authorization");
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized - No token provided" },
-        { status: 401 }
-      );
-    }
-
-    const accessToken = authHeader.split("Bearer ")[1];
-    const supabaseUser = await verifySupabaseToken(accessToken);
+    const {
+      data: { user: supabaseUser },
+    } = await supabase.auth.getUser()
 
     if (!supabaseUser) {
-      return NextResponse.json(
-        { error: "Unauthorized - Invalid token" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = await getUserBySupabaseUid(supabaseUser.id, supabaseUser.email);
+    // Get user from database
+    const user = await prisma.user.findUnique({
+      where: { supabaseUid: supabaseUser.id },
+      select: {
+        selectedTopics: true,
+        geoScope: true,
+        geoState: true,
+        geoCity: true,
+      },
+    })
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const topics = await prisma.trackedTopic.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return NextResponse.json({ topics });
+    return NextResponse.json({
+      selectedTopics: user.selectedTopics || [],
+      geoScope: user.geoScope || null,
+      geoState: user.geoState || null,
+      geoCity: user.geoCity || null,
+    })
   } catch (error) {
-    console.error("Get topics error:", error);
+    console.error('[Topics API] Error:', error)
     return NextResponse.json(
-      { error: "Failed to get topics" },
+      { error: 'Failed to retrieve topics' },
       { status: 500 }
-    );
+    )
   }
 }
 
-// POST - Add a new tracked topic
 export async function POST(request: NextRequest) {
   try {
-    // Get Supabase access token from Authorization header
-    const authHeader = request.headers.get("Authorization");
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized - No token provided" },
-        { status: 401 }
-      );
-    }
-
-    const accessToken = authHeader.split("Bearer ")[1];
-    const supabaseUser = await verifySupabaseToken(accessToken);
-
-    if (!supabaseUser) {
-      return NextResponse.json(
-        { error: "Unauthorized - Invalid token" },
-        { status: 401 }
-      );
-    }
-
-    const userId = await getUserBySupabaseUid(supabaseUser.id, supabaseUser.email);
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const body = await request.json();
-    const { query, name } = body as { query: string; name?: string };
-
-    if (!query || typeof query !== "string") {
-      return NextResponse.json(
-        { error: "Query is required" },
-        { status: 400 }
-      );
-    }
-
-    const normalizedQuery = query.toLowerCase().trim();
-
-    // Check if topic already exists
-    const existing = await prisma.trackedTopic.findUnique({
-      where: {
-        userId_query: {
-          userId,
-          query: normalizedQuery,
+    const cookieStore = cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
         },
-      },
-    });
+      }
+    )
 
-    if (existing) {
-      return NextResponse.json(
-        { error: "Topic already tracked" },
-        { status: 409 }
-      );
-    }
-
-    const topic = await prisma.trackedTopic.create({
-      data: {
-        userId,
-        query: normalizedQuery,
-        name: name?.trim() || query.trim(),
-      },
-    });
-
-    return NextResponse.json({ topic }, { status: 201 });
-  } catch (error) {
-    console.error("Add topic error:", error);
-    return NextResponse.json(
-      { error: "Failed to add topic" },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE - Remove a tracked topic
-export async function DELETE(request: NextRequest) {
-  try {
-    // Get Supabase access token from Authorization header
-    const authHeader = request.headers.get("Authorization");
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Unauthorized - No token provided" },
-        { status: 401 }
-      );
-    }
-
-    const accessToken = authHeader.split("Bearer ")[1];
-    const supabaseUser = await verifySupabaseToken(accessToken);
+    const {
+      data: { user: supabaseUser },
+    } = await supabase.auth.getUser()
 
     if (!supabaseUser) {
-      return NextResponse.json(
-        { error: "Unauthorized - Invalid token" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const userId = await getUserBySupabaseUid(supabaseUser.id, supabaseUser.email);
+    const body = await request.json()
+    const { topics, geoScope, geoState, geoCity } = body
 
-    if (!userId) {
+    // Validate topics array
+    if (!Array.isArray(topics)) {
       return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const topicId = searchParams.get("id");
-
-    if (!topicId) {
-      return NextResponse.json(
-        { error: "Topic ID is required" },
+        { error: 'Topics must be an array' },
         { status: 400 }
-      );
+      )
     }
 
-    // Verify ownership before deleting
-    const topic = await prisma.trackedTopic.findFirst({
-      where: {
-        id: topicId,
-        userId,
-      },
-    });
-
-    if (!topic) {
+    // Validate geoScope
+    if (geoScope && !['national', 'state', 'city'].includes(geoScope)) {
       return NextResponse.json(
-        { error: "Topic not found" },
-        { status: 404 }
-      );
+        { error: 'Invalid geoScope. Must be national, state, or city' },
+        { status: 400 }
+      )
     }
 
-    await prisma.trackedTopic.delete({
-      where: { id: topicId },
-    });
+    // Update user in database
+    const user = await prisma.user.update({
+      where: { supabaseUid: supabaseUser.id },
+      data: {
+        selectedTopics: topics,
+        geoScope: geoScope || null,
+        geoState: geoState || null,
+        geoCity: geoCity || null,
+      },
+      select: {
+        selectedTopics: true,
+        geoScope: true,
+        geoState: true,
+        geoCity: true,
+      },
+    })
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      selectedTopics: user.selectedTopics,
+      geoScope: user.geoScope,
+      geoState: user.geoState,
+      geoCity: user.geoCity,
+    })
   } catch (error) {
-    console.error("Delete topic error:", error);
+    console.error('[Topics API] Error:', error)
     return NextResponse.json(
-      { error: "Failed to delete topic" },
+      { error: 'Failed to save topics' },
       { status: 500 }
-    );
+    )
   }
 }

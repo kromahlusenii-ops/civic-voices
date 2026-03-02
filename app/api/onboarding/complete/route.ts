@@ -1,13 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    // Use Supabase auth (not NextAuth)
+    const cookieStore = cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+        },
+      }
+    );
 
-    if (!session?.user?.id) {
+    const {
+      data: { user: supabaseUser },
+    } = await supabase.auth.getUser();
+
+    if (!supabaseUser) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 401 }
@@ -15,21 +33,91 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { topics, skipped, useCase } = body as { topics?: string[]; skipped?: boolean; useCase?: string };
+    const { 
+      topics, 
+      skipped, 
+      useCase,
+      // Phase 1: Topic Selection Onboarding fields
+      selectedTopics,
+      geoScope,
+      geoState,
+      geoCity,
+    } = body as { 
+      topics?: string[]; 
+      skipped?: boolean; 
+      useCase?: string;
+      selectedTopics?: string[];
+      geoScope?: string;
+      geoState?: string;
+      geoCity?: string;
+    };
 
-    // Update user's onboarding status
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: {
-        onboardingCompletedAt: new Date(),
-        ...(useCase && { useCase }),
-      },
+    // Check if user exists, create if not (handles Supabase-only signups)
+    let user = await prisma.user.findUnique({
+      where: { supabaseUid: supabaseUser.id },
+      select: { id: true },
     });
 
-    // Add tracked topics if any were selected
-    if (topics && topics.length > 0 && !skipped) {
+    if (!user) {
+      // Try to find by email in case user was created without supabaseUid
+      user = await prisma.user.findUnique({
+        where: { email: supabaseUser.email || `${supabaseUser.id}@unknown.com` },
+        select: { id: true },
+      });
+
+      if (user) {
+        // User exists by email but missing supabaseUid - update it
+        console.log(`Linking existing user (email: ${supabaseUser.email}) to Supabase UID: ${supabaseUser.id}`);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            supabaseUid: supabaseUser.id,
+            onboardingCompletedAt: new Date(),
+            ...(useCase && { useCase }),
+            ...(selectedTopics && { selectedTopics }),
+            ...(geoScope && { geoScope }),
+            ...(geoState && { geoState }),
+            ...(geoCity && { geoCity }),
+          },
+        });
+      } else {
+        // User doesn't exist at all - create new
+        console.log(`Auto-creating user record for Supabase UID: ${supabaseUser.id}`);
+        user = await prisma.user.create({
+          data: {
+            supabaseUid: supabaseUser.id,
+            email: supabaseUser.email || `${supabaseUser.id}@unknown.com`,
+            name: supabaseUser.user_metadata?.name || null,
+            onboardingCompletedAt: new Date(),
+            ...(useCase && { useCase }),
+            ...(selectedTopics && { selectedTopics }),
+            ...(geoScope && { geoScope }),
+            ...(geoState && { geoState }),
+            ...(geoCity && { geoCity }),
+          },
+          select: { id: true },
+        });
+      }
+    } else {
+      // Update existing user's onboarding status with Phase 1 data
+      await prisma.user.update({
+        where: { supabaseUid: supabaseUser.id },
+        data: {
+          onboardingCompletedAt: new Date(),
+          ...(useCase && { useCase }),
+          // Phase 1: Save topic selections
+          ...(selectedTopics && { selectedTopics }),
+          ...(geoScope && { geoScope }),
+          ...(geoState && { geoState }),
+          ...(geoCity && { geoCity }),
+        },
+      });
+    }
+
+    // Legacy: Add tracked topics if any were selected (old flow)
+    if (topics && topics.length > 0 && !skipped && user) {
       const topicData = topics.map((query: string) => ({
-        userId: session.user.id,
+        userId: user.id,
         query: query.toLowerCase().trim(),
         name: query.trim(),
       }));

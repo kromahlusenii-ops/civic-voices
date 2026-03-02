@@ -17,6 +17,10 @@
   - AI: Anthropic Claude (Haiku for analysis)
 - **Testing:** Vitest, Playwright, React Testing Library
 
+**Single source of truth:** `docs/MASTER_PROMPT.md` — product vision, taxonomy, data pipeline, schema, AI prompts, UI design.
+
+**Product Decisions:** See `docs/PRODUCT_DECISIONS.md` for pricing (flat-rate, no credits), 311 planning, and tracked-issue daily emails. That doc overrides MASTER_PROMPT when in conflict.
+
 **Key Principles:**
 - Read-only system (no posting, commenting, or engagement automation)
 - Privacy-focused (no user profiling, no ML model training on platform data)
@@ -62,7 +66,14 @@ civic-voices/
 │   │   └── AuthContext.tsx       # Supabase Auth state
 │   ├── page.tsx                  # Landing page
 │   ├── search/                   # Search interface
-│   │   └── page.tsx              # Main search page (split-screen UI)
+│   │   ├── page.tsx              # Main search page (dashboard/subcategory/issue-detail views)
+│   │   └── components/
+│   │       ├── SubcategoryView.tsx   # Grid of subcategory cards after clicking category
+│   │       ├── IssueDetailView.tsx   # Two-column: signal panel + conversation feed
+│   │       ├── LegislativeSignalOverview.tsx
+│   │       ├── TrendingSubcategories.tsx
+│   │       ├── GeoScopeToggle.tsx
+│   │       └── PlatformBadges.tsx
 │   ├── report/                   # Report dashboard
 │   │   └── [id]/                 # Dynamic report view
 │   │       ├── page.tsx          # Report dashboard UI
@@ -90,11 +101,17 @@ civic-voices/
 │   │   ├── tier1Sources.ts       # Curated Tier 1 sources (~200 globally)
 │   │   ├── index.ts              # Credibility scoring & badge assignment
 │   │   └── (future: crossref/)   # Fact-check & academic integration
+│   ├── data/                     # Static/mock data (under lib/)
+│   │   ├── taxonomy.ts           # 9 categories, 56 subcategories with expanded keywords
+│   │   │                         # Functions: getQueryVariants(), getGeoQueryVariants()
+│   │   └── subcategorySignals.ts # Mock signal scores, issue details, 311 signals
 │   ├── types/                    # TypeScript types
 │   │   └── api.ts                # API request/response types
 │   ├── utils/                    # Utility functions
 │   │   ├── booleanQuery.ts       # Boolean query parser
-│   │   └── mentions.ts           # Mention detection
+│   │   ├── mentions.ts           # Mention detection
+│   │   ├── timeFilter.ts         # Time filter conversion utilities (Phase 1)
+│   │   └── geoQueryBuilder.ts    # Platform-specific geo query generation (Phase 3)
 │   ├── auth.ts                   # NextAuth configuration
 │   ├── config.ts                 # Centralized config (env vars)
 │   ├── supabase.ts               # Supabase client
@@ -230,6 +247,58 @@ civic-voices/
 - Resonance badges (Low/Medium/High)
 - Relative timestamps
 
+### Query Optimization & Geographic Intelligence (Feb 2026)
+
+**Phase 1: Expanded Social Keywords**
+- All 46 subcategories (excluding Online Behavior) enhanced with 3-5 colloquial phrases
+- Captures diverse demographic language patterns and conversational terms
+- Examples: "paycheck to paycheck", "barely making rent", "struggling", "can't afford"
+- Location: `lib/data/taxonomy.ts` - `socialKeywords` arrays expanded
+
+**Phase 2: Multi-Query Parallel Search**
+- Query variant generator creates 3-4 related searches per subcategory
+- Strategy: Base query + colloquial keywords + alternative combos + problem-focused terms
+- Runs all variants in parallel, merges results, deduplicates by URL
+- Significantly increases post volume without sacrificing relevance
+- Functions:
+  - `getQueryVariants(subcategoryId, maxVariants)` - Generate query variants
+  - `getGeoQueryVariants(subcategoryId, state?, city?, maxVariants)` - With geo context
+- API Integration:
+  - `SearchParams.queryVariants?: string[]` - Triggers multi-query mode
+  - `/api/search` - Recursive calls for each variant, merge & dedupe
+  - `/api/legislative/signals` - Auto-enabled with `useVariants` param (default true)
+
+**Phase 3: Platform-Specific Geographic Intelligence**
+- Each platform has unique geo capabilities:
+  - **X (Twitter)**: `near:` operator (e.g., "affordable housing near:Charlotte")
+  - **Reddit**: Location-based subreddit filtering (handled by `getSubredditsForLocation`)
+  - **TikTok**: Append location to query (e.g., "police reform in North Carolina")
+  - **YouTube**: Append location to query for regional content
+  - **Bluesky/Truth Social**: Append location to query (no native geo APIs)
+- Utility: `lib/utils/geoQueryBuilder.ts`
+  - `buildPlatformGeoQuery(platform, baseQuery, geoContext)` - Routes to platform strategy
+  - `determineGeoScope(state?, city?)` - Returns 'national' | 'state' | 'city'
+- Integration: `app/api/search/route.ts` - Applied before each platform search
+
+**Phase 4: Time Filter Standardization**
+- Unified time filter utility for consistent time range handling
+- Converts "7d", "3m", "12m", "all" to platform-specific formats:
+  - Reddit: "week" | "month" | "year" | "all"
+  - X/YouTube/Bluesky: ISO 8601 date strings
+  - TikTok: Days count
+- Utility: `lib/utils/timeFilter.ts`
+  - `timeFilterToDays(filter)` - Convert to day count
+  - `timeFilterToISODate(filter)` - Convert to ISO 8601
+  - `timeFilterToPlatformParams(filter)` - Platform-specific params object
+  - `parseTimeFilter(value)` - Validate and parse with fallback
+
+**Cache Key Bug Fix:**
+- Legislative signals cache now includes ALL parameters affecting results:
+  - Before: `subcategoryId-state-city-timeFilter`
+  - After: `subcategoryId-state-city-timeFilter-sources-language-variantsKey`
+- Prevents stale cache hits when parameters change
+- Client-side cache key matches server-side for consistency
+
 ## Patterns
 
 ### API Provider Pattern
@@ -343,12 +412,22 @@ Final Score = (Credibility × 0.4) + (Engagement × 0.3) + (Recency × 0.3)
 ### Search Flow Pattern
 
 1. **User Input** → Search query, sources, filters
-2. **API Aggregation** → Parallel fetching from selected platforms
-3. **Normalization** → Transform to unified Post format with author metadata
-4. **Credibility Scoring** → Calculate scores and assign badges
-5. **AI Analysis** → Claude API generates insights (with fallback)
-6. **Response** → Combined posts + AI analysis + credibility summary
-7. **Auto-Save** → If authenticated, save to database
+2. **Query Expansion (Phase 2)** → Generate query variants for broader coverage (optional)
+3. **Geographic Contextualization (Phase 3)** → Apply platform-specific geo strategies
+4. **API Aggregation** → Parallel fetching from selected platforms (or parallel multi-query)
+5. **Normalization** → Transform to unified Post format with author metadata
+6. **Deduplication** → Merge and dedupe posts by URL (if using query variants)
+7. **Credibility Scoring** → Calculate scores and assign badges
+8. **AI Analysis** → Claude API generates insights (with fallback)
+9. **Response** → Combined posts + AI analysis + credibility summary
+10. **Auto-Save** → If authenticated, save to database
+
+**Multi-Query Parallel Search (Phase 2):**
+- Enabled via `queryVariants` parameter in SearchParams
+- Runs 3-4 related queries simultaneously to increase post volume
+- Merges and deduplicates results by post URL
+- Used automatically by `/api/legislative/signals` for taxonomy-based searches
+- Configurable with `useVariants` and `maxVariants` query parameters
 
 ### Error Handling Pattern
 
@@ -372,6 +451,11 @@ Final Score = (Credibility × 0.4) + (Engagement × 0.3) + (Recency × 0.3)
 - Cache key: `userId:query:limit`
 - Automatic cleanup of stale entries
 - Cache invalidation on write operations
+
+**Legislative Signals Cache:**
+- Server: `unstable_cache` in `/api/legislative/signals` route, 1h TTL, key `subcategoryId+state+city`
+- Client: Shared `legislativeSignalsCache` state in search page, passed to SubcategoryView and IssueDetailView
+- Avoids duplicate fetches: SubcategoryView stores full response, IssueDetailView reuses when navigating
 
 ### Testing Patterns
 

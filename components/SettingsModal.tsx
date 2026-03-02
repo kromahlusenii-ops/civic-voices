@@ -3,13 +3,16 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
-import { USE_CASE_STORAGE_KEY, USE_CASE_LABELS, type UseCase } from "@/lib/search-suggestions";
+import { USE_CASE_STORAGE_KEY, USE_CASE_LABELS, LOCATION_STORAGE_KEY, US_STATES, type UseCase } from "@/lib/search-suggestions";
+import citiesByState from "@/data/cities.json";
 
 type SettingsTab = "credit_usage" | "plan_billing" | "preferences" | "team_members" | "integrations";
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Called when user saves a new city/state in Preferences; triggers legislative dashboard refresh */
+  onLocationChange?: (city: string, state: string) => void;
 }
 
 // Icons as inline SVGs for consistency
@@ -73,7 +76,7 @@ const SpinnerIcon = () => (
   </svg>
 );
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, onLocationChange }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("credit_usage");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -225,7 +228,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         <div className="flex-1 overflow-y-auto">
           {activeTab === "credit_usage" && <CreditUsageTab />}
           {activeTab === "plan_billing" && <PlanBillingTab />}
-          {activeTab === "preferences" && <PreferencesTab />}
+          {activeTab === "preferences" && <PreferencesTab onLocationChange={onLocationChange} />}
           {activeTab === "team_members" && <TeamMembersTab />}
           {activeTab === "integrations" && <IntegrationsTab />}
         </div>
@@ -905,15 +908,50 @@ function PlanBillingTab() {
 }
 
 // Preferences Tab
-function PreferencesTab() {
+interface PreferencesTabProps {
+  onLocationChange?: (city: string, state: string) => void;
+}
+
+function PreferencesTab({ onLocationChange }: PreferencesTabProps) {
   const { getAccessToken } = useAuth();
   const [currentUseCase, setCurrentUseCase] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [locationSaving, setLocationSaving] = useState(false);
+  const [locationSaved, setLocationSaved] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(USE_CASE_STORAGE_KEY);
     setCurrentUseCase(stored);
+  }, []);
+
+  // Resolve city for state; if stored city not in list, use first available
+  const resolveCityForState = (stateCode: string, preferredCity?: string): string => {
+    const cities = (citiesByState as Record<string, { id: string; name: string }[]>)[stateCode];
+    if (!cities?.length) return "";
+    const found = cities.find((c) => c.name === preferredCity);
+    return found ? found.name : cities[0].name;
+  };
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LOCATION_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored) as { city?: string; state?: string };
+        const stateCode = parsed.state ?? "AR";
+        const cityName = resolveCityForState(stateCode, parsed.city);
+        setState(stateCode);
+        setCity(cityName || "Little Rock");
+      } else {
+        setState("AR");
+        setCity(resolveCityForState("AR") || "Little Rock");
+      }
+    } catch {
+      setState("AR");
+      setCity(resolveCityForState("AR") || "Little Rock");
+    }
   }, []);
 
   const handleUseCaseChange = async (useCase: string) => {
@@ -946,6 +984,26 @@ function PreferencesTab() {
     setIsSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleLocationSave = () => {
+    const stateVal = state || "AR";
+    const cities = (citiesByState as Record<string, { id: string; name: string }[]>)[stateVal];
+    const cityVal = city.trim() && cities?.some((c) => c.name === city.trim())
+      ? city.trim()
+      : cities?.[0]?.name ?? "Little Rock";
+    setLocationSaving(true);
+    setLocationSaved(false);
+
+    try {
+      localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify({ city: cityVal, state: stateVal }));
+      onLocationChange?.(cityVal, stateVal);
+      setLocationSaved(true);
+      setTimeout(() => setLocationSaved(false), 2000);
+    } catch (err) {
+      console.error("Failed to save location:", err);
+    }
+    setLocationSaving(false);
   };
 
   const useCaseOptions: { id: UseCase; label: string; description: string }[] = [
@@ -1006,6 +1064,69 @@ function PreferencesTab() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Location for legislative dashboard */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-1">
+          <h4 className="font-medium text-gray-900">Legislative dashboard location</h4>
+          {locationSaving && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <SpinnerIcon /> Saving...
+            </span>
+          )}
+          {locationSaved && (
+            <span className="text-xs text-green-600 flex items-center gap-1">
+              <CheckIcon /> Saved
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          City and state used for the legislative signal overview. Saving will refresh the dashboard.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
+          <div className="sm:w-40">
+            <label htmlFor="pref-state" className="block text-xs font-medium text-gray-500 mb-1.5">State</label>
+            <select
+              id="pref-state"
+              value={state}
+              onChange={(e) => {
+                const newState = e.target.value;
+                const cities = (citiesByState as Record<string, { id: string; name: string }[]>)[newState];
+                const kept = cities?.find((c) => c.name === city)?.name ?? cities?.[0]?.name ?? "";
+                setState(newState);
+                setCity(kept);
+              }}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
+            >
+              {US_STATES.map((s) => (
+                <option key={s.code} value={s.code}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label htmlFor="pref-city" className="block text-xs font-medium text-gray-500 mb-1.5">City</label>
+            <select
+              id="pref-city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400"
+            >
+              {((citiesByState as Record<string, { id: string; name: string }[]>)[state] ?? []).map((c) => (
+                <option key={c.id} value={c.name}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={handleLocationSave}
+          disabled={locationSaving}
+          className="rounded-lg px-4 py-2 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 disabled:opacity-50 transition-colors"
+        >
+          Save location
+        </button>
       </div>
     </div>
   );

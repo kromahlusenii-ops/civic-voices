@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
 export default function SignupPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -18,8 +16,15 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
 
+    // Validate required fields
+    if (!name.trim()) {
+      setError("Please enter your name");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -42,18 +47,38 @@ export default function SignupPage() {
         body: JSON.stringify({ email, name: name || undefined }),
       }).catch((err) => console.error("Failed to send welcome email:", err));
 
-      // Sign in after successful signup
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // Check if we got a session from signup (auto-confirm enabled)
+      if (data?.session) {
+        // Wait a moment for cookies to be set, then redirect
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.location.href = "/onboarding"; // Use full page redirect instead of router
+        return;
+      }
+
+      // If no session, try to sign in (email confirmation might be disabled)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
-        setError("Account created but login failed. Please try logging in.");
-      } else {
-        router.push("/search");
-        router.refresh();
+        // Sign in failed - likely email confirmation is required
+        console.error("Sign in error after signup:", signInError);
+        setError("Account created! If you're not redirected, please check your email to confirm your account.");
+        setLoading(false);
+        return;
       }
+
+      if (signInData?.session) {
+        // Wait for cookies to be set, then redirect
+        await new Promise(resolve => setTimeout(resolve, 500));
+        window.location.href = "/onboarding"; // Use full page redirect
+        return;
+      }
+
+      // No error but also no session - this shouldn't happen
+      setError("Something went wrong. Please try logging in.");
+      setLoading(false);
     } catch {
       setError("Something went wrong");
     } finally {
@@ -62,16 +87,21 @@ export default function SignupPage() {
   };
 
   const handleGoogleSignIn = async () => {
+    // Use NEXT_PUBLIC_APP_URL when set so local dev always sends localhost to Supabase (avoids prod redirect)
+    const baseUrl =
+      typeof window !== "undefined"
+        ? process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+        : ""
+    const redirectTo = `${baseUrl.replace(/\/$/, "")}/auth/callback?next=/onboarding`
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/search`,
-      },
-    });
+      options: { redirectTo },
+    })
     if (error) {
-      setError(error.message);
+      setError(error.message)
     }
-  };
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
@@ -81,7 +111,7 @@ export default function SignupPage() {
             Create your account
           </h2>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} method="POST" action="javascript:void(0)">
           {error && (
             <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">
               {error}
@@ -90,17 +120,17 @@ export default function SignupPage() {
           <div className="space-y-4 rounded-md shadow-sm">
             <div>
               <label htmlFor="name" className="sr-only">
-                Name
+                Full Name
               </label>
               <input
                 id="name"
-                name="name"
                 type="text"
                 autoComplete="name"
+                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="relative block w-full rounded-md border-0 px-3 py-2 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-gray-900 sm:text-sm"
-                placeholder="Name (optional)"
+                placeholder="Full Name"
               />
             </div>
             <div>
@@ -109,7 +139,6 @@ export default function SignupPage() {
               </label>
               <input
                 id="email"
-                name="email"
                 type="email"
                 autoComplete="email"
                 required
@@ -125,7 +154,6 @@ export default function SignupPage() {
               </label>
               <input
                 id="password"
-                name="password"
                 type="password"
                 autoComplete="new-password"
                 required

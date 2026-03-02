@@ -136,11 +136,16 @@ export default function AuthModal({ isOpen, onClose, onSuccess, redirectUrl }: A
     setLoading(true);
 
     try {
+      const baseUrl =
+        typeof window !== "undefined"
+          ? process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+          : ""
+      const base = baseUrl.replace(/\/$/, "")
       // Build redirect URL with auth callback flag for pending searches
-      let callbackUrl = `${window.location.origin}/auth/callback`;
+      let callbackUrl = `${base}/auth/callback`
       if (redirectUrl) {
         // Add auth_callback param to the redirect URL so search page knows to auto-execute
-        const redirectWithFlag = new URL(redirectUrl, window.location.origin);
+        const redirectWithFlag = new URL(redirectUrl, base)
         redirectWithFlag.searchParams.set("auth_callback", "true");
         callbackUrl += `?next=${encodeURIComponent(redirectWithFlag.pathname + redirectWithFlag.search)}`;
       }

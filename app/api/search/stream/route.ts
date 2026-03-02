@@ -5,8 +5,11 @@ import { YouTubeProvider } from "@/lib/providers/YouTubeProvider"
 import { BlueskyProvider } from "@/lib/providers/BlueskyProvider"
 import { TruthSocialProvider } from "@/lib/providers/TruthSocialProvider"
 import TikTokApiService from "@/lib/services/tiktokApi"
+import SociaVaultApiService from "@/lib/services/sociaVaultApi"
 import AIAnalysisService from "@/lib/services/aiAnalysis"
 import { config } from "@/lib/config"
+import { getSubredditsForLocation } from "@/lib/utils/subredditLookup"
+import { resolveCityNameToId } from "@/lib/utils/cityResolver"
 import type { Post, AIAnalysis, SortOption } from "@/lib/types/api"
 import {
   processPostsCredibility,
@@ -164,11 +167,14 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const query = searchParams.get("query")
   const sources = searchParams.getAll("sources")
-  const timeFilter = searchParams.get("timeFilter") || "week"
+  const timeFilter = searchParams.get("timeFilter") || "7d"
   const language = searchParams.get("language") || undefined
   const sort = (searchParams.get("sort") || "relevance") as SortOption
+  const state = searchParams.get("state") || undefined
+  const city = searchParams.get("city") || undefined
+  const isLocalSearch = !!(state || city)
 
-  console.log("[Search Stream API] Request:", { query, sources, timeFilter, language, sort })
+  console.log("[Search Stream API] Request:", { query, sources, timeFilter, language, sort, state, city, isLocalSearch })
 
   if (!query || !query.trim()) {
     return new Response(JSON.stringify({ error: "Query is required" }), {
@@ -308,52 +314,196 @@ export async function GET(request: NextRequest) {
         platformSearches.push(xSearch())
       }
 
-      // TikTok search
+      // Reddit search
+      if (sources.includes("reddit")) {
+        sendEvent({ type: "platform_started", data: { platform: "reddit" } })
+
+        const redditSearch = async () => {
+          try {
+            if (!config.sociaVault.apiKey) {
+              console.warn("Reddit API: SociaVault API key not configured")
+              platformCounts.reddit = 0
+              sendEvent({
+                type: "platform_complete",
+                data: { platform: "reddit", posts: [], count: 0 },
+              })
+              return
+            }
+
+            const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey)
+            const redditQuery = SociaVaultApiService.getBaseQuery(query)
+
+            let redditPosts: Post[]
+
+            if (isLocalSearch && state) {
+              const cityId = city ? resolveCityNameToId(state, city) : null
+              if (city && !cityId) {
+                console.warn(`[Reddit Local] Could not resolve city "${city}" for state ${state}; falling back to state-level subreddits`)
+              }
+              const subreddits = getSubredditsForLocation(state, cityId ?? undefined)
+              console.log(`[Reddit Local] Searching subreddits for ${city || state}:`, subreddits)
+
+              if (subreddits.length === 0) {
+                platformCounts.reddit = 0
+                warnings.push("No local subreddits found for the selected location. Try a national search instead.")
+                sendEvent({ type: "platform_complete", data: { platform: "reddit", posts: [], count: 0 } })
+                return
+              }
+
+              redditPosts = await withTimeout(
+                sociaVaultService.searchRedditInSubreddits(redditQuery, subreddits, {
+                  limit: 500,
+                  timeFilter,
+                }),
+                120000,
+                "Reddit Local Search"
+              )
+            } else {
+              const time = SociaVaultApiService.getRedditTimeValue(timeFilter)
+              const paginatedResult = await withRetry(
+                () =>
+                  withTimeout(
+                    sociaVaultService.searchRedditPaginated(redditQuery, {
+                      maxPages: 2,
+                      time,
+                      sort: "relevance",
+                    }),
+                    60000,
+                    "Reddit SociaVault Paginated"
+                  ),
+                { retries: 2, delay: 1500, name: "Reddit SociaVault Paginated" }
+              )
+              redditPosts = sociaVaultService.transformRedditToPosts({ data: { posts: paginatedResult.posts } })
+              redditPosts = SociaVaultApiService.filterByTimeRange(redditPosts, timeFilter)
+            }
+
+            if (SociaVaultApiService.hasBooleanQuery(query)) {
+              redditPosts = SociaVaultApiService.filterByBooleanQuery(redditPosts, query)
+            }
+
+            // Deduplicate by id (handles cross-posts across subreddits, pagination edge cases)
+            const seenRedditIds = new Set<string>()
+            redditPosts = redditPosts.filter((p) => {
+              if (seenRedditIds.has(p.id)) return false
+              seenRedditIds.add(p.id)
+              return true
+            })
+
+            allPosts.push(...redditPosts)
+            platformCounts.reddit = redditPosts.length
+
+            sendEvent({
+              type: "platform_complete",
+              data: { platform: "reddit", posts: redditPosts, count: redditPosts.length },
+            })
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error)
+            console.error("Reddit API error:", errorMessage)
+            platformCounts.reddit = 0
+            warnings.push(`Reddit search failed: ${errorMessage}`)
+            sendEvent({
+              type: "platform_error",
+              data: { platform: "reddit", error: errorMessage },
+            })
+          }
+        }
+        platformSearches.push(redditSearch())
+      }
+
+      // TikTok search - try SociaVault first, fallback to TikAPI if needed
       if (sources.includes("tiktok")) {
         sendEvent({ type: "platform_started", data: { platform: "tiktok" } })
 
         const tiktokSearch = async () => {
-          try {
-            const tiktokService = new TikTokApiService(
-              config.tiktok.apiKey || "",
-              config.tiktok.apiUrl
-            )
+          let tiktokPosts: Post[] = []
 
-            const tiktokQuery = TikTokApiService.getBaseQuery(query)
-            const tiktokResults = await withRetry(
-              () =>
-                withTimeout(
-                  tiktokService.searchVideos(tiktokQuery, { count: 50 }),
-                  30000,
-                  "TikTok API"
-                ),
-              { retries: 2, delay: 1500, name: "TikTok API" }
-            )
-
-            let tiktokPosts = tiktokService.transformToPosts(tiktokResults)
-            tiktokPosts = TikTokApiService.filterByTimeRange(tiktokPosts, timeFilter)
-
-            if (TikTokApiService.hasBooleanQuery(query)) {
-              tiktokPosts = TikTokApiService.filterByBooleanQuery(tiktokPosts, query)
-            }
-
-            allPosts.push(...tiktokPosts)
-            platformCounts.tiktok = tiktokPosts.length
-
-            sendEvent({
-              type: "platform_complete",
-              data: { platform: "tiktok", posts: tiktokPosts, count: tiktokPosts.length },
-            })
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error)
-            console.error("TikTok API error:", errorMessage)
-            platformCounts.tiktok = 0
-            warnings.push(`TikTok search failed: ${errorMessage}`)
-            sendEvent({
-              type: "platform_error",
-              data: { platform: "tiktok", error: errorMessage },
-            })
+          // Try SociaVault first (preferred API)
+          if (config.sociaVault.apiKey) {
+            try {
+                const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey!)
+                let tiktokQuery = TikTokApiService.getTikTokOptimizedQuery(query)
+                if (isLocalSearch) {
+                  const locationSuffix = city && state ? `in ${city}, ${state}` : `in ${state || city}`
+                  tiktokQuery = `${tiktokQuery} ${locationSuffix}`
+                }
+                const tiktokResults = await withRetry(
+                  () =>
+                    withTimeout(
+                      sociaVaultService.searchTikTokVideos(tiktokQuery, { timeFilter, maxPages: 3 }),
+                      30000,
+                      "TikTok SociaVault"
+                    ),
+                  { retries: 2, delay: 1500, name: "TikTok SociaVault" }
+                )
+                let posts = sociaVaultService.transformTikTokToPosts(tiktokResults)
+                posts = SociaVaultApiService.filterByTimeRange(posts, timeFilter)
+                if (SociaVaultApiService.hasBooleanQuery(query)) {
+                  posts = SociaVaultApiService.filterByBooleanQuery(posts, query)
+                }
+                tiktokPosts = posts
+                console.log(`[TikTok SociaVault] Retrieved ${posts.length} posts`)
+              } catch (error) {
+                const err = error instanceof Error ? error.message : String(error)
+                console.error("TikTok SociaVault error:", err)
+              }
           }
+
+          // Fallback to TikAPI only if SociaVault failed or returned few results
+          if (tiktokPosts.length < 5 && config.tiktok.apiKey && config.tiktok.accountKey) {
+            try {
+              console.log('[TikTok Fallback] SociaVault returned < 5, trying TikAPI')
+                const tiktokService = new TikTokApiService(
+                  config.tiktok.apiKey!,
+                  config.tiktok.apiUrl,
+                  config.tiktok.accountKey
+                )
+                let tiktokQuery = TikTokApiService.getTikTokOptimizedQuery(query)
+                if (isLocalSearch) {
+                  const locationSuffix = city && state ? `in ${city}, ${state}` : `in ${state || city}`
+                  tiktokQuery = `${tiktokQuery} ${locationSuffix}`
+                }
+                const tiktokResults = await withRetry(
+                  () =>
+                    withTimeout(
+                      tiktokService.searchVideos(tiktokQuery, { count: 50 }),
+                      30000,
+                      "TikTok API"
+                    ),
+                  { retries: 2, delay: 1500, name: "TikTok API" }
+                )
+                let posts = tiktokService.transformToPosts(tiktokResults)
+                posts = TikTokApiService.filterByTimeRange(posts, timeFilter)
+                if (TikTokApiService.hasBooleanQuery(query)) {
+                  posts = TikTokApiService.filterByBooleanQuery(posts, query)
+                }
+                
+                // Merge and deduplicate with SociaVault results
+                const seenIds = new Set(tiktokPosts.map(p => p.id))
+                for (const post of posts) {
+                  if (!seenIds.has(post.id)) {
+                    tiktokPosts.push(post)
+                  }
+                }
+                console.log(`[TikTok TikAPI Fallback] Added ${posts.length} posts, total: ${tiktokPosts.length}`)
+              } catch (error) {
+                const err = error instanceof Error ? error.message : String(error)
+                console.error("TikTok TikAPI error:", err)
+              }
+          }
+
+          if (!config.sociaVault.apiKey && (!config.tiktok.apiKey || !config.tiktok.accountKey)) {
+            console.warn("TikTok API: Neither SociaVault nor TikAPI (with account key) configured")
+            platformCounts.tiktok = 0
+            sendEvent({ type: "platform_complete", data: { platform: "tiktok", posts: [], count: 0 } })
+            return
+          }
+
+          allPosts.push(...tiktokPosts)
+          platformCounts.tiktok = tiktokPosts.length
+          sendEvent({
+            type: "platform_complete",
+            data: { platform: "tiktok", posts: tiktokPosts, count: tiktokPosts.length },
+          })
         }
         platformSearches.push(tiktokSearch())
       }

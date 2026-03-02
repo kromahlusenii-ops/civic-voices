@@ -49,17 +49,9 @@ export async function POST(request: NextRequest) {
 
     // Auto-create user if they don't exist in the database
     if (!user) {
-      console.log(`Auto-creating user for credit deduction: ${authUser.id}`)
-      const newUser = await prisma.user.create({
-        data: {
-          supabaseUid: authUser.id,
-          email: authUser.email || `${authUser.id}@unknown.com`,
-          subscriptionStatus: "free",
-          monthlyCredits: 0,
-          bonusCredits: 0,
-          freeSearchUsed: false,
-          freeReportUsed: false,
-        },
+      // Try to find by email in case user was created without supabaseUid
+      user = await prisma.user.findFirst({
+        where: { email: authUser.email || `${authUser.id}@unknown.com` },
         select: {
           id: true,
           subscriptionStatus: true,
@@ -68,8 +60,39 @@ export async function POST(request: NextRequest) {
           freeSearchUsed: true,
           freeReportUsed: true,
         },
-      })
-      user = newUser
+      });
+
+      if (user) {
+        // User exists by email but missing supabaseUid - link it
+        console.log(`Linking existing user (email: ${authUser.email}) to Supabase UID: ${authUser.id}`);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { supabaseUid: authUser.id },
+        });
+      } else {
+        // User doesn't exist at all - create new
+        console.log(`Auto-creating user for credit deduction: ${authUser.id}`)
+        const newUser = await prisma.user.create({
+          data: {
+            supabaseUid: authUser.id,
+            email: authUser.email || `${authUser.id}@unknown.com`,
+            subscriptionStatus: "free",
+            monthlyCredits: 0,
+            bonusCredits: 0,
+            freeSearchUsed: false,
+            freeReportUsed: false,
+          },
+          select: {
+            id: true,
+            subscriptionStatus: true,
+            monthlyCredits: true,
+            bonusCredits: true,
+            freeSearchUsed: true,
+            freeReportUsed: true,
+          },
+        })
+        user = newUser
+      }
     }
 
     const body: DeductCreditsRequest = await request.json()

@@ -535,6 +535,7 @@ export class SociaVaultApiService {
     const sort = options.sort || "relevance";
 
     const allPosts: SociaVaultRedditPost[] = [];
+    const seenIds = new Set<string>();
     let after: string | undefined;
     let pagesLoaded = 0;
 
@@ -559,7 +560,12 @@ export class SociaVaultApiService {
         break;
       }
 
-      allPosts.push(...posts);
+      for (const post of posts) {
+        const postId = post.id || post.url?.split("/").pop();
+        if (postId && seenIds.has(postId)) continue;
+        if (postId) seenIds.add(postId);
+        allPosts.push(post);
+      }
       after = response.data?.after;
       pagesLoaded++;
 
@@ -627,8 +633,14 @@ export class SociaVaultApiService {
     });
 
     const results = await Promise.all(searchPromises);
+    const seenIds = new Set<string>();
     for (const posts of results) {
-      allPosts.push(...posts);
+      for (const post of posts) {
+        if (!seenIds.has(post.id)) {
+          seenIds.add(post.id);
+          allPosts.push(post);
+        }
+      }
     }
 
     // Apply time filter client-side for accuracy

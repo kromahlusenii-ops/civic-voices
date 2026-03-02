@@ -1,18 +1,27 @@
 import type { Metadata } from "next";
-import { Playfair_Display, DM_Sans } from "next/font/google";
+import { DM_Sans, DM_Mono, Anybody } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const playfair = Playfair_Display({
+const dmSans = DM_Sans({
   subsets: ["latin"],
-  variable: "--font-playfair",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-dm-sans",
   display: "swap",
 });
 
-const dmSans = DM_Sans({
+const dmMono = DM_Mono({
   subsets: ["latin"],
-  variable: "--font-dm-sans",
+  weight: ["400", "500"],
+  variable: "--font-dm-mono",
+  display: "swap",
+});
+
+const anybody = Anybody({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-anybody",
   display: "swap",
 });
 
@@ -48,7 +57,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${playfair.variable} ${dmSans.variable}`}>
+    <html lang="en" className={`${dmSans.variable} ${dmMono.variable} ${anybody.variable}`}>
       <body className="font-body antialiased">
         <Providers>{children}</Providers>
         <SpeedInsights />

@@ -39,16 +39,20 @@ function LoginForm() {
   };
 
   const handleGoogleSignIn = async () => {
+    const baseUrl =
+      typeof window !== "undefined"
+        ? process.env.NEXT_PUBLIC_APP_URL || window.location.origin
+        : ""
+    const redirectTo = `${baseUrl.replace(/\/$/, "")}/auth/callback?next=${encodeURIComponent(callbackUrl)}`
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(callbackUrl)}`,
-      },
-    });
+      options: { redirectTo },
+    })
     if (error) {
-      setError(error.message);
+      setError(error.message)
     }
-  };
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">
@@ -58,7 +62,7 @@ function LoginForm() {
             Sign in to your account
           </h2>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit} method="POST" action="javascript:void(0)">
           {error && (
             <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">
               {error}
@@ -71,7 +75,6 @@ function LoginForm() {
               </label>
               <input
                 id="email"
-                name="email"
                 type="email"
                 autoComplete="email"
                 required
@@ -87,7 +90,6 @@ function LoginForm() {
               </label>
               <input
                 id="password"
-                name="password"
                 type="password"
                 autoComplete="current-password"
                 required

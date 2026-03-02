@@ -1,0 +1,279 @@
+# User Journey: Topic Selection Onboarding
+# Civic Voices - Personalized topic curation for new users
+name: topic-selection-onboarding
+description: |
+  A new user completes the 3-screen onboarding flow to select civic topics of interest,
+  choose geographic focus, and review their selections before being directed to a
+  personalized dashboard. This enables the app to pre-fetch and cache relevant data
+  for their selected topics, providing instant access to civic conversations.
+  
+  **Phase 1 Feature**: This journey tests the Topic Selection Onboarding UI built on
+  Phase 0 infrastructure (Redis cache + circuit breakers).
+  
+  **Expected Duration**: 2-3 minutes for typical user
+createdAt: 2026-02-15
+updatedAt: 2026-02-15
+
+personas:
+  - id: policy-director
+    name: Dr. Sarah Chen
+    role: Policy Research Director at nonprofit advocacy organization
+    techLevel: expert
+    patience: 8
+    goals:
+      - Quickly configure the app to track 5-8 priority civic issues
+      - Set geographic focus to match organization's target communities
+      - Start monitoring conversations immediately without manual searches
+      - Understand how topic selection improves app experience
+
+steps:
+  - id: step-1
+    name: Arrive at onboarding welcome screen
+    action: |
+      After signup/login, user is automatically redirected to /onboarding (first-time users only).
+      View welcome screen with headline "What civic issues matter most to you?", brief explanation
+      of topic selection benefits (instant access, personalized dashboard, pre-loaded data),
+      and "Get Started" button.
+    intent: Understand the purpose of onboarding and feel motivated to complete it.
+    success: |
+      Welcome screen loads with clear headline, 2-3 sentence explanation of benefits
+      ("Track conversations on topics you care about", "Get instant access to curated insights",
+      "Your personalized civic intelligence dashboard").
+      "Get Started" button is visible and clickable.
+      Optional: "Skip for now" link visible for users who want to explore first.
+    checkpoint: true
+
+  - id: step-2
+    name: View topic selection screen (Screen 1 of 3)
+    action: |
+      Click "Get Started" button. Navigate to topic selection screen showing 9 expandable
+      category sections (Housing, Health, Safety, Education, Infrastructure, Environment,
+      Democracy, Economic, Online Behavior). Each category displays subcategory count.
+      Header shows "Select Topics" with progress indicator "1 of 3".
+    intent: See available civic topics organized by policy category.
+    success: |
+      Topic selection screen loads with:
+      - Progress indicator: "Step 1 of 3" or progress bar showing 33%
+      - Heading: "Select topics you want to track" or similar
+      - 9 category sections, collapsed by default (or first category expanded)
+      - Each category shows icon, name, and subcategory count (e.g., "Housing & Development (6)")
+      - Instructions: "Select 3-10 topics to get started" or "Choose topics you care about"
+      - "Continue" button at bottom (disabled until minimum selection met, e.g., 1+ topics)
+    checkpoint: true
+
+  - id: step-3
+    name: Expand Housing & Development category
+    action: |
+      Click on "Housing & Development" category to expand and reveal 6 subcategories:
+      Affordable Housing, Homelessness, Zoning & Land Use, Gentrification, Rental Protections,
+      Public Housing. Each subcategory has a checkbox.
+    intent: Explore topics within a single policy category.
+    success: |
+      Housing category expands smoothly with animation (accordion or slide-down).
+      6 subcategories displayed with checkboxes (unchecked by default).
+      Category remains expanded. Other categories remain collapsed.
+      Can collapse category by clicking header again.
+    checkpoint: false
+
+  - id: step-4
+    name: Select 3 housing topics
+    action: |
+      Check boxes for "Affordable Housing", "Homelessness", and "Zoning & Land Use".
+      Observe UI feedback for each selection.
+    intent: Choose specific housing issues to track.
+    success: |
+      Checkboxes toggle to checked state with visual feedback (checkmark, color change).
+      Selection counter updates: "3 topics selected" or badge shows "3".
+      "Continue" button becomes enabled (if was disabled).
+      Selected topics remain checked if category is collapsed and re-expanded.
+    checkpoint: true
+
+  - id: step-5
+    name: Expand Health & Human Services and select 2 topics
+    action: |
+      Click "Health & Human Services" category to expand.
+      Select "Healthcare Access" and "Mental Health" checkboxes.
+    intent: Add health-related topics to selection.
+    success: |
+      Health category expands, showing 7 subcategories.
+      Can check "Healthcare Access" and "Mental Health".
+      Selection counter updates to "5 topics selected".
+      Housing category collapses automatically (optional UX pattern) or remains open (accordion).
+    checkpoint: false
+
+  - id: step-6
+    name: Browse and select from remaining categories
+    action: |
+      Quickly expand Public Safety, Education, and Environment categories.
+      Select 2-3 additional topics across these categories to reach 7-8 total selections:
+      - Public Safety: "Gun Violence"
+      - Education: "Education Funding"
+      - Environment: "Climate Change"
+    intent: Build a diverse set of 7-8 tracked topics across policy domains.
+    success: |
+      Can expand multiple categories and make selections without errors.
+      Selection counter updates in real-time: "6 topics", "7 topics", "8 topics".
+      All selected topics remain checked across category expand/collapse actions.
+      "Continue" button remains enabled.
+      No lag or UI freezing when toggling checkboxes.
+    checkpoint: true
+
+  - id: step-7
+    name: Deselect a topic to test toggle behavior
+    action: |
+      Expand Housing category again and uncheck "Zoning & Land Use" to test deselection.
+    intent: Verify that topic deselection works correctly and updates counters.
+    success: |
+      Checkbox unchecks successfully.
+      Selection counter decrements: "7 topics selected" (was 8, now 7).
+      Topic is removed from selected list.
+      Can re-check the box to select it again.
+    checkpoint: false
+
+  - id: step-8
+    name: Continue to geographic focus screen (Screen 2 of 3)
+    action: |
+      Click "Continue" button at bottom of topic selection screen.
+      Navigate to geographic focus screen.
+    intent: Move to next onboarding step after selecting topics.
+    success: |
+      Geographic focus screen loads.
+      Progress indicator updates: "Step 2 of 3" or 66% progress.
+      Heading: "Where do you want to focus?" or "Choose your geographic scope".
+      Three large option cards visible:
+        1. "National" - Track conversations across the United States
+        2. "State" - Focus on a specific state (dropdown appears if selected)
+        3. "City" - Focus on a specific city (dropdowns for state + city if selected)
+      "Back" button visible to return to topic selection.
+      "Continue" button visible (enabled after selection made).
+    checkpoint: true
+
+  - id: step-9
+    name: Select State-level focus
+    action: |
+      Click "State" option card. Observe that a state dropdown appears.
+      Select "North Carolina" from the dropdown.
+    intent: Choose state-level geographic focus to filter conversations.
+    success: |
+      "State" card highlights/activates (border, color change, checkmark).
+      State dropdown appears below the card with all 50 US states listed.
+      Can search/filter states by typing (optional enhancement).
+      Select "North Carolina" - dropdown value updates to show selection.
+      "Continue" button becomes enabled.
+      National and City cards are deselected/inactive.
+    checkpoint: true
+
+  - id: step-10
+    name: Change to City-level focus
+    action: |
+      Click "City" option card. Observe state and city dropdowns appear.
+      Select "North Carolina" for state, then "Charlotte" for city.
+    intent: Test switching geographic scope and verify cascading dropdowns work.
+    success: |
+      "City" card activates, "State" card deactivates.
+      Two dropdowns appear: "Select State" and "Select City" (city disabled until state selected).
+      Select state "North Carolina" - city dropdown becomes enabled.
+      City dropdown shows NC cities (Charlotte, Raleigh, Durham, etc.).
+      Select "Charlotte" - both dropdowns show selections.
+      "Continue" button remains enabled.
+    checkpoint: true
+
+  - id: step-11
+    name: Continue to review screen (Screen 3 of 3)
+    action: |
+      Click "Continue" button to proceed to review/confirmation screen.
+    intent: Review all selections before finalizing onboarding.
+    success: |
+      Review screen loads.
+      Progress indicator: "Step 3 of 3" or 100% progress.
+      Heading: "Review your selections" or "You're all set!".
+      Two sections visible:
+        1. **Topics** - Lists all 7 selected topics grouped by category
+           (e.g., "Housing & Development: Affordable Housing, Homelessness")
+        2. **Location** - Shows "Charlotte, North Carolina" or selected scope
+      "Edit Topics" and "Edit Location" links/buttons to go back to previous screens.
+      "Finish Setup" or "Go to Dashboard" button at bottom.
+      Optional: Preview message like "We're preparing your personalized dashboard..."
+    checkpoint: true
+
+  - id: step-12
+    name: Edit topic selections from review screen
+    action: |
+      Click "Edit Topics" link. Return to topic selection screen (Step 1).
+      Verify that previously selected 7 topics are still checked.
+      Add one more topic: "Infrastructure" → "Public Transit".
+      Click "Continue" to return to review screen.
+    intent: Test edit flow and verify state persistence across screens.
+    success: |
+      Clicking "Edit Topics" navigates back to Screen 1 (topic selection).
+      All 7 previously selected topics remain checked (state persisted).
+      Can add "Public Transit" - counter updates to "8 topics".
+      Clicking "Continue" skips geo screen (already completed) and returns directly to review.
+      Review screen now shows 8 topics including "Public Transit".
+    checkpoint: true
+
+  - id: step-13
+    name: Finalize onboarding and redirect to dashboard
+    action: |
+      Click "Finish Setup" or "Go to Dashboard" button on review screen.
+      Wait for data submission and redirect.
+    intent: Complete onboarding and access personalized dashboard for the first time.
+    success: |
+      Loading state appears briefly: "Setting up your dashboard..." or spinner.
+      Data is saved to database (user_topics table in PostgreSQL).
+      Redirect to /search or /dashboard page.
+      Dashboard shows selected topics, not generic categories.
+      Topic sections load with post counts and data (using Phase 0 Redis cache).
+      No errors or rate limit warnings.
+      Onboarding does not appear again on future logins (flag set in database).
+    checkpoint: true
+
+  - id: step-14
+    name: Verify personalized dashboard content
+    action: |
+      On dashboard, verify that only selected topics appear (not all 46 subcategories).
+      Check that location filter matches onboarding selection (Charlotte, NC).
+      Observe that post counts and data load quickly (< 500ms from cache).
+    intent: Confirm that onboarding selections are applied to dashboard experience.
+    success: |
+      Dashboard displays 8 topic cards matching onboarding selections:
+      Affordable Housing, Homelessness, Healthcare Access, Mental Health, Gun Violence,
+      Education Funding, Climate Change, Public Transit.
+      Location toggle/filter shows "Charlotte, NC" as active filter.
+      Post counts and AI briefings load within 1-2 seconds (Phase 0 cache warmed by cron).
+      No generic "all categories" view - dashboard is personalized.
+      User can still access full taxonomy via search or navigation if needed.
+    checkpoint: true
+
+  - id: step-15
+    name: Test skip onboarding behavior (new user test)
+    action: |
+      Log out and create a new test account. On onboarding welcome screen, click "Skip for now"
+      link (if available). Verify redirect to generic dashboard/search.
+    intent: Ensure users can opt out of onboarding and still use the app.
+    success: |
+      "Skip for now" link redirects to /search or /dashboard without saving preferences.
+      Dashboard shows generic category view (all 9 categories) instead of topic list.
+      User can access onboarding later via Settings or profile menu ("Complete Setup" prompt).
+      No errors when skipping onboarding.
+      Note: If "Skip" is not implemented in Phase 1, mark as "Feature not available - all users must complete onboarding".
+    checkpoint: false
+
+validation:
+  - Onboarding flow accessible at /onboarding for first-time users
+  - Topic selection screen displays all 9 categories with 46 total subcategories
+  - Can select/deselect topics across multiple categories with real-time counter updates
+  - Minimum selection requirement enforced (e.g., 1+ topics) before "Continue" enabled
+  - Geographic focus screen allows National, State, or City selection with cascading dropdowns
+  - State and city dropdowns populated with real US locations
+  - Review screen accurately displays all selections with edit links
+  - Edit flow preserves state when navigating back to previous screens
+  - "Finish Setup" saves selections to database (user_topics JSONB in PostgreSQL)
+  - Personalized dashboard loads with selected topics only, not all 46 subcategories
+  - Dashboard location filter matches onboarding geographic selection
+  - Post counts and AI briefings load quickly (< 2s) using Phase 0 Redis cache
+  - Onboarding does not re-appear after completion (onboarding_completed flag set)
+  - Optional: Skip onboarding link works and allows generic dashboard access
+  - No console errors, no 429 rate limit errors during onboarding
+  - Mobile-responsive design (test on 375px viewport)
+  - Accessible keyboard navigation and screen reader support (WCAG AA compliance)

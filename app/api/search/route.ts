@@ -7,9 +7,11 @@ import { TruthSocialProvider } from "@/lib/providers/TruthSocialProvider";
 import TikTokApiService from "@/lib/services/tiktokApi";
 import SociaVaultApiService from "@/lib/services/sociaVaultApi";
 import AIAnalysisService from "@/lib/services/aiAnalysis";
+import { generateMockAIAnalysis } from "@/lib/services/mockAiAnalysis";
 import { config } from "@/lib/config";
 import type { SearchParams, SearchResponse, Post, AIAnalysis, SortOption } from "@/lib/types/api";
-import { getSubredditsForLocation } from "@/lib/utils/subredditLookup";
+import { getSubredditsForLocation } from "@/lib/utils/subredditLookup"
+import { resolveCityNameToId } from "@/lib/utils/cityResolver"
 import {
   processPostsCredibility,
   sortByRelevance,
@@ -19,6 +21,9 @@ import {
   isTier1Source,
 } from "@/lib/credibility";
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+import { buildPlatformGeoQuery, determineGeoScope } from "@/lib/utils/geoQueryBuilder";
+import { getCached, buildSearchCacheKey, isCacheAvailable } from "@/lib/cache/redis";
+import { circuitBreakers, CircuitBreakerOpenError } from "@/lib/utils/circuitBreaker";
 
 // Rate limit: 15 requests per minute per IP
 const SEARCH_RATE_LIMIT = { windowMs: 60000, maxRequests: 15 };
@@ -231,11 +236,153 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[Search API] Anthropic API key configured:', !!config.llm.anthropic.apiKey);
+    
     const body: SearchParams = await request.json();
-    const { query, sources, timeFilter, language, sort = 'relevance', state, city } = body;
+    const { query, sources, timeFilter, language, sort = 'relevance', state, city, queryVariants } = body;
+    
+    // **Multi-Query Parallel Search (Phase 2)**
+    // If queryVariants provided, run parallel searches and merge results
+    if (queryVariants && Array.isArray(queryVariants) && queryVariants.length > 0) {
+      console.log('[Multi-Query Search] Running', queryVariants.length, 'variant queries:', queryVariants);
+      
+      // Run each variant as a separate search (recursive API calls)
+      const variantPromises = queryVariants.map(async (variantQuery) => {
+        try {
+          const variantBody = { ...body, query: variantQuery, queryVariants: undefined }; // Remove queryVariants to prevent infinite recursion
+          const response = await POST(new NextRequest(request.url, {
+            method: 'POST',
+            headers: request.headers,
+            body: JSON.stringify(variantBody),
+          }));
+          
+          if (!response.ok) {
+            console.warn(`[Multi-Query] Variant query "${variantQuery}" failed:`, response.status);
+            return null;
+          }
+          
+          const data: SearchResponse = await response.json();
+          return data;
+        } catch (error) {
+          console.error(`[Multi-Query] Error with variant query "${variantQuery}":`, error);
+          return null;
+        }
+      });
+      
+      const variantResults = await Promise.all(variantPromises);
+      const validResults = variantResults.filter((r): r is SearchResponse => r !== null);
+      
+      if (validResults.length === 0) {
+        return NextResponse.json(
+          { error: "All variant queries failed" },
+          { status: 500 }
+        );
+      }
+      
+      // Merge posts from all variants and deduplicate by post URL
+      const mergedPosts: Post[] = [];
+      const seenUrls = new Set<string>();
+      const mergedWarnings: string[] = [];
+      const mergedPlatforms: Record<string, number> = {};
+      
+      for (const result of validResults) {
+        for (const post of result.posts) {
+          if (!seenUrls.has(post.url)) {
+            seenUrls.add(post.url);
+            mergedPosts.push(post);
+          }
+        }
+        
+        // Merge warnings
+        if (result.warnings) {
+          mergedWarnings.push(...result.warnings);
+        }
+        
+        // Sum platform counts
+        if (result.summary?.platforms) {
+          for (const [platform, count] of Object.entries(result.summary.platforms)) {
+            mergedPlatforms[platform] = (mergedPlatforms[platform] || 0) + count;
+          }
+        }
+      }
+      
+      console.log(`[Multi-Query] Merged ${mergedPosts.length} unique posts from ${validResults.length} queries`);
+      
+      // Reprocess credibility and sort merged posts
+      const mergedPostsWithCredibility = processPostsCredibility(mergedPosts);
+      let sortedMergedPosts: Post[];
+      switch (sort as SortOption) {
+        case 'recent':
+          sortedMergedPosts = sortByRecent(mergedPostsWithCredibility);
+          break;
+        case 'engaged':
+          sortedMergedPosts = sortByEngaged(mergedPostsWithCredibility);
+          break;
+        case 'verified':
+          sortedMergedPosts = filterVerifiedOnly(mergedPostsWithCredibility);
+          break;
+        case 'relevance':
+        default:
+          sortedMergedPosts = sortByRelevance(mergedPostsWithCredibility as (Post & { _finalScore?: number })[]);
+          break;
+      }
+      
+      // Generate AI analysis on merged results
+      let aiAnalysis: AIAnalysis | undefined;
+      
+      if (config.llm.anthropic.apiKey && sortedMergedPosts.length > 0) {
+        try {
+          const aiService = new AIAnalysisService(config.llm.anthropic.apiKey);
+          aiAnalysis = await withTimeout(
+            aiService.generateAnalysis(query, sortedMergedPosts, {
+              timeRange: timeFilter,
+              language: language || "all",
+              sources,
+            }),
+            60000, // 60 second timeout
+            "AI Analysis (Multi-Query)"
+          );
+        } catch (error) {
+          console.error('[Multi-Query] AI analysis error:', error);
+          mergedWarnings.push('AI analysis failed, showing posts only');
+          // Fall back to mock only on error
+          aiAnalysis = generateMockAIAnalysis(query, sortedMergedPosts);
+        }
+      } else if (sortedMergedPosts.length > 0) {
+        // No API key - use mock analysis
+        console.log('[Multi-Query] Using mock AI analysis (no API key configured)');
+        aiAnalysis = generateMockAIAnalysis(query, sortedMergedPosts);
+      }
+      
+      const credibilitySummary = calculateCredibilitySummary(sortedMergedPosts);
+      const sentimentCounts = calculateSentimentCounts(aiAnalysis, sortedMergedPosts.length);
+      
+      const mergedResponse: SearchResponse = {
+        query,
+        posts: sortedMergedPosts,
+        aiAnalysis,
+        summary: {
+          totalPosts: sortedMergedPosts.length,
+          platforms: mergedPlatforms,
+          sentiment: sentimentCounts,
+          timeRange: {
+            start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+            end: new Date().toISOString(),
+          },
+          credibility: credibilitySummary,
+        },
+        warnings: mergedWarnings.length > 0 ? mergedWarnings : undefined,
+      };
+      
+      return NextResponse.json(mergedResponse);
+    }
+    
+    // **Single Query Search (existing logic below)**
 
     const isLocalSearch = !!(state || city);
-    console.log('[Search API] Request:', { query, sources, timeFilter, language, sort, state, city, isLocalSearch });
+    const geoScope = determineGeoScope(state, city);
+    const geoContext = { state, city, geoScope };
+    console.log('[Search API] Request:', { query, sources, timeFilter, language, sort, state, city, geoScope, isLocalSearch });
 
     // Input validation
     if (!query || !query.trim()) {
@@ -268,7 +415,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const allPosts: Post[] = [];
+    // **Phase 0: Redis Cache Layer for Search Results**
+    // Check cache first (shared across all users with same search parameters)
+    const searchCacheKey = buildSearchCacheKey(query, sources, timeFilter, language, state, city);
+    const SEARCH_CACHE_TTL = 3600; // 1 hour (search results change more frequently than signals)
+    
+    // If cache is available and we have a hit, return cached result
+    if (isCacheAvailable()) {
+      try {
+        const cachedResult = await getCached<SearchResponse>(
+          searchCacheKey,
+          async () => {
+            // Cache miss - execute search and return result
+            // This function will be called only on cache miss
+            return await executeSearch();
+          },
+          SEARCH_CACHE_TTL
+        );
+        
+        // Return cached or freshly executed result
+        return NextResponse.json(cachedResult);
+      } catch (error) {
+        console.error('[Search Cache] Error, falling back to live search:', error);
+        // Fall through to execute search without cache
+      }
+    }
+    
+    // Execute search (called either on cache miss or when cache unavailable)
+    async function executeSearch(): Promise<SearchResponse> {
+      const allPosts: Post[] = [];
     const platformCounts: Record<string, number> = {};
     const warnings: string[] = [];
 
@@ -279,17 +454,24 @@ export async function POST(request: NextRequest) {
     if (sources.includes("x")) {
       const xSearch = async () => {
         try {
+          // **Phase 3: Apply platform-specific geo query builder**
+          const xGeoQuery = buildPlatformGeoQuery('x', query, geoContext);
+          const xSearchQuery = xGeoQuery.query;
+          console.log('[X] Geo query:', xSearchQuery, 'Params:', xGeoQuery.params);
+          
           // Try RapidAPI (The Old Bird V2) first - cheaper and more generous limits
           if (config.x.rapidApiKey) {
-            const rapidApiProvider = new XRapidApiProvider({
-              apiKey: config.x.rapidApiKey,
-            });
+            // **Phase 0: Circuit Breaker Protection**
+            const xResult = await circuitBreakers.x_rapidapi.execute(async () => {
+              const rapidApiProvider = new XRapidApiProvider({
+                apiKey: config.x.rapidApiKey!, // Non-null assertion (checked above)
+              });
 
-            // Wrap with retry-on-empty to handle flaky API responses
-            const xResult = await withRetryOnEmpty(
+              // Wrap with retry-on-empty to handle flaky API responses
+              return await withRetryOnEmpty(
               () => withRetry(
                 () => withTimeout(
-                  rapidApiProvider.searchLatest(query, {
+                  rapidApiProvider.searchLatest(xSearchQuery, {
                     maxResults: 100,
                   }),
                   30000,
@@ -303,7 +485,8 @@ export async function POST(request: NextRequest) {
                 emptyRetryDelay: 2000,
                 name: "X RapidAPI",
               }
-            );
+              );
+            }); // End circuit breaker
 
             // Filter by time range (client-side for RapidAPI)
             const filteredPosts = XRapidApiProvider.filterByTimeRange(
@@ -330,24 +513,27 @@ export async function POST(request: NextRequest) {
             return;
           }
 
-          const xProvider = new XProvider({
-            bearerToken: config.x.bearerToken,
-          });
+          // **Phase 0: Circuit Breaker Protection**
+          const xResult = await circuitBreakers.x_official.execute(async () => {
+            const xProvider = new XProvider({
+              bearerToken: config.x.bearerToken!, // Non-null assertion (checked above)
+            });
 
-          const timeRange = XProvider.getTimeRange(timeFilter);
-          const xResult = await withRetry(
-            () => withTimeout(
-              xProvider.searchWithWarning(query, {
-                maxResults: 100,
-                startTime: timeRange.startTime,
-                endTime: timeRange.endTime,
-                language: language,
-              }),
-              30000,
-              "X API"
-            ),
-            { retries: 2, delay: 1500, name: "X Official API" }
-          );
+            const timeRange = XProvider.getTimeRange(timeFilter);
+            return await withRetry(
+              () => withTimeout(
+                xProvider.searchWithWarning(xSearchQuery, {
+                  maxResults: 100,
+                  startTime: timeRange.startTime,
+                  endTime: timeRange.endTime,
+                  language: language,
+                }),
+                30000,
+                "X API"
+              ),
+              { retries: 2, delay: 1500, name: "X Official API" }
+            );
+          });
 
           allPosts.push(...xResult.posts);
           platformCounts.x = xResult.posts.length;
@@ -356,6 +542,14 @@ export async function POST(request: NextRequest) {
             warnings.push(xResult.warning);
           }
         } catch (error) {
+          // Handle circuit breaker open state gracefully
+          if (error instanceof CircuitBreakerOpenError) {
+            console.warn(`[X] Circuit breaker open, skipping X search`);
+            platformCounts.x = 0;
+            warnings.push(`X/Twitter temporarily unavailable due to rate limiting. Results from other platforms shown.`);
+            return;
+          }
+          
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error("X API error:", errorMessage);
           platformCounts.x = 0;
@@ -365,40 +559,43 @@ export async function POST(request: NextRequest) {
       searchPromises.push(xSearch());
     }
 
-    // TikTok search promise - query both SociaVault and TikAPI in parallel
+    // TikTok search promise - try SociaVault first, fallback to TikAPI if needed
     if (sources.includes("tiktok")) {
       const tiktokSearch = async () => {
-        const tiktokApiPromises: Promise<{ posts: Post[]; source: string; rawCount: number }>[] = [];
+        let mergedPosts: Post[] = [];
+        const tiktokWarnings: string[] = [];
+        let totalRawCount = 0;
 
-        // SociaVault TikTok search
+        // Try SociaVault first (preferred API)
         if (config.sociaVault.apiKey) {
-          const sociaVaultPromise = (async () => {
+          try {
             const sociaVaultService = new SociaVaultApiService(config.sociaVault.apiKey!);
-            let tiktokQuery = SociaVaultApiService.getBaseQuery(query);
+            const baseTikTokQuery = TikTokApiService.getTikTokOptimizedQuery(query);
 
-            // For local searches, append location to TikTok query
-            if (isLocalSearch) {
-              const locationSuffix = city && state ? `in ${city}, ${state}` : `in ${state || city}`;
-              tiktokQuery = `${tiktokQuery} ${locationSuffix}`;
-              console.log('[TikTok SociaVault] Local search query:', tiktokQuery);
-            }
+            // **Phase 3: Apply platform-specific geo query builder**
+            const tiktokGeoQuery = buildPlatformGeoQuery('tiktok', baseTikTokQuery, geoContext);
+            const tiktokQuery = tiktokGeoQuery.query;
+            console.log('[TikTok SociaVault] Geo query:', tiktokQuery);
 
-            const tiktokResults = await withRetryOnEmpty(
-              () => withRetry(
-                () => withTimeout(
-                  sociaVaultService.searchTikTokVideos(tiktokQuery, { timeFilter, maxPages: 5 }),
-                  30000,
-                  "TikTok SociaVault API"
+            // **Phase 0: Circuit Breaker Protection**
+            const tiktokResults = await circuitBreakers.tiktok_sociavault.execute(async () => {
+              return await withRetryOnEmpty(
+                () => withRetry(
+                  () => withTimeout(
+                    sociaVaultService.searchTikTokVideos(tiktokQuery, { timeFilter, maxPages: 3 }),
+                    30000,
+                    "TikTok SociaVault API"
+                  ),
+                  { retries: 2, delay: 1500, name: "TikTok SociaVault API" }
                 ),
-                { retries: 2, delay: 1500, name: "TikTok SociaVault API" }
-              ),
-              {
-                isEmpty: (result) => !result.data || result.data.length === 0,
-                maxEmptyRetries: 3,
-                emptyRetryDelay: 2000,
-                name: "TikTok SociaVault API",
-              }
-            );
+                {
+                  isEmpty: (result) => !result.data || result.data.length === 0,
+                  maxEmptyRetries: 3,
+                  emptyRetryDelay: 2000,
+                  name: "TikTok SociaVault API",
+                }
+              );
+            }); // End circuit breaker
 
             let posts = sociaVaultService.transformTikTokToPosts(tiktokResults);
             posts = SociaVaultApiService.filterByTimeRange(posts, timeFilter);
@@ -408,32 +605,41 @@ export async function POST(request: NextRequest) {
             }
 
             const rawCount = tiktokResults.data?.length || 0;
+            totalRawCount = rawCount;
             console.log('[TikTok SociaVault] Raw:', rawCount, 'Filtered:', posts.length, 'TimeFilter:', timeFilter);
 
-            return { posts, source: 'SociaVault', rawCount };
-          })();
-          tiktokApiPromises.push(sociaVaultPromise);
+            mergedPosts = posts;
+          } catch (error) {
+            if (error instanceof CircuitBreakerOpenError) {
+              console.warn(`[TikTok SociaVault] Circuit breaker open, skipping`);
+              tiktokWarnings.push(`TikTok temporarily unavailable due to rate limiting.`);
+            } else {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              console.error("TikTok SociaVault error:", errorMessage);
+              tiktokWarnings.push(`SociaVault: ${errorMessage}`);
+            }
+          }
         }
 
-        // TikAPI search (requires both apiKey and accountKey)
-        if (config.tiktok.apiKey && config.tiktok.accountKey) {
-          const tikApiPromise = (async () => {
+        // Fallback to TikAPI only if SociaVault failed or returned few results
+        if (mergedPosts.length < 5 && config.tiktok.apiKey && config.tiktok.accountKey) {
+          try {
             const tiktokService = new TikTokApiService(
               config.tiktok.apiKey!,
               config.tiktok.apiUrl,
               config.tiktok.accountKey
             );
 
-            let tiktokQuery = TikTokApiService.getBaseQuery(query);
+            const baseTikTokQuery = TikTokApiService.getTikTokOptimizedQuery(query);
 
-            // For local searches, append location to TikTok query
-            if (isLocalSearch) {
-              const locationSuffix = city && state ? `in ${city}, ${state}` : `in ${state || city}`;
-              tiktokQuery = `${tiktokQuery} ${locationSuffix}`;
-              console.log('[TikTok TikAPI] Local search query:', tiktokQuery);
-            }
+            // **Phase 3: Apply platform-specific geo query builder**
+            const tiktokGeoQuery = buildPlatformGeoQuery('tiktok', baseTikTokQuery, geoContext);
+            const tiktokQuery = tiktokGeoQuery.query;
+            console.log('[TikTok TikAPI] Geo query:', tiktokQuery);
 
-            const tiktokResults = await withRetryOnEmpty(
+            // **Phase 0: Circuit Breaker Protection**
+            const tiktokResults = await circuitBreakers.tiktok_tikapi.execute(async () => {
+              return await withRetryOnEmpty(
               () => withRetry(
                 () => withTimeout(
                   tiktokService.searchVideos(tiktokQuery, { count: 50 }),
@@ -448,7 +654,8 @@ export async function POST(request: NextRequest) {
                 emptyRetryDelay: 2000,
                 name: "TikTok TikAPI",
               }
-            );
+              );
+            }); // End circuit breaker
 
             let posts = tiktokService.transformToPosts(tiktokResults);
             posts = TikTokApiService.filterByTimeRange(posts, timeFilter);
@@ -457,47 +664,36 @@ export async function POST(request: NextRequest) {
               posts = TikTokApiService.filterByBooleanQuery(posts, query);
             }
 
-            const rawCount = tiktokResults.videos?.length || 0;
-            console.log('[TikTok TikAPI] Raw:', rawCount, 'Filtered:', posts.length, 'TimeFilter:', timeFilter);
+            totalRawCount += tiktokResults.videos?.length || 0;
+            console.log('[TikTok TikAPI] Raw:', tiktokResults.videos?.length, 'Filtered:', posts.length, 'TimeFilter:', timeFilter);
+            console.log('[TikTok Fallback] SociaVault returned < 5, using TikAPI as fallback');
 
-            return { posts, source: 'TikAPI', rawCount };
-          })();
-          tiktokApiPromises.push(tikApiPromise);
+            // Merge and deduplicate with SociaVault results
+            const seenIds = new Set(mergedPosts.map(p => p.id));
+            for (const post of posts) {
+              if (!seenIds.has(post.id)) {
+                mergedPosts.push(post);
+              }
+            }
+          } catch (error) {
+            if (error instanceof CircuitBreakerOpenError) {
+              console.warn(`[TikTok TikAPI] Circuit breaker open, skipping fallback`);
+            } else {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              console.error("TikTok TikAPI error:", errorMessage);
+              tiktokWarnings.push(`TikAPI: ${errorMessage}`);
+            }
+          }
         }
 
         // If no TikTok APIs configured
-        if (tiktokApiPromises.length === 0) {
+        if (!config.sociaVault.apiKey && (!config.tiktok.apiKey || !config.tiktok.accountKey)) {
           console.warn("TikTok API: Neither SociaVault nor TikAPI (with account key) configured");
           platformCounts.tiktok = 0;
           return;
         }
 
-        // Run all TikTok API calls in parallel
-        const results = await Promise.allSettled(tiktokApiPromises);
-
-        // Merge and deduplicate results (prefer earlier results for duplicates)
-        const seenIds = new Set<string>();
-        const mergedPosts: Post[] = [];
-        let totalRawCount = 0;
-        const tiktokWarnings: string[] = [];
-
-        for (const result of results) {
-          if (result.status === 'fulfilled') {
-            totalRawCount += result.value.rawCount;
-            for (const post of result.value.posts) {
-              if (!seenIds.has(post.id)) {
-                seenIds.add(post.id);
-                mergedPosts.push(post);
-              }
-            }
-          } else {
-            const errorMessage = result.reason instanceof Error ? result.reason.message : String(result.reason);
-            console.error("TikTok API error:", errorMessage);
-            tiktokWarnings.push(`TikTok search failed: ${errorMessage}`);
-          }
-        }
-
-        console.log('[TikTok Combined] Total unique posts:', mergedPosts.length, 'from', results.filter(r => r.status === 'fulfilled').length, 'APIs');
+        console.log('[TikTok Combined] Total unique posts:', mergedPosts.length);
 
         allPosts.push(...mergedPosts);
         platformCounts.tiktok = mergedPosts.length;
@@ -532,11 +728,15 @@ export async function POST(request: NextRequest) {
 
           // Use local search if state/city is provided
           if (isLocalSearch && state) {
-            const subreddits = getSubredditsForLocation(state, city);
-            console.log(`[Reddit Local] Searching subreddits for ${city || state}:`, subreddits);
+            const cityId = city ? resolveCityNameToId(state, city) : null
+            if (city && !cityId) {
+              console.warn(`[Reddit Local] Could not resolve city "${city}" for state ${state}; falling back to state-level subreddits`)
+            }
+            const subreddits = getSubredditsForLocation(state, cityId ?? undefined)
+            console.log(`[Reddit Local] Searching subreddits for ${city || state}:`, subreddits)
 
             if (subreddits.length === 0) {
-              console.warn(`[Reddit Local] No subreddits found for ${city || state}`);
+              console.warn(`[Reddit Local] No subreddits found for ${city || state}`)
               platformCounts.reddit = 0;
               warnings.push(`No local subreddits found for the selected location. Try a national search instead.`);
               return;
@@ -560,7 +760,7 @@ export async function POST(request: NextRequest) {
               () => withRetry(
                 () => withTimeout(
                   sociaVaultService.searchRedditPaginated(redditQuery, {
-                    maxPages: 5, // Fetch up to 5 pages (~500 posts)
+                    maxPages: 2, // Fetch up to 2 pages (~200 posts)
                     time,
                     sort: "relevance",
                   }),
@@ -587,6 +787,14 @@ export async function POST(request: NextRequest) {
           if (SociaVaultApiService.hasBooleanQuery(query)) {
             redditPosts = SociaVaultApiService.filterByBooleanQuery(redditPosts, query);
           }
+
+          // Deduplicate by id (handles cross-posts across subreddits, pagination edge cases)
+          const seenRedditIds = new Set<string>();
+          redditPosts = redditPosts.filter((p) => {
+            if (seenRedditIds.has(p.id)) return false;
+            seenRedditIds.add(p.id);
+            return true;
+          });
 
           allPosts.push(...redditPosts);
           platformCounts.reddit = redditPosts.length;
@@ -617,28 +825,43 @@ export async function POST(request: NextRequest) {
             return;
           }
 
-          const youtubeProvider = new YouTubeProvider({
-            apiKey: config.providers.youtube.apiKey,
-          });
+          // **Phase 0: Circuit Breaker Protection**
+          const youtubeResult = await circuitBreakers.youtube.execute(async () => {
+            const youtubeProvider = new YouTubeProvider({
+              apiKey: config.providers.youtube!.apiKey!, // Non-null assertion (checked above)
+            });
 
-          const timeRange = YouTubeProvider.getTimeRange(timeFilter);
-          const youtubeResult = await withTimeout(
-            youtubeProvider.searchWithStatsPaginated(query, {
-              maxPages: 4, // Fetch up to 4 pages = ~200 videos
-              maxResults: 50,
-              publishedAfter: timeRange.publishedAfter,
-              publishedBefore: timeRange.publishedBefore,
-              relevanceLanguage: language,
-              order: "relevance",
-            }),
-            60000, // 60 second timeout for paginated search
-            "YouTube API Paginated"
-          );
+            // **Phase 3: Apply platform-specific geo query builder**
+            const youtubeGeoQuery = buildPlatformGeoQuery('youtube', query, geoContext);
+            const youtubeSearchQuery = youtubeGeoQuery.query;
+            console.log('[YouTube] Geo query:', youtubeSearchQuery);
+
+            const timeRange = YouTubeProvider.getTimeRange(timeFilter);
+            return await withTimeout(
+              youtubeProvider.searchWithStatsPaginated(youtubeSearchQuery, {
+                maxPages: 2, // Fetch up to 2 pages = ~100 videos
+                maxResults: 50,
+                publishedAfter: timeRange.publishedAfter,
+                publishedBefore: timeRange.publishedBefore,
+                relevanceLanguage: language,
+                order: "relevance",
+              }),
+              60000, // 60 second timeout for paginated search
+              "YouTube API Paginated"
+            );
+          });
 
           allPosts.push(...youtubeResult.posts);
           platformCounts.youtube = youtubeResult.posts.length;
           console.log('[YouTube] Paginated search complete:', youtubeResult.posts.length, 'videos');
         } catch (error) {
+          if (error instanceof CircuitBreakerOpenError) {
+            console.warn(`[YouTube] Circuit breaker open, skipping YouTube search`);
+            platformCounts.youtube = 0;
+            warnings.push(`YouTube temporarily unavailable due to rate limiting. Results from other platforms shown.`);
+            return;
+          }
+          
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error("YouTube API error:", errorMessage);
           platformCounts.youtube = 0;
@@ -763,13 +986,17 @@ export async function POST(request: NextRequest) {
       comments: Post[];
     }
     const commentsData: PostCommentData[] = [];
+    
+    // Comments integration - disabled by default to reduce API load
+    // Enable with ?includeComments=true query parameter for deep analysis
+    const enableComments = body.includeComments === true;
 
-    // Only fetch comments if we have posts and an API key for the AI analysis
-    if (config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
+    // Only fetch comments if explicitly enabled, we have posts, and an API key for the AI analysis
+    if (enableComments && config.llm.anthropic.apiKey && cleanedPosts.length > 0) {
       // Fetch comments for top posts per platform for richer AI analysis
       // Reddit is a strong platform - maximize comment data for better insights
-      const MAX_POSTS_FOR_COMMENTS = 100;
-      const MAX_COMMENTS_PER_POST = isLocalSearch ? 50 : 30;
+      const MAX_POSTS_FOR_COMMENTS = isLocalSearch ? 20 : 10; // Reduced from 100 to 20/10
+      const MAX_COMMENTS_PER_POST = isLocalSearch ? 30 : 20; // Reduced from 50/30 to 30/20
 
       // Group posts by platform and take top N from each
       const postsByPlatform: Record<string, Post[]> = {};
@@ -869,7 +1096,9 @@ export async function POST(request: NextRequest) {
         console.error("[Comments] Comment fetching timed out or failed:", e);
       }
 
-      console.log(`[Comments] Fetched comments for ${commentsData.length} posts (local=${isLocalSearch}, maxPosts=${MAX_POSTS_FOR_COMMENTS}, maxComments=${MAX_COMMENTS_PER_POST})`);
+      console.log(`[Comments] Fetched comments for ${commentsData.length} posts (enabled=${enableComments}, maxPosts=${MAX_POSTS_FOR_COMMENTS}, maxComments=${MAX_COMMENTS_PER_POST})`);
+    } else if (!enableComments) {
+      console.log(`[Comments] Comment fetching disabled (set includeComments=true to enable)`);
     }
 
     let aiAnalysis: AIAnalysis | undefined;
@@ -887,31 +1116,42 @@ export async function POST(request: NextRequest) {
         );
       } catch (error) {
         console.error("AI analysis error:", error);
+        // Fall back to mock only on error
+        aiAnalysis = generateMockAIAnalysis(query, cleanedPosts);
       }
+    } else if (cleanedPosts.length > 0) {
+      // No API key - use mock analysis
+      console.log('[Single-provider] Using mock AI analysis (no API key configured)');
+      aiAnalysis = generateMockAIAnalysis(query, cleanedPosts);
     }
 
-    const sentiment = calculateSentimentCounts(aiAnalysis, cleanedPosts.length);
-    const credibilitySummary = calculateCredibilitySummary(cleanedPosts);
-    const timeRange = XProvider.getTimeRange(timeFilter);
-    const response: SearchResponse = {
-      posts: cleanedPosts,
-      summary: {
-        totalPosts: cleanedPosts.length,
-        platforms: platformCounts,
-        sentiment,
-        timeRange: {
-          start: timeRange.startTime,
-          end: timeRange.endTime,
+      const sentiment = calculateSentimentCounts(aiAnalysis, cleanedPosts.length);
+      const credibilitySummary = calculateCredibilitySummary(cleanedPosts);
+      const timeRange = XProvider.getTimeRange(timeFilter);
+      const response: SearchResponse = {
+        posts: cleanedPosts,
+        summary: {
+          totalPosts: cleanedPosts.length,
+          platforms: platformCounts,
+          sentiment,
+          timeRange: {
+            start: timeRange.startTime,
+            end: timeRange.endTime,
+          },
+          credibility: credibilitySummary,
         },
-        credibility: credibilitySummary,
-      },
-      query,
-      sort: sort as SortOption,
-      aiAnalysis,
-      warnings: warnings.length > 0 ? warnings : undefined,
-    };
+        query,
+        sort: sort as SortOption,
+        aiAnalysis,
+        warnings: warnings.length > 0 ? warnings : undefined,
+      };
 
-    return NextResponse.json(response);
+      return response; // Return SearchResponse for caching
+    } // End of executeSearch function
+    
+    // If cache is not available, execute search directly
+    const searchResult = await executeSearch();
+    return NextResponse.json(searchResult);
   } catch (error) {
     console.error("Search API error:", error);
     return NextResponse.json(

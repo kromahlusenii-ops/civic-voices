@@ -26,6 +26,12 @@ model User {
   // Onboarding
   onboardingCompletedAt DateTime?  // null means not completed
   useCase               String?    // "civic", "brand", "policy", "general"
+  
+  // Topic Selection (Phase 1)
+  selectedTopics        Json?      // Array of selected subcategory IDs: ["affordable-housing", "healthcare-access", ...]
+  geoScope              String?    // "national", "state", or "city"
+  geoState              String?    // State code (e.g., "NC") if geoScope is "state" or "city"
+  geoCity               String?    // City name (e.g., "Charlotte") if geoScope is "city"
 
   // Stripe subscription fields
   stripeCustomerId      String?   @unique

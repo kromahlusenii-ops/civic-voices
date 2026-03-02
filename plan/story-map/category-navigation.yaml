@@ -1,0 +1,105 @@
+# User Journey: Category Navigation
+# Civic Voices - Taxonomy-based civic issue exploration
+name: category-navigation
+description: |
+  A civic researcher or policy analyst explores Civic Voices' taxonomy of civic issues,
+  navigating through 9 policy categories (Housing, Health, Safety, Education, Infrastructure,
+  Environment, Democracy, Economic Development, Online Behavior) to discover subcategory topics,
+  view post counts, and drill down into detailed conversation analysis for specific issues.
+createdAt: 2026-02-17
+updatedAt: 2026-02-17
+
+personas:
+  - id: civic-researcher
+    name: Maya Rodriguez
+    role: Research Coordinator at city council office
+    techLevel: intermediate
+    patience: 7
+    goals:
+      - Quickly find relevant civic issues across different policy areas
+      - Understand public sentiment on housing, healthcare, and safety topics
+      - Identify trending concerns for upcoming policy reports
+      - Compare discussion volume across different civic issues
+
+steps:
+  - id: step-1
+    name: View category overview
+    action: Navigate to /search page. Observe the category grid displaying all 9 policy categories with icons, colors, and names.
+    intent: Understand what policy categories are available and identify areas of interest.
+    success: Can see 9 category cards (Housing ⌂, Health ✚, Safety ◈, Education, Infrastructure, Environment, Democracy, Economic Development, Online Behavior). Categories are visually distinct with colors and icons. Each card is clickable.
+    checkpoint: true
+
+  - id: step-2
+    name: Navigate to Housing & Development
+    action: Click on "Housing & Development" category card (house icon, red/orange color).
+    intent: Explore housing-related civic issues and subcategories.
+    success: View updates to show 6 housing subcategories (Affordable Housing, Homelessness, Zoning & Land Use, Gentrification, Rental Protections, Public Housing). Each subcategory displays a post count or loading state. Back button visible in header.
+    checkpoint: true
+
+  - id: step-3
+    name: Review subcategory post counts
+    action: Observe the post count numbers displayed next to each housing subcategory. Identify which subcategory has the most discussion.
+    intent: Understand relative discussion volume across housing issues.
+    success: Post counts are visible (may be 0 if lazy loading is enabled). Can identify subcategory with highest activity. Numbers update or load within 2-4 seconds if lazy loaded.
+    checkpoint: false
+
+  - id: step-4
+    name: Click Affordable Housing subcategory
+    action: Click on "Affordable Housing" subcategory card.
+    intent: View detailed conversation data, AI analysis, and public sentiment for affordable housing.
+    success: IssueDetailView loads showing AI briefing section, post count, sentiment breakdown (positive/neutral/negative %), and social conversation feed. Posts from X, TikTok, Reddit are visible (or "No posts found" if no data). "Synthesize" section shows key insights, pain points, and what people want.
+    checkpoint: true
+
+  - id: step-5
+    name: Navigate back to categories
+    action: Click the back button (usually ← icon at top-left) to return to category overview.
+    intent: Return to main category grid to explore other policy areas.
+    success: View returns to category grid showing all 9 categories. No state loss or errors. Navigation is smooth.
+    checkpoint: false
+
+  - id: step-6
+    name: Explore Health & Human Services
+    action: Click on "Health & Human Services" category card (✚ icon, blue color).
+    intent: Compare a different policy area and verify consistent navigation patterns.
+    success: View updates to show 7 health subcategories (Healthcare Access, Childcare, Mental Health, Elder Care, Food Security, Substance Abuse, Maternal Health). Same UI layout as Housing category. Post counts visible.
+    checkpoint: true
+
+  - id: step-7
+    name: Navigate to Public Safety & Justice
+    action: Return to categories (if needed, click back) and click "Public Safety & Justice" category (◈ icon, green color).
+    intent: Test rapid multi-category browsing and build mental model of taxonomy.
+    success: View updates to show 7 safety subcategories (Policing & Reform, Gun Violence, Immigration Enforcement, Criminal Justice Reform, Domestic & Sexual Violence, Traffic & Pedestrian Safety, Juvenile Justice). Navigation remains fast and consistent.
+    checkpoint: true
+
+  - id: step-8
+    name: Click Gun Violence subcategory
+    action: Click "Gun Violence" subcategory card.
+    intent: Verify subcategory detail view loads with relevant, topic-specific content.
+    success: IssueDetailView loads for gun violence. AI analysis mentions gun-related themes (gun control, school safety, second amendment). Posts contain gun violence keywords. Sentiment and conversation data appear relevant to the topic.
+    checkpoint: true
+
+  - id: step-9
+    name: Test geographic filter (if available)
+    action: Look for geographic scope toggle (National/State/City) at top of page. Change scope from National to a specific state or city if available.
+    intent: Verify location-based filtering updates data appropriately.
+    success: Can find geo scope toggle (or note if not present). Selecting a state/city updates post counts for subcategories. If not available, note that geographic filtering is not implemented in this view yet.
+    checkpoint: false
+
+  - id: step-10
+    name: Rapid browse remaining categories
+    action: Return to category overview and quickly navigate through the remaining 6 categories (Education & Workforce, Infrastructure & Transit, Environment & Climate, Democracy & Governance, Economic Development, Online Behavior). Click each to view subcategories, then navigate back.
+    intent: Verify all categories are accessible, load without errors, and allow efficient exploration.
+    success: All 6 remaining categories are clickable and load subcategory views successfully. Subcategory counts match expectations (Education ~6, Infrastructure ~6, Environment ~5, Democracy ~6, Economic ~5, Online Behavior ~10). No console errors or broken UI. Total time < 3 minutes for all 6 categories.
+    checkpoint: true
+
+validation:
+  - All 9 categories visible and clickable on main dashboard
+  - Can navigate to any category and see subcategories listed
+  - Can drill down from category → subcategory → issue detail
+  - Can navigate back to category grid without losing context
+  - Post counts load within 2-4 seconds per category (lazy loading optimization)
+  - Can browse 5+ categories in under 3 minutes
+  - No 429 rate limit errors (after REQUEST_OPTIMIZATION_IMPLEMENTED.md changes)
+  - Loading indicators provide clear feedback during data fetching
+  - IssueDetailView shows AI analysis, sentiment, and conversation feed
+  - Navigation breadcrumbs or back buttons work reliably

@@ -221,6 +221,18 @@ export class TikTokApiService {
   }
 
   /**
+   * Shorten query for TikTok keyword search - TikTok works better with 3-5 key terms.
+   * Long taxonomy queries (e.g. "Child Safety Youth Usage kids online children social media COPPA KOSA")
+   * often return fewer results; this keeps the most distinctive terms.
+   */
+  static getTikTokOptimizedQuery(query: string, maxWords = 5): string {
+    const base = extractBaseQuery(query).trim();
+    const skip = new Set(['in', 'and', 'or', 'the', 'a', 'an', 'to', 'for', 'of', 'on']);
+    const words = base.split(/\s+/).filter((w) => w.length > 1 && !skip.has(w.toLowerCase()));
+    return words.slice(0, maxWords).join(' ').trim() || base;
+  }
+
+  /**
    * Check if query has Boolean operators that need client-side filtering
    */
   static hasBooleanQuery(query: string): boolean {

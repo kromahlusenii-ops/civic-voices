@@ -48,6 +48,10 @@ export interface SearchParams {
   // Local search parameters
   state?: string;
   city?: string;
+  // Multi-query parallel search (Phase 2)
+  queryVariants?: string[];
+  // Comments integration (disabled by default for performance)
+  includeComments?: boolean;
 }
 
 export interface Post {
@@ -150,6 +154,16 @@ export interface SearchResponse {
   errors?: PlatformError[];
   warnings?: string[];  // Non-fatal warnings (e.g., time range clamped)
   crossRefJobId?: string; // Poll this endpoint for cross-reference updates
+}
+
+export interface LegislativeSignalsResponse {
+  subcategoryId: string
+  subcategoryName: string
+  query: string
+  posts: Post[]
+  aiAnalysis: AIAnalysis | null
+  summary: SearchResponse["summary"]
+  credibility?: { averageScore: number; verifiedCount: number }
 }
 
 // X (Twitter) specific types

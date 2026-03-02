@@ -1,60 +1,189 @@
-"use client";
+'use client'
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+/**
+ * Topic Selection Onboarding Flow
+ * 4-screen flow: Welcome -> Topics -> Location -> Review
+ */
+
+import { useState, useEffect } from 'react'
+import { getRecommendedTopics } from '@/lib/topicRecommendations'
+import RoleSelectionScreen from './components/RoleSelectionScreen'
+import WelcomeScreen from './components/WelcomeScreen'
+import TopicSelectionScreen from './components/TopicSelectionScreen'
+import GeographicFocusScreen from './components/GeographicFocusScreen'
+import ReviewScreen from './components/ReviewScreen'
+
+type Screen = 'role' | 'welcome' | 'topics' | 'location' | 'review'
 
 export default function OnboardingPage() {
-  const router = useRouter();
-  const [isCompleting, setIsCompleting] = useState(false);
+  // Note: Using window.location.href for redirects (see handleComplete)
+  const [currentScreen, setCurrentScreen] = useState<Screen>('role')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [userUseCase, setUserUseCase] = useState<string | null>(null)
 
-  const completeOnboarding = useCallback(async () => {
-    if (isCompleting) return;
-    setIsCompleting(true);
+  // Onboarding state
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
+  const [geoScope, setGeoScope] = useState<'national' | 'state' | 'city'>('national')
+  const [geoState, setGeoState] = useState<string>('')
+  const [geoCity, setGeoCity] = useState<string>('')
+
+  // Fetch user's use case on mount to check if they already selected a role
+  useEffect(() => {
+    const fetchUserUseCase = async () => {
+      try {
+        const response = await fetch('/api/onboarding/use-case')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.useCase) {
+            setUserUseCase(data.useCase)
+            // Pre-populate topics based on use case
+            const recommended = getRecommendedTopics(data.useCase)
+            setSelectedTopics(recommended)
+            // Skip role selection if already set - go directly to topics
+            setCurrentScreen('topics')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch use case:', error)
+      }
+    }
+    fetchUserUseCase()
+  }, [])
+
+  // Navigation handlers
+  const handleRoleSelect = async (role: string) => {
+    setUserUseCase(role)
+    // Pre-populate topics based on selected role
+    const recommended = getRecommendedTopics(role)
+    setSelectedTopics(recommended)
+    
+    // Save role to database
+    try {
+      await fetch('/api/onboarding/use-case', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ useCase: role }),
+      })
+    } catch (error) {
+      console.error('Failed to save use case:', error)
+    }
+  }
+
+  const handleRoleContinue = () => {
+    if (userUseCase) {
+      // Skip welcome screen - go directly to topics with pre-selected recommendations
+      setCurrentScreen('topics')
+    }
+  }
+
+  const handleGetStarted = () => setCurrentScreen('topics')
+
+  const handleTopicsContinue = () => {
+    if (selectedTopics.length > 0) {
+      setCurrentScreen('location')
+    }
+  }
+
+  const handleLocationBack = () => setCurrentScreen('topics')
+
+  const handleLocationContinue = () => setCurrentScreen('review')
+
+  const handleReviewEditTopics = () => setCurrentScreen('topics')
+
+  const handleReviewEditLocation = () => setCurrentScreen('location')
+
+  const handleFinish = async () => {
+    setIsSubmitting(true)
 
     try {
-      await fetch("/api/onboarding/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topics: [], skipped: true }),
-      });
-    } catch (err) {
-      console.error("Error completing onboarding:", err);
+      const payload = {
+        selectedTopics,
+        geoScope,
+        ...(geoScope !== 'national' && geoState && { geoState }),
+        ...(geoScope === 'city' && geoCity && { geoCity }),
+      }
+
+      const response = await fetch('/api/onboarding/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) throw new Error('Failed to complete onboarding')
+
+      // Success! Redirect to search page (unified dashboard)
+      window.location.href = '/search'
+    } catch (error) {
+      console.error('Onboarding completion error:', error)
+      alert('Failed to save your preferences. Please try again.')
+      setIsSubmitting(false)
     }
+  }
 
-    router.push("/search");
-  }, [isCompleting, router]);
+  // Topic selection handlers
+  const handleToggleTopic = (topicId: string) => {
+    setSelectedTopics((prev) =>
+      prev.includes(topicId)
+        ? prev.filter((id) => id !== topicId)
+        : [...prev, topicId]
+    )
+  }
 
-  // Auto-complete onboarding after a brief welcome
-  useEffect(() => {
-    const timer = setTimeout(completeOnboarding, 2000);
-    return () => clearTimeout(timer);
-  }, [completeOnboarding]);
+  // Geographic focus handlers
+  const handleGeoUpdate = (scope: 'national' | 'state' | 'city', state?: string, city?: string) => {
+    setGeoScope(scope)
+    setGeoState(state || '')
+    setGeoCity(city || '')
+  }
 
+  // Render current screen
   return (
-    <div className="min-h-screen bg-paper flex items-center justify-center p-4">
-      <div className="w-full max-w-lg text-center animate-fade-in">
-        <div className="w-16 h-16 bg-signal-mint/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <svg className="w-8 h-8 text-signal-mint" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </div>
-        <h1 className="font-display text-3xl md:text-4xl text-ink mb-4">
-          Welcome to Civic Voices
-        </h1>
-        <p className="text-ink-light text-lg mb-8 max-w-md mx-auto">
-          Setting up your account...
-        </p>
-        <div className="flex justify-center">
-          <div className="w-6 h-6 border-2 border-signal-coral border-t-transparent rounded-full animate-spin" />
-        </div>
-        <button
-          onClick={completeOnboarding}
-          disabled={isCompleting}
-          className="mt-8 text-ink-light hover:text-ink text-sm transition-colors"
-        >
-          Skip to dashboard
-        </button>
-      </div>
-    </div>
-  );
+    <>
+      {currentScreen === 'role' && (
+        <RoleSelectionScreen
+          selectedRole={userUseCase}
+          onSelectRole={handleRoleSelect}
+          onContinue={handleRoleContinue}
+        />
+      )}
+
+      {currentScreen === 'welcome' && (
+        <WelcomeScreen onGetStarted={handleGetStarted} />
+      )}
+
+      {currentScreen === 'topics' && (
+        <TopicSelectionScreen
+          selectedTopics={selectedTopics}
+          onToggleTopic={handleToggleTopic}
+          onContinue={handleTopicsContinue}
+          userUseCase={userUseCase}
+          onSetTopics={setSelectedTopics}
+        />
+      )}
+
+      {currentScreen === 'location' && (
+        <GeographicFocusScreen
+          geoScope={geoScope}
+          geoState={geoState}
+          geoCity={geoCity}
+          onUpdate={handleGeoUpdate}
+          onContinue={handleLocationContinue}
+          onBack={handleLocationBack}
+        />
+      )}
+
+      {currentScreen === 'review' && (
+        <ReviewScreen
+          selectedTopicIds={selectedTopics}
+          geoScope={geoScope}
+          geoState={geoState}
+          geoCity={geoCity}
+          onEditTopics={handleReviewEditTopics}
+          onEditLocation={handleReviewEditLocation}
+          onFinish={handleFinish}
+          isSubmitting={isSubmitting}
+        />
+      )}
+    </>
+  )
 }

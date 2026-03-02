@@ -959,7 +959,7 @@ export default function ReportPage() {
                 {/* AI Summary - Full Width */}
                 {reportData.aiAnalysis && (
                   <div
-                    className={`transition-all duration-700 ease-out ${isRevealed("summary") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    className={`transition-all duration-700 ease-out ${isRevealed("summary") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                     style={{ transitionDelay: tourActive ? "0ms" : "0ms" }}
                   >
                   <ContextualTooltip
@@ -1009,7 +1009,7 @@ export default function ReportPage() {
 
                 {/* Metrics Row - Full Width */}
                 <div
-                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                   style={{ transitionDelay: tourActive ? "0ms" : "100ms" }}
                 >
                   <MetricsRow
@@ -1022,7 +1022,7 @@ export default function ReportPage() {
 
                 {/* Activity Chart - Full Width */}
                 <div
-                  className={`transition-all duration-700 ease-out ${isRevealed("activity-chart") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  className={`transition-all duration-700 ease-out ${isRevealed("activity-chart") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                   style={{ transitionDelay: tourActive ? "0ms" : "200ms" }}
                 >
                 <ContextualTooltip
@@ -1045,7 +1045,7 @@ export default function ReportPage() {
 
                 {/* Two Column: Emotions + Content Breakdown */}
                 <div
-                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                   style={{ transitionDelay: tourActive ? "0ms" : "300ms" }}
                 >
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 w-full min-w-0">
@@ -1077,7 +1077,7 @@ export default function ReportPage() {
                 {/* Platform Sentiment - Full Width */}
                 {reportData.posts.length > 0 && (
                   <div
-                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                     style={{ transitionDelay: tourActive ? "0ms" : "400ms" }}
                   >
                     <PlatformSentiment posts={reportData.posts} />
@@ -1087,7 +1087,7 @@ export default function ReportPage() {
                 {/* Topics Table - Full Width */}
                 {reportData.aiAnalysis?.keyThemes && (
                   <div
-                    className={`transition-all duration-700 ease-out ${isRevealed("topics-table") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    className={`transition-all duration-700 ease-out ${isRevealed("topics-table") ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                     style={{ transitionDelay: tourActive ? "0ms" : "500ms" }}
                   >
                   <ContextualTooltip
@@ -1117,7 +1117,7 @@ export default function ReportPage() {
                 {/* Keywords Cloud - Full Width */}
                 {reportData.posts.length > 0 && (
                   <div
-                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                     style={{ transitionDelay: tourActive ? "0ms" : "600ms" }}
                   >
                     <KeywordsCloud
@@ -1131,7 +1131,7 @@ export default function ReportPage() {
                 {/* Top Voices - Full Width */}
                 {reportData.posts.length > 0 && (
                   <div
-                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                    className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                     style={{ transitionDelay: tourActive ? "0ms" : "700ms" }}
                   >
                     <TopCreatorsByFollowing
@@ -1143,7 +1143,7 @@ export default function ReportPage() {
 
                 {/* Top Posts - Full Width */}
                 <div
-                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+                  className={`transition-all duration-700 ease-out ${!tourActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
                   style={{ transitionDelay: tourActive ? "0ms" : "800ms" }}
                 >
                   <TopPosts posts={reportData.topPosts} limit={5} />

@@ -43,3 +43,4 @@ prisma/dev.db-journal
 .cursor/rules/openmemory.mdc
 sendgrid.env
 CLAUDE.md
+AGENTS.md

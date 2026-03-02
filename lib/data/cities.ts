@@ -1,0 +1,23 @@
+// Top cities by state (simplified for MVP - Phase 1.1 can expand)
+export const CITIES_BY_STATE: Record<string, string[]> = {
+  'CA': ['Los Angeles', 'San Francisco', 'San Diego', 'San Jose', 'Sacramento', 'Oakland', 'Fresno'],
+  'TX': ['Houston', 'Dallas', 'Austin', 'San Antonio', 'Fort Worth', 'El Paso'],
+  'FL': ['Miami', 'Tampa', 'Orlando', 'Jacksonville', 'St. Petersburg'],
+  'NY': ['New York', 'Buffalo', 'Rochester', 'Albany', 'Syracuse'],
+  'PA': ['Philadelphia', 'Pittsburgh', 'Allentown', 'Erie'],
+  'IL': ['Chicago', 'Aurora', 'Naperville', 'Rockford'],
+  'OH': ['Columbus', 'Cleveland', 'Cincinnati', 'Toledo', 'Akron'],
+  'GA': ['Atlanta', 'Augusta', 'Columbus', 'Savannah'],
+  'NC': ['Charlotte', 'Raleigh', 'Durham', 'Greensboro', 'Winston-Salem'],
+  'MI': ['Detroit', 'Grand Rapids', 'Warren', 'Sterling Heights', 'Ann Arbor'],
+  'WA': ['Seattle', 'Spokane', 'Tacoma', 'Vancouver', 'Bellevue'],
+  'AZ': ['Phoenix', 'Tucson', 'Mesa', 'Chandler', 'Scottsdale'],
+  'MA': ['Boston', 'Worcester', 'Springfield', 'Cambridge', 'Lowell'],
+  'TN': ['Nashville', 'Memphis', 'Knoxville', 'Chattanooga'],
+  'IN': ['Indianapolis', 'Fort Wayne', 'Evansville', 'South Bend'],
+  'MO': ['Kansas City', 'St. Louis', 'Springfield', 'Columbia'],
+  'MD': ['Baltimore', 'Frederick', 'Rockville', 'Gaithersburg'],
+  'WI': ['Milwaukee', 'Madison', 'Green Bay', 'Kenosha'],
+  'CO': ['Denver', 'Colorado Springs', 'Aurora', 'Fort Collins', 'Boulder'],
+  'MN': ['Minneapolis', 'St. Paul', 'Rochester', 'Duluth'],
+}
