@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
-import type { StreamingSearchState } from "@/lib/hooks/useStreamingSearch"
+import type { UseStreamingSearchReturn } from "@/lib/hooks/useStreamingSearch"
 import type { Post, AIAnalysis } from "@/lib/types/api"
 import SearchPostCard from "./SearchPostCard"
 import PlatformStatusBar from "./PlatformStatusBar"
@@ -22,11 +22,7 @@ interface SearchResults {
 
 interface SearchResultsViewProps {
   results: SearchResults
-  streamingState: StreamingSearchState & {
-    startSearch: (params: Record<string, unknown>) => void
-    cancelSearch: () => void
-    reset: () => void
-  }
+  streamingState: UseStreamingSearchReturn
   isStreaming?: boolean
   onBackToDashboard: () => void
   selectedSources: string[]
