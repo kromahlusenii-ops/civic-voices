@@ -1,16 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { StreamingSearchState } from "@/lib/hooks/useStreamingSearch"
+import type { UseStreamingSearchReturn } from "@/lib/hooks/useStreamingSearch"
 import PlatformStatusBar from "./PlatformStatusBar"
 import { SkeletonCardList } from "@/app/components/SkeletonCard"
 
 interface SearchLoadingViewProps {
-  streamingState: StreamingSearchState & {
-    startSearch: (params: Record<string, unknown>) => void
-    cancelSearch: () => void
-    reset: () => void
-  }
+  streamingState: UseStreamingSearchReturn
   selectedSources: string[]
   isStreaming: boolean
   searchProgress: string
