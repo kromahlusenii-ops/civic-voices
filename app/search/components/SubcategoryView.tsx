@@ -67,6 +67,7 @@ export default function SubcategoryView({
 }: SubcategoryViewProps) {
   const [show311, setShow311] = useState(false)
   const [postCounts, setPostCounts] = useState<Record<string, number>>({})
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_loading, setLoading] = useState(true)
   const threeElevenSignals = MOCK_311_SIGNALS[category.id]
   const has311 = threeElevenSignals && threeElevenSignals.length > 0

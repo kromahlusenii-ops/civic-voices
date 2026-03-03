@@ -55,8 +55,6 @@ export default function RoleSelectionScreen({
   onSelectRole,
   onContinue,
 }: RoleSelectionScreenProps) {
-  const _selectedRoleData = ROLES.find((r) => r.id === selectedRole)
-
   return (
     <div className="min-h-screen bg-stone-50 grain relative">
       {/* Newspaper-style header */}
