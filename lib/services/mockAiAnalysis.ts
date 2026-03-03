@@ -36,9 +36,9 @@ export function generateMockAIAnalysis(query: string, posts: Post[]): AIAnalysis
       summary: `${Math.round((positive / postCount) * 100)}% positive, ${Math.round((negative / postCount) * 100)}% negative, ${Math.round((neutral / postCount) * 100)}% neutral`
     },
     suggestedQueries: [
-      { query: `${query} solutions`, label: `Proposed solutions for ${query}` },
-      { query: `${query} policy`, label: `Policy responses to ${query}` },
-      { query: `${query} community impact`, label: `Community impact of ${query}` }
+      { query: `${query} solutions`, label: `Proposed solutions for ${query}`, description: `Explore proposed solutions for ${query}` },
+      { query: `${query} policy`, label: `Policy responses to ${query}`, description: `Policy responses related to ${query}` },
+      { query: `${query} community impact`, label: `Community impact of ${query}`, description: `How ${query} affects the community` }
     ],
     followUpQuestion: `What specific aspects of ${query} are most important to your community?`
   }
