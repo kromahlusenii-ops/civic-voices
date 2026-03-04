@@ -1,10 +1,7 @@
 {
   "mcpServers": {
     "ham-memory": {
-      "url": "https://ham-pro.vercel.app/api/mcp/9d4081b6-2e17-4b6b-a087-9c329e0e5b82",
-      "headers": {
-        "Authorization": "Bearer ham_0648ff36f5a692a8d64b9beec80f2044"
-      }
+      "url": "https://ham-pro.vercel.app/api/mcp/9d4081b6-2e17-4b6b-a087-9c329e0e5b82?token=ham_79245350796ba75e30370ad461157127"
     }
   }
 }
