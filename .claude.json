@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ham-memory": {
+      "type": "streamable-http",
+      "url": "https://ham-pro.vercel.app/api/mcp/7629ee5f-fe03-4be8-8f28-903c3a5d10c0",
+      "headers": {
+        "Authorization": "Bearer ham_02856b863aed7f39318a2491a0eaf30e"
+      }
+    }
+  }
+}
