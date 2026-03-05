@@ -11,3 +11,8 @@
 - **Scope**: .
 - **Summary**: Replaced credit billing system with subscription paywall. Removed all credit infrastructure (creditPacks, creditCosts, credit service, /api/billing/credits, /api/billing/deduct). Built SubscriptionPaywall component with blur overlay CTA. Free users see preview (header, metrics, sentiment, AI briefing) but hit paywall on synthesize panel + conversations. 20 files changed, +218/-1543 lines.
 - **Files touched**: lib/stripe-config.ts, lib/services/creditService.ts, lib/services/featureService.ts, app/api/billing/status/route.ts, app/search/components/IssueDetailView.tsx, app/search/components/SubscriptionPaywall.tsx, components/SettingsModal.tsx
+
+### Session 2026-03-05T20:50:49.014Z
+- **Scope**: .
+- **Summary**: Added tracked topics editor to Settings > Preferences. Category accordion with subcategory checkboxes, auto-save with 800ms debounce, onTopicsChange callback for live dashboard updates. Updated /api/topics POST for partial updates.
+- **Files touched**: components/SettingsModal.tsx, app/api/topics/route.ts, app/search/page.tsx
