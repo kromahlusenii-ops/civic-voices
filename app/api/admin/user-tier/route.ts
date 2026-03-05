@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
 import { prisma } from "@/lib/prisma"
-import { STRIPE_CONFIG, getMonthlyCreditsForTier } from "@/lib/stripe-config"
+import { STRIPE_CONFIG } from "@/lib/stripe-config"
 import { checkRateLimit, getClientIp } from "@/lib/rateLimit"
 import { maskEmail, maskIp } from "@/lib/utils/logging"
 
@@ -59,8 +59,6 @@ interface UpdateTierRequest {
   userId?: string
   email?: string
   tier: "free" | "trialing" | "active" | "canceled"
-  monthlyCredits?: number
-  bonusCredits?: number
 }
 
 /**
@@ -176,7 +174,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body: UpdateTierRequest = await request.json()
-    const { userId, email, tier, monthlyCredits, bonusCredits } = body
+    const { userId, email, tier } = body
 
     if (!userId && !email) {
       return NextResponse.json(
@@ -220,12 +218,6 @@ export async function POST(request: NextRequest) {
     // Set plan based on tier
     if (tier === "active" || tier === "trialing") {
       updateData.subscriptionPlan = "pro"
-      // Set default credits if upgrading to paid tier (default to pro tier credits)
-      if (monthlyCredits !== undefined) {
-        updateData.monthlyCredits = monthlyCredits
-      } else if (existingUser.subscriptionStatus === "free") {
-        updateData.monthlyCredits = getMonthlyCreditsForTier("pro")
-      }
       // Set period dates if not already set
       if (!existingUser.currentPeriodStart) {
         const now = new Date()
@@ -233,7 +225,6 @@ export async function POST(request: NextRequest) {
         endDate.setMonth(endDate.getMonth() + 1)
         updateData.currentPeriodStart = now
         updateData.currentPeriodEnd = endDate
-        updateData.creditsResetDate = now
       }
       if (tier === "trialing" && !existingUser.trialStartDate) {
         const now = new Date()
@@ -244,17 +235,6 @@ export async function POST(request: NextRequest) {
       }
     } else if (tier === "free" || tier === "canceled") {
       updateData.subscriptionPlan = null
-      if (tier === "free") {
-        updateData.monthlyCredits = 0
-      }
-    }
-
-    // Allow explicit credit overrides
-    if (monthlyCredits !== undefined) {
-      updateData.monthlyCredits = monthlyCredits
-    }
-    if (bonusCredits !== undefined) {
-      updateData.bonusCredits = bonusCredits
     }
 
     // Update the user

@@ -24,7 +24,7 @@ import LocalComingSoon from "../components/LocalComingSoon";
 import SettingsModal from "../../components/SettingsModal";
 import ReportProgressModal from "../components/ReportProgressModal";
 import TrialModal from "../components/modals/TrialModal";
-import CreditsModal from "../components/modals/CreditsModal";
+
 import UseCaseModal from "../components/UseCaseModal";
 import { useContextualTooltips } from "@/lib/hooks/useContextualTooltips";
 import type { Post, SearchResponse, AIAnalysis, LegislativeSignalsResponse } from "@/lib/types/api";
@@ -37,7 +37,7 @@ import {
 } from "@/lib/search-suggestions";
 import { supabase } from "@/lib/supabase";
 import { useToast } from "../contexts/ToastContext";
-import { STRIPE_CONFIG } from "@/lib/stripe-config";
+
 import { useStreamingSearch } from "@/lib/hooks/useStreamingSearch";
 import { useSignalsQueue } from "@/lib/hooks/useSignalsQueue";
 import { resolveSubcategoryIds } from "@/lib/search-suggestions";
@@ -134,7 +134,7 @@ function SearchPageContent() {
   const [_verifiedOnly, setVerifiedOnly] = useState(false);
   const [clickedPostCount, setClickedPostCount] = useState(0);
   const [showTrialModal, setShowTrialModal] = useState(false);
-  const [showCreditsModal, setShowCreditsModal] = useState(false);
+
   const [trialModalFeature, setTrialModalFeature] = useState<string | undefined>();
   const [showMentionsPreview, setShowMentionsPreview] = useState(false);
   const [hasSearched, setHasSearched] = useState(false)
@@ -260,15 +260,6 @@ function SearchPageContent() {
               const saveData = await saveRes.json();
               setSearchResults((prev) => (prev ? { ...prev, searchId: saveData.searchId } : null));
             }
-            await fetch("/api/billing/deduct", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({ action: "search", description: `Search: ${query}` }),
-            });
-            refreshBilling();
           }
         } catch (e) {
           console.error("Streaming post-search:", e);
@@ -476,13 +467,10 @@ function SearchPageContent() {
     return range === "last_week" || range === "last_year";
   };
 
-  // Check if user has active subscription
-  const hasActiveSubscription = billing?.subscriptionStatus === "active" || billing?.subscriptionStatus === "trialing";
-
-  // Check if user has enough credits
-  const hasEnoughCredits = (required: number): boolean => {
-    return (billing?.credits?.total || 0) >= required;
-  };
+  // Check if user has active subscription (including canceled with remaining period)
+  const hasActiveSubscription = billing?.subscriptionStatus === "active" ||
+    billing?.subscriptionStatus === "trialing" ||
+    (billing?.subscriptionStatus === "canceled" && billing?.currentPeriodEnd && new Date(billing.currentPeriodEnd) > new Date());
 
   // Update URL when filters change
   const updateUrlParams = useCallback((params: {
@@ -734,29 +722,6 @@ function SearchPageContent() {
         }
       }
 
-      // Track credit usage for authenticated users (API handles free tier gracefully)
-      if (isAuthenticated) {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.access_token) {
-            await fetch("/api/billing/deduct", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${session.access_token}`,
-              },
-              body: JSON.stringify({
-                action: "search",
-                description: `Search: ${query}`,
-              }),
-            });
-            // Refresh billing to update credit display
-            refreshBilling();
-          }
-        } catch (deductError) {
-          console.error("Failed to deduct credits:", deductError);
-        }
-      }
     } catch (error) {
       console.error("Search error:", error);
       setSearchError(error instanceof Error ? error.message : "An error occurred");
@@ -809,12 +774,6 @@ function SearchPageContent() {
     if (!hasActiveSubscription && !isTimeRangeAllowedForFree(timeRange)) {
       setTrialModalFeature("Advanced time range filters");
       setShowTrialModal(true);
-      return;
-    }
-
-    // Check credits for paid users
-    if (hasActiveSubscription && !hasEnoughCredits(STRIPE_CONFIG.creditCosts.nationalSearch)) {
-      setShowCreditsModal(true);
       return;
     }
 
@@ -923,12 +882,6 @@ function SearchPageContent() {
       return;
     }
 
-    // Check if user has enough credits for report generation
-    if (!hasEnoughCredits(STRIPE_CONFIG.creditCosts.reportGeneration)) {
-      setShowCreditsModal(true);
-      return;
-    }
-
     setReportError(null);
 
     try {
@@ -978,25 +931,6 @@ function SearchPageContent() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
         throw new Error("No active session");
-      }
-
-      // Deduct credits for report generation
-      try {
-        await fetch("/api/billing/deduct", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({
-            action: "report_generation",
-            description: `Report: ${searchResults?.query || "Search report"}`,
-          }),
-        });
-        // Refresh billing to update credit display
-        refreshBilling();
-      } catch (deductError) {
-        console.error("Failed to deduct credits:", deductError);
       }
 
       // Store the access token and show the progress modal
@@ -1134,14 +1068,6 @@ function SearchPageContent() {
         isOpen={showTrialModal}
         onClose={() => setShowTrialModal(false)}
         feature={trialModalFeature}
-      />
-
-      {/* Credits Modal */}
-      <CreditsModal
-        isOpen={showCreditsModal}
-        onClose={() => setShowCreditsModal(false)}
-        currentCredits={billing?.credits?.total || 0}
-        requiredCredits={STRIPE_CONFIG.creditCosts.nationalSearch}
       />
 
       {/* Use Case Selection Modal */}
@@ -1395,6 +1321,15 @@ function SearchPageContent() {
                     });
                   }}
                   isTracked={trackedSubcategoryIds.has(selectedSubcategory.id)}
+                  isSubscribed={!!hasActiveSubscription}
+                  isAuthenticated={isAuthenticated}
+                  onSubscribe={() => {
+                    if (!isAuthenticated) {
+                      setShowAuthModal(true)
+                    } else {
+                      setShowTrialModal(true)
+                    }
+                  }}
                 />
               )}
 

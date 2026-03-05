@@ -5,7 +5,7 @@
 - DB: PostgreSQL via Prisma ORM + Supabase Auth
 - Styling: Tailwind CSS
 - AI: Anthropic Claude (Haiku/Sonnet), Google Gemini
-- Billing: Stripe (credits per search: National 1cr, State 3cr, City 5cr, Report 10cr)
+- Billing: Stripe (subscription paywall — free preview, paid full analysis)
 - Cache: Upstash Redis
 - Testing: Vitest (unit, colocated), Playwright (e2e in e2e/)
 - Deploy: Vercel. **Node 20+ required** (`nvm use 20`).

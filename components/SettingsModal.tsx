@@ -7,7 +7,7 @@ import { USE_CASE_STORAGE_KEY, USE_CASE_LABELS, LOCATION_STORAGE_KEY, US_STATES,
 import { TAXONOMY } from "@/lib/data/taxonomy";
 import citiesByState from "@/data/cities.json";
 
-type SettingsTab = "credit_usage" | "plan_billing" | "preferences" | "team_members" | "integrations";
+type SettingsTab = "plan_billing" | "preferences" | "team_members" | "integrations";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -19,13 +19,6 @@ interface SettingsModalProps {
 }
 
 // Icons as inline SVGs for consistency
-const CreditIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <circle cx="12" cy="12" r="10" strokeWidth="2" />
-    <path strokeWidth="2" d="M12 6v6l4 2" />
-  </svg>
-);
-
 const BillingIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <rect x="2" y="5" width="20" height="14" rx="2" strokeWidth="2" />
@@ -80,7 +73,7 @@ const SpinnerIcon = () => (
 );
 
 export default function SettingsModal({ isOpen, onClose, onLocationChange, onTopicsChange }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("credit_usage");
+  const [activeTab, setActiveTab] = useState<SettingsTab>("plan_billing");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [userPlan, setUserPlan] = useState<string | null>(null);
@@ -137,7 +130,6 @@ export default function SettingsModal({ isOpen, onClose, onLocationChange, onTop
   const isTeamEnabled = userPlan === "agency" || userPlan === "business";
 
   const navItems = [
-    { id: "credit_usage" as const, label: "Credit usage", icon: CreditIcon, disabled: false },
     { id: "plan_billing" as const, label: "Plan & Billing", icon: BillingIcon, disabled: false },
     { id: "preferences" as const, label: "Preferences", icon: PreferencesIcon, disabled: false },
     { id: "team_members" as const, label: "Team & Members", icon: TeamIcon, disabled: !isTeamEnabled, disabledReason: "Upgrade to Agency or Business" },
@@ -229,7 +221,6 @@ export default function SettingsModal({ isOpen, onClose, onLocationChange, onTop
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === "credit_usage" && <CreditUsageTab />}
           {activeTab === "plan_billing" && <PlanBillingTab />}
           {activeTab === "preferences" && <PreferencesTab onLocationChange={onLocationChange} onTopicsChange={onTopicsChange} />}
           {activeTab === "team_members" && <TeamMembersTab />}
@@ -240,180 +231,11 @@ export default function SettingsModal({ isOpen, onClose, onLocationChange, onTop
   );
 }
 
-// Credit Usage Tab
-function CreditUsageTab() {
-  const { getAccessToken } = useAuth();
-  const [billingData, setBillingData] = useState<{
-    subscription: { plan: string | null };
-    credits: { monthly: number; bonus: number; total: number; resetDate: string | null };
-    recentTransactions: Array<{ id: string; amount: number; type: string; description: string | null; createdAt: string }>;
-  } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchBillingData = async () => {
-      try {
-        const accessToken = await getAccessToken();
-        if (!accessToken) {
-          setIsLoading(false);
-          return;
-        }
-
-        const response = await fetch("/api/billing/status", {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setBillingData(data);
-        }
-      } catch (error) {
-        console.error("Failed to fetch billing data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    // Initial fetch
-    fetchBillingData();
-
-    // Poll for updates every 10 seconds
-    const pollInterval = setInterval(fetchBillingData, 10000);
-
-    return () => clearInterval(pollInterval);
-  }, [getAccessToken]);
-
-  if (isLoading) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[300px]">
-        <SpinnerIcon />
-      </div>
-    );
-  }
-
-  const credits = billingData?.credits || { monthly: 0, bonus: 0, total: 0, resetDate: null };
-  const transactions = billingData?.recentTransactions || [];
-  // Get plan-specific max credits (Pro=50, Agency=150, Business=400)
-  const plan = billingData?.subscription?.plan || "pro";
-  const planCredits: Record<string, number> = { pro: 50, agency: 150, business: 400 };
-  const totalCredits = planCredits[plan] || 50;
-  const percentUsed = totalCredits > 0 ? ((totalCredits - credits.total) / totalCredits) * 100 : 0;
-  const resetDate = credits.resetDate ? new Date(credits.resetDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "N/A";
-
-  const formatActivityType = (type: string) => {
-    switch (type) {
-      case "search_usage": return "Search";
-      case "report_generation": return "Report";
-      case "monthly_reset": return "Monthly Reset";
-      case "overage_purchase": return "Credit Purchase";
-      default: return type;
-    }
-  };
-
-  return (
-    <div className="p-6">
-      <h3 className="text-xl font-semibold text-gray-900 mb-6">Credit usage</h3>
-
-      {/* Credits Card */}
-      <div className="bg-gray-50 rounded-xl p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <span className="text-gray-700 font-medium">Credits available</span>
-            <button className="text-gray-400 hover:text-gray-600">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" strokeWidth="2" />
-                <path strokeWidth="2" d="M12 16v-4M12 8h.01" />
-              </svg>
-            </button>
-          </div>
-          <div className="flex items-center gap-2 text-gray-600">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" strokeWidth="2" />
-              <path strokeWidth="2" d="M12 6v6l4 2" />
-            </svg>
-            <span className="font-medium">{credits.total}/{totalCredits}</span>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 to-blue-400 rounded-full transition-all duration-300"
-            style={{ width: `${Math.max(0, 100 - percentUsed)}%` }}
-          />
-        </div>
-
-        {/* Credit breakdown */}
-        <div className="flex gap-4 mb-4 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-            <span className="text-gray-600">Monthly: {credits.monthly}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-            <span className="text-gray-600">Bonus: {credits.bonus}</span>
-          </div>
-        </div>
-
-        {/* Info */}
-        <div className="space-y-2 text-sm text-gray-600">
-          <div className="flex items-center gap-2">
-            <CheckIcon />
-            <span>Monthly credits reset on {resetDate}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <CheckIcon />
-            <span>Bonus credits never expire</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Usage History */}
-      <div className="border border-gray-200 rounded-xl overflow-hidden">
-        <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-          <h4 className="font-medium text-gray-900">Usage history</h4>
-        </div>
-        {transactions.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">
-            No transactions yet
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Credits</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {transactions.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm text-gray-900">{formatActivityType(item.type)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(item.createdAt).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </td>
-                  <td className={`px-6 py-4 text-sm text-right font-medium ${item.amount >= 0 ? "text-green-600" : "text-gray-900"}`}>
-                    {item.amount >= 0 ? "+" : ""}{item.amount}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // Plan & Billing Tab
 function PlanBillingTab() {
   const { getAccessToken } = useAuth();
   const [billingData, setBillingData] = useState<{
     subscription: { status: string; plan: string | null; currentPeriodEnd: string | null; trialEndDate: string | null };
-    credits: { monthly: number; bonus: number; total: number; resetDate: string | null };
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCheckoutLoading, setIsCheckoutLoading] = useState<string | null>(null); // Track which plan is loading
@@ -424,9 +246,9 @@ function PlanBillingTab() {
 
   // Plan configurations
   const planConfig = {
-    pro: { name: "Pro", price: 99, credits: 50, users: 1 },
-    agency: { name: "Agency", price: 249, credits: 150, users: 3 },
-    business: { name: "Business", price: 499, credits: 400, users: 5 },
+    pro: { name: "Pro", price: 99, users: 1 },
+    agency: { name: "Agency", price: 249, users: 3 },
+    business: { name: "Business", price: 499, users: 5 },
   };
 
   useEffect(() => {
@@ -654,7 +476,7 @@ function PlanBillingTab() {
             <ul className="text-sm text-gray-600 mb-4 space-y-1">
               <li className="flex items-center gap-2">
                 <span className="text-red-500">✕</span>
-                {planConfig[subscription.plan as keyof typeof planConfig]?.credits || 50} monthly credits
+                Full analysis access
               </li>
               <li className="flex items-center gap-2">
                 <span className="text-red-500">✕</span>
@@ -784,7 +606,7 @@ function PlanBillingTab() {
 
           <ul className="space-y-1.5">
             {[
-              "50 credits / month",
+              "Unlimited searches",
               "1 user",
               "All search timeframes",
               "AI-powered reports",
@@ -832,7 +654,7 @@ function PlanBillingTab() {
 
           <ul className="space-y-1.5">
             {[
-              "150 credits / month",
+              "Unlimited searches",
               "3 users",
               "Everything in Pro",
               "Client workspaces (coming soon)",
@@ -878,7 +700,7 @@ function PlanBillingTab() {
 
           <ul className="space-y-1.5">
             {[
-              "400 credits / month",
+              "Unlimited searches",
               "5 users",
               "Everything in Agency",
               "Advanced analytics (coming soon)",

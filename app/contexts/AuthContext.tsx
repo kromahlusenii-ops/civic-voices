@@ -7,11 +7,6 @@ import { supabase } from "@/lib/supabase";
 interface BillingStatus {
   subscriptionStatus: string;
   subscriptionPlan: string | null;
-  credits: {
-    monthly: number;
-    bonus: number;
-    total: number;
-  };
   currentPeriodEnd: string | null;
   trialEndDate: string | null;
 }
@@ -61,7 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setBilling({
           subscriptionStatus: data.subscription?.status || "free",
           subscriptionPlan: data.subscription?.plan || null,
-          credits: data.credits || { monthly: 0, bonus: 0, total: 0 },
           currentPeriodEnd: data.subscription?.currentPeriodEnd || null,
           trialEndDate: data.subscription?.trialEndDate || null,
         });
@@ -71,7 +65,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setBilling({
           subscriptionStatus: "free",
           subscriptionPlan: null,
-          credits: { monthly: 0, bonus: 0, total: 0 },
           currentPeriodEnd: null,
           trialEndDate: null,
         });
@@ -82,7 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setBilling({
         subscriptionStatus: "free",
         subscriptionPlan: null,
-        credits: { monthly: 0, bonus: 0, total: 0 },
         currentPeriodEnd: null,
         trialEndDate: null,
       });

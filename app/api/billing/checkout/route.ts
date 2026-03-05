@@ -122,14 +122,10 @@ export async function POST(request: NextRequest) {
         })
 
         // Update user in database
-        const { getMonthlyCreditsForTier } = await import("@/lib/stripe-config")
-        const monthlyCredits = getMonthlyCreditsForTier(plan)
-
         await prisma.user.update({
           where: { id: user.id },
           data: {
             subscriptionPlan: plan,
-            monthlyCredits,
           },
         })
 

@@ -7,6 +7,7 @@ import type { GeoScope } from "./GeoScopeToggle"
 import type { LegislativeSignalsResponse, Post } from "@/lib/types/api"
 import { PLATFORM_OPTIONS, SENTIMENT_OPTIONS, PLATFORM_LABELS, PLATFORM_STYLES } from "./platformConstants"
 import SearchPostCard from "./SearchPostCard"
+import SubscriptionPaywall from "./SubscriptionPaywall"
 
 interface IssueDetailViewProps {
   category: TaxonomyCategory
@@ -26,6 +27,9 @@ interface IssueDetailViewProps {
   onBack: () => void
   onTrackIssue?: () => void
   isTracked?: boolean
+  isSubscribed?: boolean
+  isAuthenticated?: boolean
+  onSubscribe?: () => void
 }
 
 export default function IssueDetailView({
@@ -44,6 +48,9 @@ export default function IssueDetailView({
   onBack,
   onTrackIssue,
   isTracked = false,
+  isSubscribed = true,
+  isAuthenticated = false,
+  onSubscribe,
 }: IssueDetailViewProps) {
   const [platformFilter, setPlatformFilter] = useState("All")
   const [sentimentFilter, setSentimentFilter] = useState("all")
@@ -510,6 +517,42 @@ export default function IssueDetailView({
 
           {/* Right — Synthesize + Post Feed */}
           <div className="min-w-0 space-y-6">
+            {!isSubscribed && onSubscribe ? (
+              <>
+                {/* Teaser: show a faded preview of synthesize content */}
+                <div className="relative max-h-[200px] overflow-hidden" style={{ maskImage: "linear-gradient(to bottom, black 30%, transparent 100%)", WebkitMaskImage: "linear-gradient(to bottom, black 30%, transparent 100%)" }}>
+                  {data?.aiAnalysis && (
+                    <div className="rounded-xl p-6" style={{ backgroundColor: "rgba(255,255,255,0.8)", border: "1px solid rgba(0,0,0,0.06)" }}>
+                      <p className="mb-4 text-xs font-semibold uppercase" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.1em", color: "rgba(0,0,0,0.5)" }}>
+                        ✦ SYNTHESIZE
+                      </p>
+                      {data.aiAnalysis.suggestedQueries && data.aiAnalysis.suggestedQueries.length > 0 && (
+                        <div className="mb-5">
+                          <h3 className="mb-2 text-sm font-semibold" style={{ color: "#2C2519" }}>What People Want</h3>
+                          <ul className="space-y-2">
+                            {data.aiAnalysis.suggestedQueries.slice(0, 3).map((suggestion, i) => (
+                              <li key={i} className="flex gap-2 text-sm" style={{ color: "rgba(0,0,0,0.7)" }}>
+                                <span style={{ color: "#2E7D32", fontWeight: "bold" }}>→</span>
+                                <span>{suggestion.label || suggestion.query}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {!data?.aiAnalysis && postCount > 0 && (
+                    <div className="rounded-xl p-6" style={{ backgroundColor: "rgba(255,255,255,0.8)", border: "1px solid rgba(0,0,0,0.06)" }}>
+                      <p className="mb-2 text-xs font-semibold uppercase" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.1em", color: "rgba(0,0,0,0.5)" }}>
+                        ✦ SYNTHESIZE
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <SubscriptionPaywall onSubscribe={onSubscribe} isAuthenticated={isAuthenticated ?? false} />
+              </>
+            ) : (
+            <>
             {/* Synthesize Section */}
             {!data?.aiAnalysis && postCount > 0 && (
               <div className="rounded-xl p-6" style={{ backgroundColor: "rgba(255,255,255,0.8)", border: "1px solid rgba(0,0,0,0.06)" }}>
@@ -615,6 +658,8 @@ export default function IssueDetailView({
                   />
                 ))}
               </div>
+            )}
+            </>
             )}
           </div>
         </div>

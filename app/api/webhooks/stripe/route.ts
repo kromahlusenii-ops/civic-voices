@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { stripe } from "@/lib/stripe"
 import { prisma } from "@/lib/prisma"
-import { getMonthlyCreditsForTier } from "@/lib/stripe-config"
-import { resetMonthlyCredits } from "@/lib/services/creditService"
 import { createOrganization, getUserOrganization } from "@/lib/services/organizationService"
 import { clearSeatItem } from "@/lib/services/seatService"
 import { maskEmail } from "@/lib/utils/logging"
@@ -53,9 +51,6 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
     return
   }
 
-  // Get tier-specific monthly credits
-  const monthlyCredits = getMonthlyCreditsForTier(plan)
-
   // Update user with subscription info
   await prisma.user.updateMany({
     where: { email },
@@ -72,12 +67,10 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) 
         : null,
       currentPeriodStart: new Date(subscription.current_period_start * 1000),
       currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      monthlyCredits,
-      creditsResetDate: new Date(),
     },
   })
 
-  console.log(`Subscription activated for ${maskEmail(email)} (${plan} plan, ${monthlyCredits} credits)`)
+  console.log(`Subscription activated for ${maskEmail(email)} (${plan} plan)`)
 
   // Create organization for Agency/Business plans
   if (plan === "agency" || plan === "business") {
@@ -155,7 +148,6 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       stripeSubscriptionId: null,
       currentPeriodStart: null,
       currentPeriodEnd: null,
-      monthlyCredits: 0,
     },
   })
 
@@ -183,11 +175,11 @@ async function handleInvoicePaid(invoiceEvent: Stripe.Invoice) {
     : subscriptionData?.id
 
   if (!subscriptionId) {
-    // This might be a one-time payment for credits
+    // This might be a one-time payment
     return
   }
 
-  // Find user and reset monthly credits
+  // Find user and update subscription status
   const user = await prisma.user.findFirst({
     where: { stripeCustomerId: customerId },
     select: {
@@ -213,11 +205,6 @@ async function handleInvoicePaid(invoiceEvent: Stripe.Invoice) {
         currentPeriodEnd: new Date(subscription.current_period_end * 1000),
       },
     })
-
-    // Reset monthly credits on renewal with tier-specific amount
-    await resetMonthlyCredits(user.id, plan, new Date(subscription.current_period_start * 1000))
-
-    console.log(`Monthly credits reset for user ${user.id} (${plan} plan)`)
   }
 }
 
@@ -232,44 +219,6 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   })
 
   console.log(`Payment failed for customer ${customerId}`)
-}
-
-async function handleCheckoutSessionCompletedForCredits(session: Stripe.Checkout.Session) {
-  // Handle one-time credit purchases
-  if (session.mode !== "payment") return
-
-  const customerId = session.customer as string
-  const metadata = session.metadata
-
-  if (!metadata?.credits) return
-
-  const creditsToAdd = parseInt(metadata.credits, 10)
-  if (isNaN(creditsToAdd)) return
-
-  const user = await prisma.user.findFirst({
-    where: { stripeCustomerId: customerId },
-  })
-
-  if (user) {
-    await prisma.$transaction([
-      prisma.user.update({
-        where: { id: user.id },
-        data: {
-          bonusCredits: { increment: creditsToAdd },
-        },
-      }),
-      prisma.creditTransaction.create({
-        data: {
-          userId: user.id,
-          amount: creditsToAdd,
-          type: "overage_purchase",
-          description: `Purchased ${creditsToAdd} credits`,
-        },
-      }),
-    ])
-
-    console.log(`Added ${creditsToAdd} credits to user ${user.id}`)
-  }
 }
 
 export async function POST(request: NextRequest) {
@@ -303,8 +252,6 @@ export async function POST(request: NextRequest) {
         const session = event.data.object as Stripe.Checkout.Session
         if (session.mode === "subscription") {
           await handleCheckoutSessionCompleted(session)
-        } else if (session.mode === "payment") {
-          await handleCheckoutSessionCompletedForCredits(session)
         }
         break
       }

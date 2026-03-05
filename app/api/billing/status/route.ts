@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { verifySupabaseToken } from "@/lib/supabase-server"
-import { getUserBillingStatus, getCreditTransactions } from "@/lib/services/creditService"
-import { getFeatureLimits } from "@/lib/services/featureService"
+import { getUserBillingStatus } from "@/lib/services/creditService"
 import { prisma } from "@/lib/prisma"
 import { stripe } from "@/lib/stripe"
-import { getMonthlyCreditsForTier } from "@/lib/stripe-config"
 
 export const dynamic = "force-dynamic"
 
@@ -44,9 +42,6 @@ async function syncSubscriptionFromStripe(userId: string, stripeSubscriptionId: 
       trial_end?: number | null
     }
 
-    // Get tier-specific monthly credits
-    const monthlyCredits = status !== "free" ? getMonthlyCreditsForTier(plan) : 0
-
     // Update the user with correct subscription data
     await prisma.user.update({
       where: { id: userId },
@@ -65,8 +60,6 @@ async function syncSubscriptionFromStripe(userId: string, stripeSubscriptionId: 
         trialEndDate: subscriptionData.trial_end
           ? new Date(subscriptionData.trial_end * 1000)
           : null,
-        // Give tier-specific credits if they don't have any yet
-        monthlyCredits,
       },
     })
 
@@ -115,9 +108,6 @@ async function syncSubscriptionByCustomerId(userId: string, stripeCustomerId: st
       trial_end?: number | null
     }
 
-    // Get tier-specific monthly credits
-    const monthlyCredits = getMonthlyCreditsForTier(plan)
-
     // Update the user with subscription data
     await prisma.user.update({
       where: { id: userId },
@@ -137,8 +127,6 @@ async function syncSubscriptionByCustomerId(userId: string, stripeCustomerId: st
         trialEndDate: subscriptionData.trial_end
           ? new Date(subscriptionData.trial_end * 1000)
           : null,
-        monthlyCredits,
-        creditsResetDate: new Date(),
       },
     })
 
@@ -194,15 +182,15 @@ export async function GET(request: NextRequest) {
           stripeSubscriptionId: true,
           subscriptionStatus: true,
         },
-      });
+      })
 
       if (user) {
         // User exists by email but missing supabaseUid - link it
-        console.log(`Linking existing user (email: ${authUser.email}) to Supabase UID: ${authUser.id}`);
+        console.log(`Linking existing user (email: ${authUser.email}) to Supabase UID: ${authUser.id}`)
         await prisma.user.update({
           where: { id: user.id },
           data: { supabaseUid: authUser.id },
-        });
+        })
       } else {
         // User doesn't exist at all - create new
         console.log(`Auto-creating user for Supabase UID: ${authUser.id}`)
@@ -211,8 +199,6 @@ export async function GET(request: NextRequest) {
             supabaseUid: authUser.id,
             email: authUser.email || `${authUser.id}@unknown.com`,
             subscriptionStatus: "free",
-            monthlyCredits: 0,
-            bonusCredits: 0,
           },
           select: {
             id: true,
@@ -242,12 +228,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get billing status and feature limits
-    const [billingStatus, featureLimits, recentTransactions] = await Promise.all([
-      getUserBillingStatus(user.id),
-      getFeatureLimits(user.id),
-      getCreditTransactions(user.id, 10),
-    ])
+    // Get billing status
+    const billingStatus = await getUserBillingStatus(user.id)
 
     if (!billingStatus) {
       return NextResponse.json({ error: "Billing status not found" }, { status: 404 })
@@ -260,10 +242,6 @@ export async function GET(request: NextRequest) {
         currentPeriodEnd: billingStatus.currentPeriodEnd,
         trialEndDate: billingStatus.trialEndDate,
       },
-      credits: billingStatus.credits,
-      freeTier: featureLimits.freeTier,
-      limits: featureLimits.limits,
-      recentTransactions,
     })
   } catch (error) {
     console.error("Billing status error:", error)

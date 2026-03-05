@@ -7,7 +7,6 @@ export const STRIPE_CONFIG = {
     pro: {
       name: "Pro",
       monthlyPrice: 9900, // $99.00 in cents
-      monthlyCredits: 50,
       users: 1,
       productId: "prod_Tof3EP4wYT8mTx",
       includedSeats: 1,
@@ -16,7 +15,6 @@ export const STRIPE_CONFIG = {
     agency: {
       name: "Agency",
       monthlyPrice: 24900, // $249.00 in cents
-      monthlyCredits: 150,
       users: 3,
       productId: "prod_TqYVSWRcbvgi85",
       includedSeats: 3,
@@ -25,7 +23,6 @@ export const STRIPE_CONFIG = {
     business: {
       name: "Business",
       monthlyPrice: 49900, // $499.00 in cents
-      monthlyCredits: 400,
       users: 5,
       productId: "prod_TqYVhKSKtlcxMO",
       includedSeats: 5,
@@ -42,21 +39,6 @@ export const STRIPE_CONFIG = {
   // Trial configuration
   trial: {
     days: 3, // 3-day free trial for all tiers
-  },
-
-  // Credit packs for one-time purchases
-  creditPacks: [
-    { credits: 50, price: 2900, productId: "prod_TqYW2TQUV1Xi4D" },   // $29.00
-    { credits: 150, price: 6900, productId: "prod_TqYXxikQrobEBP" },  // $69.00
-    { credits: 500, price: 19900, productId: "prod_TqYXaXEIuqbV4T" }, // $199.00
-  ],
-
-  // Credit costs per action
-  creditCosts: {
-    nationalSearch: 1,
-    stateSearch: 3,
-    citySearch: 5,
-    reportGeneration: 10,
   },
 
   // Free tier configuration
@@ -82,11 +64,12 @@ export const STRIPE_CONFIG = {
 
 export type SubscriptionStatus = typeof STRIPE_CONFIG.status[keyof typeof STRIPE_CONFIG.status]
 export type SubscriptionTier = keyof typeof STRIPE_CONFIG.tiers
-export type SearchType = "national" | "state" | "city"
 
 // Helper to check if user has active subscription
-export function hasActiveSubscription(status: string): boolean {
-  return status === STRIPE_CONFIG.status.ACTIVE || status === STRIPE_CONFIG.status.TRIALING
+export function hasActiveSubscription(status: string, currentPeriodEnd?: string | Date | null): boolean {
+  if (status === STRIPE_CONFIG.status.ACTIVE || status === STRIPE_CONFIG.status.TRIALING) return true
+  if (status === STRIPE_CONFIG.status.CANCELED && currentPeriodEnd && new Date(currentPeriodEnd) > new Date()) return true
+  return false
 }
 
 // Helper to check if user is on free tier
@@ -99,41 +82,10 @@ export function isTimeFilterAllowedForFree(timeFilter: string): boolean {
   return (STRIPE_CONFIG.freeTier.allowedTimeFilters as readonly string[]).includes(timeFilter)
 }
 
-// Helper to get credit cost for search by type
-export function getSearchCreditCost(searchType: SearchType): number {
-  switch (searchType) {
-    case "national":
-      return STRIPE_CONFIG.creditCosts.nationalSearch
-    case "state":
-      return STRIPE_CONFIG.creditCosts.stateSearch
-    case "city":
-      return STRIPE_CONFIG.creditCosts.citySearch
-    default:
-      return STRIPE_CONFIG.creditCosts.nationalSearch
-  }
-}
-
-// Helper to get credit cost for report generation
-export function getReportCreditCost(): number {
-  return STRIPE_CONFIG.creditCosts.reportGeneration
-}
-
-// Helper to get monthly credits for a subscription tier
-export function getMonthlyCreditsForTier(tier: string | null): number {
-  if (!tier) return 0
-  const tierConfig = STRIPE_CONFIG.tiers[tier as SubscriptionTier]
-  return tierConfig?.monthlyCredits || 0
-}
-
 // Helper to get tier configuration
 export function getTierConfig(tier: string | null) {
   if (!tier) return null
   return STRIPE_CONFIG.tiers[tier as SubscriptionTier] || null
-}
-
-// Helper to get credit pack by credits amount
-export function getCreditPack(credits: number) {
-  return STRIPE_CONFIG.creditPacks.find(p => p.credits === credits)
 }
 
 // Helper to get included seats for a tier

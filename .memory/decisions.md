@@ -28,6 +28,14 @@
 - **Decision:** Added "Tracked topics" section to Settings > Preferences tab with category accordion, subcategory checkboxes, auto-save (800ms debounce), and `onTopicsChange` callback that updates the search dashboard without page reload. Updated `/api/topics` POST to support partial updates (topics-only without clearing geo preferences).
 - **Files:** `components/SettingsModal.tsx`, `app/api/topics/route.ts`, `app/search/page.tsx`
 
+## ADR-006: Replace credit billing with subscription paywall
+- **Date:** 2026-03-05
+- **Status:** Active
+- **Context:** Billing model shifted from per-action credits (national 1cr, state 3cr, city 5cr, report 10cr) to simple subscription gating. Credit packs, deductions, and usage tracking added friction without clear value.
+- **Decision:** Removed all credit infrastructure (creditPacks, creditCosts, credit service functions, /api/billing/credits, /api/billing/deduct). Free users see a preview of IssueDetailView (header, metrics, sentiment, AI briefing) but hit a blur/overlay paywall on the right column (synthesize panel + conversations). Subscribed users (active, trialing, or canceled-with-remaining-period) see full content. `hasActiveSubscription()` now accepts optional `currentPeriodEnd` to handle canceled-with-access. Prisma credit columns left as dead columns for future migration. CreditUsageTab removed from Settings; plan feature lists changed from "X credits/month" to "Unlimited searches".
+- **Files:** `lib/stripe-config.ts`, `lib/services/creditService.ts`, `lib/services/featureService.ts`, `app/api/billing/status/route.ts`, `app/api/webhooks/stripe/route.ts`, `app/api/billing/checkout/route.ts`, `app/contexts/AuthContext.tsx`, `app/search/page.tsx`, `app/search/components/IssueDetailView.tsx`, `app/search/components/SubscriptionPaywall.tsx` (new), `app/components/modals/TrialModal.tsx`, `components/SettingsModal.tsx`, `app/api/admin/user-tier/route.ts`
+- **Deleted:** `app/api/billing/credits/route.ts`, `app/api/billing/deduct/route.ts`, `app/components/modals/CreditsModal.tsx`
+
 ## ADR-004: Added Arts & Culture as 10th taxonomy category
 - **Date:** 2026-03-05
 - **Status:** Active

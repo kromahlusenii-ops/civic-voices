@@ -110,7 +110,7 @@ export default function TrialModal({ isOpen, onClose, feature }: TrialModalProps
             </h3>
             <ul className="space-y-2">
               {[
-                "50 credits/month included",
+                "Full civic analysis access",
                 "All search timeframes",
                 "AI-powered report generation",
                 "Export data and insights",
