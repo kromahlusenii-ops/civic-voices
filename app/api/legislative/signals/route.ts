@@ -125,10 +125,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const baseUrl =
-      process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : request.nextUrl.origin
+    // Use the request origin (custom domain) — NOT VERCEL_URL which resolves
+    // to the deployment URL that sits behind Vercel Deployment Protection.
+    const baseUrl = request.nextUrl.origin
 
     // Redis Cache Layer — shared across all users with same parameters
     // When a specific keyword is provided, append it to the subcategoryId segment
