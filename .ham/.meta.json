@@ -1,19 +1,23 @@
 {
   "revisions": {
     "session-log.md": "dc40ad495e781077ef2d523127fc9169edacf5821cf8365613e9c6d1505afe39",
-    "decisions.md": "40bdd030f741c597d2acf853d5b448e2ddcd2b2dd001278c3330b0eb87ba2984"
+    "decisions.md": "40bdd030f741c597d2acf853d5b448e2ddcd2b2dd001278c3330b0eb87ba2984",
+    "patterns.md": "dbd644eac2d910a6d83c3498f498131006179d1e487adf55020671a45f132386"
   },
   "write_counts": {
     "session-log.md": 3,
-    "decisions.md": 1
+    "decisions.md": 1,
+    "patterns.md": 1
   },
   "last_writer": {
     "session-log.md": "mcp",
-    "decisions.md": "mcp"
+    "decisions.md": "mcp",
+    "patterns.md": "mcp"
   },
   "last_updated": {
     "session-log.md": "2026-03-05T20:50:49.014Z",
-    "decisions.md": "2026-03-05T20:51:06.405Z"
+    "decisions.md": "2026-03-05T20:51:06.405Z",
+    "patterns.md": "2026-03-05T20:51:33.069Z"
   },
   "idempotency_keys": [
     "session-pdf-export-2026-03-05",
