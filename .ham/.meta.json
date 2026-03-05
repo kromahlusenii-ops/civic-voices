@@ -1,17 +1,18 @@
 {
   "revisions": {
-    "session-log.md": "46dec4161ac5079eb7d732f93ce15eefa30004ffebba6148b521ab653802bf17"
+    "session-log.md": "c1fe3b7e88cafcb6304a1605771c688a83d73fe599d1dd459a1eef2c52d59b0e"
   },
   "write_counts": {
-    "session-log.md": 1
+    "session-log.md": 2
   },
   "last_writer": {
     "session-log.md": "mcp"
   },
   "last_updated": {
-    "session-log.md": "2026-03-05T20:49:54.043Z"
+    "session-log.md": "2026-03-05T20:50:14.092Z"
   },
   "idempotency_keys": [
-    "session-pdf-export-2026-03-05"
+    "session-pdf-export-2026-03-05",
+    "session-subscription-paywall-2026-03-05"
   ]
 }
