@@ -1,12 +1,8 @@
-# components — Frontend components
+# components — Root-Level Shared Components
 
-## Project Context (inherited)
-Inherits from: root CLAUDE.md
+## Purpose
+Components shared outside the app/ directory (e.g., SettingsModal).
 
 ## Conventions
-- Prefer small, composable components over large monolithic ones
-- Props interfaces should be exported alongside the component
-- Use Tailwind utility classes — do not introduce inline styles or separate CSS
-- Co-locate styles, tests, and stories with their component when possible
-- Interactive components should be accessible (keyboard navigation, ARIA labels)
-- Prefer functional components and hooks
+- `"use client"` — all components here use browser APIs
+- SettingsModal.tsx — user settings, preferences, account management

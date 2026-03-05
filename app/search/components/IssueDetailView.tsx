@@ -4,8 +4,8 @@
 import { useState, useMemo, useEffect } from "react"
 import type { TaxonomyCategory, Subcategory } from "@/lib/data/taxonomy"
 import type { GeoScope } from "./GeoScopeToggle"
-import type { LegislativeSignalsResponse } from "@/lib/types/api"
-import { PLATFORM_OPTIONS, SENTIMENT_OPTIONS } from "./platformConstants"
+import type { LegislativeSignalsResponse, Post } from "@/lib/types/api"
+import { PLATFORM_OPTIONS, SENTIMENT_OPTIONS, PLATFORM_LABELS, PLATFORM_STYLES } from "./platformConstants"
 import SearchPostCard from "./SearchPostCard"
 
 interface IssueDetailViewProps {
@@ -51,6 +51,20 @@ export default function IssueDetailView({
   const [data, setData] = useState<LegislativeSignalsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [queriedKeywords, setQueriedKeywords] = useState<Set<string>>(new Set())
+  const [additionalPosts, setAdditionalPosts] = useState<Post[]>([])
+  const [loadingKeyword, setLoadingKeyword] = useState<string | null>(null)
+  const [collapsedPlatforms, setCollapsedPlatforms] = useState<Set<string>>(new Set())
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set())
+
+  // Reset keyword state when subcategory changes
+  useEffect(() => {
+    setQueriedKeywords(new Set())
+    setAdditionalPosts([])
+    setLoadingKeyword(null)
+    setCollapsedPlatforms(new Set())
+    setExpandedPlatforms(new Set())
+  }, [subcategory.id])
 
   useEffect(() => {
     const cacheKey = buildCacheKey(subcategory.id, state, city)
@@ -60,6 +74,11 @@ export default function IssueDetailView({
       setData(cached)
       setLoading(false)
       setError(null)
+      // Seed queriedKeywords from the initial API query
+      setQueriedKeywords((prev) => {
+        if (prev.size === 0 && cached.query) return new Set([cached.query])
+        return prev
+      })
       return
     }
 
@@ -70,9 +89,16 @@ export default function IssueDetailView({
     onMissing?.(subcategory.id)
   }, [subcategory.id, state, city, geoScope, timeFilter, buildCacheKey, signalsCache, onMissing])
 
-  const filteredPosts = useMemo(() => {
+  const allPosts = useMemo(() => {
     if (!data?.posts) return []
-    let list = data.posts
+    const baseIds = new Set(data.posts.map((p) => p.id))
+    const unique = additionalPosts.filter((p) => !baseIds.has(p.id))
+    return [...data.posts, ...unique]
+  }, [data?.posts, additionalPosts])
+
+  const filteredPosts = useMemo(() => {
+    if (allPosts.length === 0) return []
+    let list = allPosts
     if (platformFilter !== "All") {
       const platformKey = platformFilter.toLowerCase()
       list = list.filter((p) => p.platform === platformKey)
@@ -84,14 +110,25 @@ export default function IssueDetailView({
       list = list.filter((p) => p.verificationBadge || (p.credibilityScore != null && p.credibilityScore >= 0.7))
     }
     return list
-  }, [data?.posts, platformFilter, sentimentFilter, verifiedOnly])
+  }, [allPosts, platformFilter, sentimentFilter, verifiedOnly])
+
+  const groupedByPlatform = useMemo(() => {
+    const groups: Record<string, Post[]> = {}
+    for (const post of filteredPosts) {
+      if (!groups[post.platform]) groups[post.platform] = []
+      groups[post.platform].push(post)
+    }
+    return Object.entries(groups)
+      .sort(([, a], [, b]) => b.length - a.length)
+      .map(([platform, posts]) => ({ platform, posts }))
+  }, [filteredPosts])
 
   // Calculate sentiment from actual posts, not summary (ensures filter matches bar)
   const sentimentCounts = useMemo(() => {
-    if (!data?.posts || data.posts.length === 0) {
+    if (allPosts.length === 0) {
       return { positive: 0, neutral: 0, negative: 0 }
     }
-    return data.posts.reduce(
+    return allPosts.reduce(
       (acc, post) => {
         const sentiment = (post.sentiment ?? "neutral").toLowerCase()
         if (sentiment === "positive") acc.positive++
@@ -101,7 +138,7 @@ export default function IssueDetailView({
       },
       { positive: 0, neutral: 0, negative: 0 }
     )
-  }, [data?.posts])
+  }, [allPosts])
   
   const totalSent = sentimentCounts.positive + sentimentCounts.neutral + sentimentCounts.negative || 1
   const negPct = Math.round((sentimentCounts.negative / totalSent) * 100)
@@ -131,6 +168,133 @@ export default function IssueDetailView({
     </button>
   )
 
+  function togglePlatformCollapse(platform: string) {
+    setCollapsedPlatforms((prev) => {
+      const next = new Set(prev)
+      if (next.has(platform)) next.delete(platform)
+      else next.add(platform)
+      return next
+    })
+  }
+
+  function toggleShowAll(platform: string) {
+    setExpandedPlatforms((prev) => {
+      const next = new Set(prev)
+      if (next.has(platform)) next.delete(platform)
+      else next.add(platform)
+      return next
+    })
+  }
+
+  const PlatformSection = ({
+    platform,
+    posts,
+    isCollapsed,
+    isShowingAll,
+    onToggleCollapse,
+    onToggleShowAll,
+  }: {
+    platform: string
+    posts: Post[]
+    isCollapsed: boolean
+    isShowingAll: boolean
+    onToggleCollapse: () => void
+    onToggleShowAll: () => void
+  }) => {
+    const style = PLATFORM_STYLES[platform] ?? { color: "rgba(0,0,0,0.5)", bg: "rgba(0,0,0,0.05)" }
+    const label = PLATFORM_LABELS[platform] ?? platform
+    const PAGE_SIZE = 10
+    const visiblePosts = isShowingAll ? posts : posts.slice(0, PAGE_SIZE)
+    const remaining = posts.length - PAGE_SIZE
+
+    return (
+      <div className="overflow-hidden rounded-xl" style={{ border: "1px solid rgba(0,0,0,0.06)" }}>
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[rgba(0,0,0,0.02)]"
+          style={{ borderLeft: `3px solid ${style.color}` }}
+        >
+          <span
+            className="inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold"
+            style={{ backgroundColor: style.bg, color: style.color }}
+          >
+            {label}
+          </span>
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+            style={{ backgroundColor: "rgba(0,0,0,0.06)", color: "rgba(0,0,0,0.5)", fontFamily: "var(--font-mono)" }}
+          >
+            {posts.length}
+          </span>
+          <span className="flex-1" />
+          <svg
+            className="h-4 w-4 transition-transform"
+            style={{
+              color: "rgba(0,0,0,0.3)",
+              transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+            }}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {!isCollapsed && (
+          <div className="space-y-3 px-4 pb-4 pt-1">
+            {visiblePosts.map((post) => (
+              <SearchPostCard key={post.id} post={post} />
+            ))}
+            {remaining > 0 && !isShowingAll && (
+              <button
+                type="button"
+                onClick={onToggleShowAll}
+                className="w-full rounded-lg py-2.5 text-center text-xs font-medium transition-colors hover:bg-[rgba(0,0,0,0.06)]"
+                style={{
+                  background: "rgba(0,0,0,0.03)",
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  color: "rgba(0,0,0,0.5)",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                Load more ({remaining} remaining)
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  async function handleKeywordClick(keyword: string) {
+    if (queriedKeywords.has(keyword) || loadingKeyword) return
+    setLoadingKeyword(keyword)
+    try {
+      const url = new URL("/api/legislative/signals", window.location.origin)
+      url.searchParams.set("subcategoryId", subcategory.id)
+      url.searchParams.set("keyword", keyword)
+      url.searchParams.set("timeFilter", timeFilter)
+      url.searchParams.set("sources", "reddit,x")
+      if (state) url.searchParams.set("state", state)
+      if (city) url.searchParams.set("city", city)
+      const res = await fetch(url.toString())
+      if (res.ok) {
+        const result: LegislativeSignalsResponse = await res.json()
+        setAdditionalPosts((prev) => {
+          const existingIds = new Set([...(data?.posts ?? []).map((p) => p.id), ...prev.map((p) => p.id)])
+          const newPosts = (result.posts ?? []).filter((p) => !existingIds.has(p.id))
+          return [...prev, ...newPosts]
+        })
+        setQueriedKeywords((prev) => new Set([...prev, keyword]))
+      }
+    } catch (err) {
+      console.warn("[IssueDetailView] keyword fetch failed:", err)
+    } finally {
+      setLoadingKeyword(null)
+    }
+  }
+
   if (loading) {
     return <IssueDetailSkeleton category={category} subcategory={subcategory} onBack={onBack} />
   }
@@ -154,8 +318,8 @@ export default function IssueDetailView({
     )
   }
 
-  const postCount = data?.posts?.length ?? 0
-  const platformCount = new Set(data?.posts?.map((p) => p.platform) ?? []).size
+  const postCount = allPosts.length
+  const platformCount = new Set(allPosts.map((p) => p.platform)).size
   const credibility = data?.summary?.credibility
 
   return (
@@ -222,24 +386,6 @@ export default function IssueDetailView({
           )}
         </div>
 
-        {/* AI Summary Bar - at the top for quick insights */}
-        {data?.aiAnalysis?.sentimentBreakdown && (
-          <div className="mb-4 rounded-xl p-4" style={{ backgroundColor: "rgba(212,162,74,0.08)", border: "1px solid rgba(212,162,74,0.2)" }}>
-            <div className="flex items-start gap-3">
-              <span className="text-xl" style={{ color: "#D4A24A" }}>✦</span>
-              <div className="flex-1">
-                <p className="mb-1 text-xs font-semibold uppercase" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.1em", color: "rgba(0,0,0,0.5)" }}>
-                  AI QUICK SUMMARY
-                </p>
-                <p className="text-sm leading-relaxed" style={{ color: "rgba(0,0,0,0.75)", lineHeight: 1.5 }}>
-                  Overall sentiment: <strong style={{ color: data.aiAnalysis.sentimentBreakdown.overall === "positive" ? "#2E7D32" : data.aiAnalysis.sentimentBreakdown.overall === "negative" ? "#C62828" : "#E65100" }}>{data.aiAnalysis.sentimentBreakdown.overall}</strong>
-                  {data.aiAnalysis.sentimentBreakdown.summary && ` — ${data.aiAnalysis.sentimentBreakdown.summary}`}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Filter Row */}
         <div className="mb-6 flex flex-nowrap gap-6 overflow-x-auto pb-2 md:flex-wrap md:overflow-visible">
           <div className="flex items-center gap-2">
@@ -259,6 +405,46 @@ export default function IssueDetailView({
           <FilterButton active={verifiedOnly} onClick={() => setVerifiedOnly(!verifiedOnly)}>
             Verified only
           </FilterButton>
+        </div>
+
+        {/* Search Terms */}
+        <div className="mb-6">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs" style={{ color: "rgba(0,0,0,0.4)", fontFamily: "var(--font-mono)" }}>
+              Search terms:
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {subcategory.socialKeywords.map((kw) => {
+              const isQueried = queriedKeywords.has(kw)
+              const isLoading = loadingKeyword === kw
+              return (
+                <button
+                  key={kw}
+                  type="button"
+                  onClick={() => handleKeywordClick(kw)}
+                  disabled={isQueried || isLoading}
+                  className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-all"
+                  style={
+                    isQueried
+                      ? { background: "rgba(212,162,74,0.15)", border: "1px solid rgba(212,162,74,0.3)", color: "#D4A24A", fontWeight: 600 }
+                      : isLoading
+                        ? { background: "rgba(212,162,74,0.08)", border: "1px solid rgba(212,162,74,0.25)", color: "#D4A24A" }
+                        : { background: "rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.08)", color: "rgba(0,0,0,0.5)", cursor: "pointer" }
+                  }
+                >
+                  {isLoading && (
+                    <svg className="h-3 w-3 animate-spin" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+                      <path d="M14 8a6 6 0 00-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  )}
+                  {isQueried && <span>✓</span>}
+                  {kw}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -311,26 +497,6 @@ export default function IssueDetailView({
               </div>
             )}
 
-            {/* Key Themes */}
-            {data?.aiAnalysis?.keyThemes && data.aiAnalysis.keyThemes.length > 0 && (
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.1em", color: "rgba(0,0,0,0.5)" }}>
-                  KEY THEMES
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {data.aiAnalysis.keyThemes.slice(0, 6).map((theme, i) => (
-                    <span
-                      key={i}
-                      className="rounded-lg py-2.5 px-3 text-sm"
-                      style={{ background: "rgba(0,0,0,0.02)", borderLeft: "3px solid #D4A24A", color: "rgba(0,0,0,0.75)" }}
-                    >
-                      {theme}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Action Buttons */}
             <div className="flex gap-2">
               <button type="button" className="flex-1 rounded-md py-2 text-center text-[11px]" style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, color: "rgba(0,0,0,0.45)", fontFamily: "var(--font-mono)", cursor: "pointer" }}>
@@ -362,52 +528,6 @@ export default function IssueDetailView({
                   ✦ SYNTHESIZE
                 </p>
 
-                {/* Key Insights */}
-                {data.aiAnalysis.keyThemes && data.aiAnalysis.keyThemes.length > 0 && (
-                  <div className="mb-5">
-                    <h3 className="mb-2 text-sm font-semibold" style={{ color: "#2C2519" }}>Key Insights</h3>
-                    <ul className="space-y-2">
-                      {data.aiAnalysis.keyThemes.slice(0, 3).map((theme, i) => (
-                        <li key={i} className="flex gap-2 text-sm" style={{ color: "rgba(0,0,0,0.7)" }}>
-                          <span style={{ color: "#D4A24A", fontWeight: "bold" }}>•</span>
-                          <span>{theme}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* Pain Points */}
-                <div className="mb-5">
-                  <h3 className="mb-2 text-sm font-semibold" style={{ color: "#2C2519" }}>Pain Points</h3>
-                  <div className="space-y-2">
-                    {sentimentCounts.negative > 0 && (
-                      <div className="flex gap-2 text-sm" style={{ color: "rgba(0,0,0,0.7)" }}>
-                        <span style={{ color: "#C62828", fontWeight: "bold" }}>•</span>
-                        <span>
-                          {negPct}% of conversations express negative sentiment about {subcategory.name.toLowerCase()}
-                        </span>
-                      </div>
-                    )}
-                    {data.aiAnalysis.interpretation && (
-                      <div className="flex gap-2 text-sm" style={{ color: "rgba(0,0,0,0.7)" }}>
-                        <span style={{ color: "#C62828", fontWeight: "bold" }}>•</span>
-                        <span>
-                          {data.aiAnalysis.interpretation.split('.')[0]}.
-                        </span>
-                      </div>
-                    )}
-                    {postCount > 50 && (
-                      <div className="flex gap-2 text-sm" style={{ color: "rgba(0,0,0,0.7)" }}>
-                        <span style={{ color: "#C62828", fontWeight: "bold" }}>•</span>
-                        <span>
-                          High volume of discussion ({postCount} posts) indicates widespread concern
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 {/* What People Want */}
                 {data.aiAnalysis.suggestedQueries && data.aiAnalysis.suggestedQueries.length > 0 && (
                   <div className="mb-5">
@@ -423,20 +543,21 @@ export default function IssueDetailView({
                   </div>
                 )}
 
-                {/* Topic Analysis */}
+                {/* Topic Breakdown */}
                 {data.aiAnalysis.topicAnalysis && data.aiAnalysis.topicAnalysis.length > 0 && (
                   <div className="mb-5">
                     <h3 className="mb-2 text-sm font-semibold" style={{ color: "#2C2519" }}>Topic Breakdown</h3>
-                    <div className="space-y-3">
-                      {data.aiAnalysis.topicAnalysis.slice(0, 3).map((topic, i) => (
-                        <div key={i} className="rounded-lg p-3" style={{ background: "rgba(212,162,74,0.08)", border: "1px solid rgba(212,162,74,0.2)" }}>
-                          <h4 className="mb-1 text-xs font-semibold" style={{ color: "#D4654A" }}>{topic.topic}</h4>
-                          <p className="text-xs leading-relaxed" style={{ color: "rgba(0,0,0,0.65)" }}>
-                            {topic.postsOverview}
-                          </p>
-                        </div>
+                    <ul className="space-y-2">
+                      {data.aiAnalysis.topicAnalysis.slice(0, 5).map((topic, i) => (
+                        <li key={i} className="flex gap-2 text-sm" style={{ color: "rgba(0,0,0,0.7)" }}>
+                          <span style={{ color: "#D4A24A", fontWeight: "bold" }}>•</span>
+                          <span>
+                            <strong>{topic.topic}</strong>
+                            {topic.postsOverview && ` — ${topic.postsOverview.split('.')[0]}.`}
+                          </span>
+                        </li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                 )}
 
@@ -481,9 +602,17 @@ export default function IssueDetailView({
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredPosts.map((post) => (
-                  <SearchPostCard key={post.id} post={post} />
+              <div className="space-y-6">
+                {groupedByPlatform.map(({ platform, posts }) => (
+                  <PlatformSection
+                    key={platform}
+                    platform={platform}
+                    posts={posts}
+                    isCollapsed={collapsedPlatforms.has(platform)}
+                    isShowingAll={expandedPlatforms.has(platform)}
+                    onToggleCollapse={() => togglePlatformCollapse(platform)}
+                    onToggleShowAll={() => toggleShowAll(platform)}
+                  />
                 ))}
               </div>
             )}

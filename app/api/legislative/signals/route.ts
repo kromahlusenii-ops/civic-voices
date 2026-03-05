@@ -26,18 +26,18 @@ async function fetchSignalsInternal(
   timeFilter: string,
   sources: string[],
   language: string,
-  baseUrl: string
+  baseUrl: string,
+  keywordOverride?: string
 ) {
   const subcategory = getSubcategoryById(subcategoryId)
   if (!subcategory) throw new Error(`Subcategory '${subcategoryId}' not found`)
 
-  // Use only the first (broadest) social keyword as the base query.
+  // When a specific keyword is provided, use it directly.
+  // Otherwise use only the first (broadest) social keyword as the base query.
   // Space-joining multiple keywords is treated as AND by most APIs, which
   // makes the query too restrictive and returns very few posts.
-  // The first keyword is the most popular/recognizable term for the topic.
   // Geo context (city/state) is appended per-platform downstream in geoQueryBuilder.
-  const keywords = getKeywordVariants(subcategoryId, 1)
-  const query = keywords[0] ?? subcategory.name
+  const query = keywordOverride ?? (getKeywordVariants(subcategoryId, 1)[0] ?? subcategory.name)
 
   console.log(`[Legislative signals] Query for ${subcategory.name}: "${query}"`)
 
@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
     const finalSources = sources.length > 0 ? sources : DEFAULT_SOURCES
     
     const language = searchParams.get("language") || DEFAULT_LANGUAGE
+    const keywordParam = searchParams.get("keyword") || undefined
 
     if (!subcategoryId?.trim()) {
       return NextResponse.json(
@@ -130,8 +131,11 @@ export async function GET(request: NextRequest) {
         : request.nextUrl.origin
 
     // Redis Cache Layer — shared across all users with same parameters
+    // When a specific keyword is provided, append it to the subcategoryId segment
+    // so each keyword gets its own cache entry.
+    const cacheSubId = keywordParam ? `${subcategoryId}:kw:${keywordParam}` : subcategoryId
     const cacheKey = buildSignalsCacheKey(
-      subcategoryId,
+      cacheSubId,
       state,
       city,
       timeFilter,
@@ -150,7 +154,8 @@ export async function GET(request: NextRequest) {
         timeFilter,
         finalSources,
         language,
-        baseUrl
+        baseUrl,
+        keywordParam
       ),
       CACHE_TTL_SECONDS
     )

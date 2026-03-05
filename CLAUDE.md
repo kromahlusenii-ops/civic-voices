@@ -38,3 +38,41 @@ npx prisma studio    # DB GUI
 
 ## OpenMemory
 - MCP project_id: `kromahlusenii-ops/civic-voices`
+
+## Agent Memory System
+
+### Before Working
+- Read this file for global context, then read the target directory's CLAUDE.md before changes
+- Check .memory/decisions.md before architectural changes
+- Check .memory/patterns.md before implementing common functionality
+
+### During Work
+- Create CLAUDE.md in any new directory you create
+
+### After Work
+- Update relevant CLAUDE.md if conventions changed
+- Log decisions to .memory/decisions.md (ADR format)
+- Log patterns to .memory/patterns.md
+- Uncertain inferences → .memory/inbox.md (never canonical files)
+
+### Safety
+- Never record secrets, API keys, or user data
+- Never overwrite decisions — mark as [superseded]
+- Never promote from inbox without user confirmation
+
+## Context Routing
+→ app: app/CLAUDE.md
+→ api: app/api/CLAUDE.md
+→ components: app/components/CLAUDE.md
+→ search: app/search/CLAUDE.md
+→ dashboard: app/dashboard/CLAUDE.md
+→ onboarding: app/onboarding/CLAUDE.md
+→ lib: lib/CLAUDE.md
+→ services: lib/services/CLAUDE.md
+→ providers: lib/providers/CLAUDE.md
+→ hooks: lib/hooks/CLAUDE.md
+→ utils: lib/utils/CLAUDE.md
+→ data: lib/data/CLAUDE.md
+→ types: lib/types/CLAUDE.md
+→ e2e: e2e/CLAUDE.md
+→ root-components: components/CLAUDE.md

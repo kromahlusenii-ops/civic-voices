@@ -4,7 +4,7 @@
       "type": "streamable-http",
       "url": "https://ham-pro.vercel.app/api/mcp/9d4081b6-2e17-4b6b-a087-9c329e0e5b82",
       "headers": {
-        "Authorization": "Bearer ham_e1f8ca2e4d9dde030e61d8ee398fac06"
+        "Authorization": "Bearer ham_a6ca88a479cc8277820db4cc5f07c963"
       }
     }
   }
