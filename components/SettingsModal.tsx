@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/contexts/AuthContext";
 import { USE_CASE_STORAGE_KEY, USE_CASE_LABELS, LOCATION_STORAGE_KEY, US_STATES, type UseCase } from "@/lib/search-suggestions";
+import { TAXONOMY } from "@/lib/data/taxonomy";
 import citiesByState from "@/data/cities.json";
 
 type SettingsTab = "credit_usage" | "plan_billing" | "preferences" | "team_members" | "integrations";
@@ -13,6 +14,8 @@ interface SettingsModalProps {
   onClose: () => void;
   /** Called when user saves a new city/state in Preferences; triggers legislative dashboard refresh */
   onLocationChange?: (city: string, state: string) => void;
+  /** Called when user changes tracked topics; updates dashboard without page reload */
+  onTopicsChange?: (topics: string[]) => void;
 }
 
 // Icons as inline SVGs for consistency
@@ -76,7 +79,7 @@ const SpinnerIcon = () => (
   </svg>
 );
 
-export default function SettingsModal({ isOpen, onClose, onLocationChange }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, onLocationChange, onTopicsChange }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("credit_usage");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -228,7 +231,7 @@ export default function SettingsModal({ isOpen, onClose, onLocationChange }: Set
         <div className="flex-1 overflow-y-auto">
           {activeTab === "credit_usage" && <CreditUsageTab />}
           {activeTab === "plan_billing" && <PlanBillingTab />}
-          {activeTab === "preferences" && <PreferencesTab onLocationChange={onLocationChange} />}
+          {activeTab === "preferences" && <PreferencesTab onLocationChange={onLocationChange} onTopicsChange={onTopicsChange} />}
           {activeTab === "team_members" && <TeamMembersTab />}
           {activeTab === "integrations" && <IntegrationsTab />}
         </div>
@@ -910,9 +913,10 @@ function PlanBillingTab() {
 // Preferences Tab
 interface PreferencesTabProps {
   onLocationChange?: (city: string, state: string) => void;
+  onTopicsChange?: (topics: string[]) => void;
 }
 
-function PreferencesTab({ onLocationChange }: PreferencesTabProps) {
+function PreferencesTab({ onLocationChange, onTopicsChange }: PreferencesTabProps) {
   const { getAccessToken } = useAuth();
   const [currentUseCase, setCurrentUseCase] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -1128,8 +1132,221 @@ function PreferencesTab({ onLocationChange }: PreferencesTabProps) {
           Save location
         </button>
       </div>
+
+      {/* Tracked Topics */}
+      <TrackedTopicsSection onTopicsChange={onTopicsChange} />
     </div>
   );
+}
+
+// Tracked Topics Section — category accordion with subcategory checkboxes
+const TOTAL_SUBCATEGORIES = TAXONOMY.reduce((sum, cat) => sum + cat.subcategories.length, 0)
+
+function TrackedTopicsSection({ onTopicsChange }: { onTopicsChange?: (topics: string[]) => void }) {
+  const { getAccessToken } = useAuth()
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([])
+  const [topicsLoading, setTopicsLoading] = useState(true)
+  const [topicsSaving, setTopicsSaving] = useState(false)
+  const [topicsSaved, setTopicsSaved] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const latestTopicsRef = useRef<string[]>([])
+
+  // Fetch current topics on mount
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch("/api/topics")
+        if (res.ok) {
+          const data = await res.json()
+          const topics: string[] = data.selectedTopics ?? []
+          setSelectedTopics(topics)
+          latestTopicsRef.current = topics
+          // Auto-expand categories that have selections
+          const expanded = TAXONOMY
+            .filter((cat) => cat.subcategories.some((sub) => topics.includes(sub.id)))
+            .map((cat) => cat.id)
+          setExpandedCategories(expanded)
+        }
+      } catch (err) {
+        console.error("Failed to load topics:", err)
+      } finally {
+        setTopicsLoading(false)
+      }
+    }
+    load()
+  }, [])
+
+  const saveTopics = useCallback(async (topics: string[]) => {
+    setTopicsSaving(true)
+    setTopicsSaved(false)
+    try {
+      const accessToken = await getAccessToken()
+      await fetch("/api/topics", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ topics }),
+      })
+      onTopicsChange?.(topics)
+      setTopicsSaved(true)
+      setTimeout(() => setTopicsSaved(false), 2000)
+    } catch (err) {
+      console.error("Failed to save topics:", err)
+    } finally {
+      setTopicsSaving(false)
+    }
+  }, [getAccessToken, onTopicsChange])
+
+  const scheduleSave = useCallback((topics: string[]) => {
+    latestTopicsRef.current = topics
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      saveTopics(latestTopicsRef.current)
+    }, 800)
+  }, [saveTopics])
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
+  const toggleSubcategory = (subId: string) => {
+    setSelectedTopics((prev) => {
+      const next = prev.includes(subId) ? prev.filter((id) => id !== subId) : [...prev, subId]
+      scheduleSave(next)
+      return next
+    })
+  }
+
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId]
+    )
+  }
+
+  const selectAll = () => {
+    const all = TAXONOMY.flatMap((cat) => cat.subcategories.map((sub) => sub.id))
+    setSelectedTopics(all)
+    scheduleSave(all)
+  }
+
+  const clearAll = () => {
+    setSelectedTopics([])
+    scheduleSave([])
+  }
+
+  if (topicsLoading) {
+    return (
+      <div className="mb-8">
+        <h4 className="font-medium text-gray-900 mb-3">Tracked topics</h4>
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <SpinnerIcon /> Loading topics...
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium text-gray-900">Tracked topics</h4>
+          <span className="text-xs text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
+            {selectedTopics.length} of {TOTAL_SUBCATEGORIES} selected
+          </span>
+        </div>
+        {topicsSaving && (
+          <span className="text-xs text-gray-400 flex items-center gap-1">
+            <SpinnerIcon /> Saving...
+          </span>
+        )}
+        {topicsSaved && (
+          <span className="text-xs text-green-600 flex items-center gap-1">
+            <CheckIcon /> Saved
+          </span>
+        )}
+      </div>
+      <p className="text-sm text-gray-500 mb-3">
+        Choose which civic topics appear on your dashboard. Changes take effect immediately.
+      </p>
+
+      {/* Quick actions */}
+      <div className="flex gap-3 mb-4">
+        <button
+          onClick={selectAll}
+          className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+        >
+          Select all
+        </button>
+        <button
+          onClick={clearAll}
+          className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+        >
+          Clear all
+        </button>
+      </div>
+
+      {/* Category accordions */}
+      <div className="space-y-1 max-h-[400px] overflow-y-auto rounded-xl border border-gray-200">
+        {TAXONOMY.map((category) => {
+          const isExpanded = expandedCategories.includes(category.id)
+          const selectedCount = category.subcategories.filter((sub) => selectedTopics.includes(sub.id)).length
+
+          return (
+            <div key={category.id}>
+              {/* Category header */}
+              <button
+                onClick={() => toggleCategory(category.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: category.color }}
+                />
+                <span className="flex-1 text-sm font-medium text-gray-900">{category.name}</span>
+                {selectedCount > 0 && (
+                  <span className="text-xs text-gray-400">{selectedCount} selected</span>
+                )}
+                <svg
+                  className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Subcategories */}
+              {isExpanded && (
+                <div className="px-4 pb-3 pl-10 space-y-1">
+                  {category.subcategories.map((sub) => (
+                    <label
+                      key={sub.id}
+                      className="flex items-center gap-2.5 py-1.5 cursor-pointer group"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTopics.includes(sub.id)}
+                        onChange={() => toggleSubcategory(sub.id)}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-400 cursor-pointer"
+                      />
+                      <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">
+                        {sub.name}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 // Team & Members Tab

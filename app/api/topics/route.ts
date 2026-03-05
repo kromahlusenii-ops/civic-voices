@@ -89,15 +89,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { topics, geoScope, geoState, geoCity } = body
 
-    // Validate topics array
-    if (!Array.isArray(topics)) {
+    // Validate topics array if provided
+    if (topics !== undefined && !Array.isArray(topics)) {
       return NextResponse.json(
         { error: 'Topics must be an array' },
         { status: 400 }
       )
     }
 
-    // Validate geoScope
+    // Validate geoScope if provided
     if (geoScope && !['national', 'state', 'city'].includes(geoScope)) {
       return NextResponse.json(
         { error: 'Invalid geoScope. Must be national, state, or city' },
@@ -105,15 +105,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Build update data — only include fields that were provided
+    const updateData: Record<string, unknown> = {}
+    if (topics !== undefined) updateData.selectedTopics = topics
+    if (geoScope !== undefined) {
+      updateData.geoScope = geoScope || null
+      updateData.geoState = geoState || null
+      updateData.geoCity = geoCity || null
+    }
+
     // Update user in database
     const user = await prisma.user.update({
       where: { supabaseUid: supabaseUser.id },
-      data: {
-        selectedTopics: topics,
-        geoScope: geoScope || null,
-        geoState: geoState || null,
-        geoCity: geoCity || null,
-      },
+      data: updateData,
       select: {
         selectedTopics: true,
         geoScope: true,

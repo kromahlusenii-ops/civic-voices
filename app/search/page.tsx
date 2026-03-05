@@ -1126,6 +1126,7 @@ function SearchPageContent() {
           if (stored) setUserUseCase(stored)
         }}
         onLocationChange={handleLocationChange}
+        onTopicsChange={(topics) => setUserSelectedTopics(topics)}
       />
 
       {/* Trial Modal */}

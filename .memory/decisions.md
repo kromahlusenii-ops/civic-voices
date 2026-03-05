@@ -21,6 +21,13 @@
 - **Decision:** Removed Key Themes from sidebar. Synthesize panel ("What People Want" + "Topic Breakdown") is the single source for thematic analysis.
 - **Files:** `app/search/components/IssueDetailView.tsx`
 
+## ADR-005: Topic editing from settings modal
+- **Date:** 2026-03-05
+- **Status:** Active
+- **Context:** Users could only select topics during onboarding. No way to change tracked topics afterward without re-doing onboarding.
+- **Decision:** Added "Tracked topics" section to Settings > Preferences tab with category accordion, subcategory checkboxes, auto-save (800ms debounce), and `onTopicsChange` callback that updates the search dashboard without page reload. Updated `/api/topics` POST to support partial updates (topics-only without clearing geo preferences).
+- **Files:** `components/SettingsModal.tsx`, `app/api/topics/route.ts`, `app/search/page.tsx`
+
 ## ADR-004: Added Arts & Culture as 10th taxonomy category
 - **Date:** 2026-03-05
 - **Status:** Active
