@@ -1,0 +1,17 @@
+{
+  "revisions": {
+    "session-log.md": "46dec4161ac5079eb7d732f93ce15eefa30004ffebba6148b521ab653802bf17"
+  },
+  "write_counts": {
+    "session-log.md": 1
+  },
+  "last_writer": {
+    "session-log.md": "mcp"
+  },
+  "last_updated": {
+    "session-log.md": "2026-03-05T20:49:54.043Z"
+  },
+  "idempotency_keys": [
+    "session-pdf-export-2026-03-05"
+  ]
+}
