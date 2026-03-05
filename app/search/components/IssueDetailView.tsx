@@ -8,6 +8,7 @@ import type { LegislativeSignalsResponse, Post } from "@/lib/types/api"
 import { PLATFORM_OPTIONS, SENTIMENT_OPTIONS, PLATFORM_LABELS, PLATFORM_STYLES } from "./platformConstants"
 import SearchPostCard from "./SearchPostCard"
 import SubscriptionPaywall from "./SubscriptionPaywall"
+import { generateBriefingPdf } from "@/lib/utils/briefingPdf"
 
 interface IssueDetailViewProps {
   category: TaxonomyCategory
@@ -63,6 +64,7 @@ export default function IssueDetailView({
   const [loadingKeyword, setLoadingKeyword] = useState<string | null>(null)
   const [collapsedPlatforms, setCollapsedPlatforms] = useState<Set<string>>(new Set())
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set())
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   // Reset keyword state when subcategory changes
   useEffect(() => {
@@ -302,6 +304,38 @@ export default function IssueDetailView({
     }
   }
 
+  async function handleExportPdf() {
+    if (!data || exportingPdf) return
+    setExportingPdf(true)
+    try {
+      const platformMap: Record<string, number> = {}
+      for (const post of allPosts) {
+        platformMap[post.platform] = (platformMap[post.platform] || 0) + 1
+      }
+      const platformBreakdown = Object.entries(platformMap)
+        .sort(([, a], [, b]) => b - a)
+        .map(([platform, count]) => ({ platform, count }))
+
+      await generateBriefingPdf({
+        category,
+        subcategory,
+        geoScope: geoScope as string,
+        geoLabel,
+        timeFilter,
+        aiAnalysis: data.aiAnalysis,
+        sentimentCounts,
+        credibilityScore: credibility?.averageScore ?? null,
+        postCount,
+        platformCount,
+        platformBreakdown,
+      })
+    } catch (err) {
+      console.error("[IssueDetailView] PDF export failed:", err)
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
   if (loading) {
     return <IssueDetailSkeleton category={category} subcategory={subcategory} onBack={onBack} />
   }
@@ -506,11 +540,23 @@ export default function IssueDetailView({
 
             {/* Action Buttons */}
             <div className="flex gap-2">
-              <button type="button" className="flex-1 rounded-md py-2 text-center text-[11px]" style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, color: "rgba(0,0,0,0.45)", fontFamily: "var(--font-mono)", cursor: "pointer" }}>
-                Export PDF
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                disabled={exportingPdf || !data}
+                className="flex-1 rounded-md py-2 text-center text-[11px]"
+                style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, color: "rgba(0,0,0,0.45)", fontFamily: "var(--font-mono)", cursor: exportingPdf || !data ? "default" : "pointer", opacity: exportingPdf || !data ? 0.5 : 1 }}
+              >
+                {exportingPdf ? "Generating..." : "Export PDF"}
               </button>
-              <button type="button" className="flex-1 rounded-md py-2 text-center text-[11px]" style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, color: "rgba(0,0,0,0.45)", fontFamily: "var(--font-mono)", cursor: "pointer" }}>
-                Share Briefing
+              <button
+                type="button"
+                onClick={handleExportPdf}
+                disabled={exportingPdf || !data}
+                className="flex-1 rounded-md py-2 text-center text-[11px]"
+                style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", borderRadius: 6, color: "rgba(0,0,0,0.45)", fontFamily: "var(--font-mono)", cursor: exportingPdf || !data ? "default" : "pointer", opacity: exportingPdf || !data ? 0.5 : 1 }}
+              >
+                {exportingPdf ? "Generating..." : "Share Briefing"}
               </button>
             </div>
           </div>

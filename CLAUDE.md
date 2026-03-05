@@ -39,21 +39,22 @@ npx prisma studio    # DB GUI
 ## OpenMemory
 - MCP project_id: `kromahlusenii-ops/civic-voices`
 
-## Agent Memory System
+## Agent Memory System (HAM Pro)
 
 ### Before Working
 - Read this file for global context, then read the target directory's CLAUDE.md before changes
-- Check .memory/decisions.md before architectural changes
-- Check .memory/patterns.md before implementing common functionality
+- Check .ham/decisions.md before architectural changes
+- Check .ham/patterns.md before implementing common functionality
 
 ### During Work
 - Create CLAUDE.md in any new directory you create
 
 ### After Work
 - Update relevant CLAUDE.md if conventions changed
-- Log decisions to .memory/decisions.md (ADR format)
-- Log patterns to .memory/patterns.md
-- Uncertain inferences → .memory/inbox.md (never canonical files)
+- Log decisions to .ham/decisions.md (ADR format)
+- Log patterns to .ham/patterns.md
+- Log task start/end to .ham/metrics/tasks.jsonl
+- Uncertain inferences → .ham/inbox.md (never canonical files)
 
 ### Safety
 - Never record secrets, API keys, or user data

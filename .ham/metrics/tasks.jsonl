@@ -1,0 +1,20 @@
+{"id":"task-a1b2c3d4","type":"task_start","timestamp":"2026-03-05T14:00:00Z","description":"Phase 1: Strip credit infrastructure from backend (stripe-config, creditService, featureService, billing APIs, webhooks, checkout)","ham_active":true,"model":"claude-opus-4-6","files_read":12,"memory_files_loaded":4,"estimated_tokens":45000}
+{"id":"task-a1b2c3d4","type":"task_end","timestamp":"2026-03-05T14:45:00Z","status":"completed"}
+{"id":"task-e5f6a7b8","type":"task_start","timestamp":"2026-03-05T14:10:00Z","description":"Phase 2: Frontend credit cleanup (AuthContext, search page, delete CreditsModal, update TrialModal)","ham_active":true,"model":"claude-opus-4-6","files_read":6,"memory_files_loaded":3,"estimated_tokens":30000}
+{"id":"task-e5f6a7b8","type":"task_end","timestamp":"2026-03-05T14:50:00Z","status":"completed"}
+{"id":"task-c9d0e1f2","type":"task_start","timestamp":"2026-03-05T14:15:00Z","description":"Phase 4: Settings modal cleanup (remove CreditUsageTab, credit refs in plan lists and cancel dialog)","ham_active":true,"model":"claude-opus-4-6","files_read":2,"memory_files_loaded":2,"estimated_tokens":18000}
+{"id":"task-c9d0e1f2","type":"task_end","timestamp":"2026-03-05T14:55:00Z","status":"completed"}
+{"id":"task-a3b4c5d6","type":"task_start","timestamp":"2026-03-05T15:00:00Z","description":"Phase 3: Build SubscriptionPaywall component and wire paywall boundary into IssueDetailView","ham_active":true,"model":"claude-opus-4-6","files_read":4,"memory_files_loaded":2,"estimated_tokens":25000}
+{"id":"task-a3b4c5d6","type":"task_end","timestamp":"2026-03-05T15:30:00Z","status":"completed"}
+{"id":"task-e7f8a9b0","type":"task_start","timestamp":"2026-03-05T15:35:00Z","description":"Fix build errors: missing getMonthlyCreditsForTier in admin route, unused vars, hasActiveSubscription type mismatch","ham_active":true,"model":"claude-opus-4-6","files_read":3,"memory_files_loaded":0,"estimated_tokens":12000}
+{"id":"task-e7f8a9b0","type":"task_end","timestamp":"2026-03-05T15:50:00Z","status":"completed"}
+{"id":"task-c1d2e3f4","type":"task_start","timestamp":"2026-03-05T16:00:00Z","description":"HAM updates: ADR-006 decision log, search CLAUDE.md, components CLAUDE.md, root CLAUDE.md","ham_active":true,"model":"claude-opus-4-6","files_read":4,"memory_files_loaded":3,"estimated_tokens":10000}
+{"id":"task-c1d2e3f4","type":"task_end","timestamp":"2026-03-05T16:10:00Z","status":"completed"}
+{"id":"task-a5b6c7d8","type":"task_start","timestamp":"2026-03-05T16:15:00Z","description":"Commit all changes (20 files, +218/-1543 lines), push to master, deploy to Vercel","ham_active":true,"model":"claude-opus-4-6","files_read":0,"memory_files_loaded":0,"estimated_tokens":5000}
+{"id":"task-a5b6c7d8","type":"task_end","timestamp":"2026-03-05T16:20:00Z","status":"completed"}
+{"id":"task-e9f0a1b2","type":"task_start","timestamp":"2026-03-05T17:30:00Z","description":"HAM Pro config investigation and skill update (git pull for Pro Guard feature)","ham_active":true,"model":"claude-opus-4-6","files_read":3,"memory_files_loaded":1,"estimated_tokens":8000}
+{"id":"task-e9f0a1b2","type":"task_end","timestamp":"2026-03-05T17:45:00Z","status":"completed"}
+{"id":"task-c3d4e5f6","type":"task_start","timestamp":"2026-03-05T18:00:00Z","description":"Transition baseline to active mode, draft HAM task logging bug report","ham_active":true,"model":"claude-opus-4-6","files_read":4,"memory_files_loaded":1,"estimated_tokens":8000}
+{"id":"task-c3d4e5f6","type":"task_end","timestamp":"2026-03-05T18:05:00Z","status":"completed"}
+{"id":"task-pdf-export-01","type":"task_start","timestamp":"2026-03-05T20:21:34Z","description":"Implement PDF export for IssueDetailView briefings (jsPDF install, briefingPdf.ts utility, button wiring)","ham_active":true,"model":"claude-opus-4-6","files_read":6,"memory_files_loaded":3,"estimated_tokens":35000}
+{"id":"task-pdf-export-01","type":"task_end","timestamp":"2026-03-05T20:21:34Z","status":"completed"}
