@@ -20,3 +20,10 @@
 - **Context:** "Key Themes" (left sidebar) and "What People Want" (right Synthesize panel) showed overlapping info because both are generated from a single AI prompt call.
 - **Decision:** Removed Key Themes from sidebar. Synthesize panel ("What People Want" + "Topic Breakdown") is the single source for thematic analysis.
 - **Files:** `app/search/components/IssueDetailView.tsx`
+
+## ADR-004: Added Arts & Culture as 10th taxonomy category
+- **Date:** 2026-03-05
+- **Status:** Active
+- **Context:** Taxonomy had 9 categories / 56 subcategories. Arts & culture topics (public art, arts funding, cultural venues, festivals, arts education, heritage preservation, creative economy, local journalism) had no home in the existing taxonomy.
+- **Decision:** Added "Arts & Culture" category (sortOrder: 10, color #C06090) with 8 subcategories. All components (dashboard, search, onboarding) consume the TAXONOMY array reactively so no other files needed changes.
+- **Files:** `lib/data/taxonomy.ts`

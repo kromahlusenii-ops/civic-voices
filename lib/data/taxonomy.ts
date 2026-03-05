@@ -1,5 +1,5 @@
 /**
- * Civic Voices taxonomy — 9 categories, 56 subcategories.
+ * Civic Voices taxonomy — 10 categories, 64 subcategories.
  * Source: docs/civic-voices-taxonomy.xlsx - Taxonomy.csv
  * Design: docs/MASTER_PROMPT.md
  */
@@ -33,6 +33,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Democracy & Governance": "#B06080",
   "Economic Development": "#C07A3E",
   "Online Behavior": "#5B8DEF",
+  "Arts & Culture": "#C06090",
 }
 
 function toSearchQuery(name: string, keywords: string[]): string {
@@ -256,6 +257,79 @@ export const TAXONOMY: TaxonomyCategory[] = [
         searchQuery: toSearchQuery("Digital Accessibility Inclusion", ["digital divide", "internet access", "web accessibility", "broadband equity"]),
         threeElevenSignals: ["broadband service complaint", "internet service complaint", "ADA complaint"],
         billLanguage: ["digital equity act", "broadband deployment", "web accessibility standard", "universal service", "affordable connectivity program", "digital inclusion", "assistive technology funding", "accessible design mandate"],
+      },
+    ],
+  },
+  {
+    id: "arts-culture",
+    name: "Arts & Culture",
+    icon: "♦",
+    color: CATEGORY_COLORS["Arts & Culture"] ?? "#C06090",
+    sortOrder: 10,
+    subcategories: [
+      {
+        id: "public-art-murals",
+        name: "Public Art & Murals",
+        socialKeywords: ["public art", "mural", "street art", "graffiti removal", "art installation", "sculpture park", "community mural", "art in public spaces", "commissioned art", "art vandalism", "beautification project", "painted building", "interactive art", "art district"],
+        searchQuery: toSearchQuery("Public Art Murals", ["public art", "mural", "street art", "art installation"]),
+        threeElevenSignals: ["graffiti removal", "public art maintenance", "mural permit"],
+        billLanguage: ["percent for art", "public art ordinance", "art in public places", "mural preservation"],
+      },
+      {
+        id: "arts-funding-grants",
+        name: "Arts Funding & Grants",
+        socialKeywords: ["arts funding", "NEA grant", "arts budget cuts", "defund the arts", "arts council", "cultural funding", "artist grant", "creative economy funding", "arts appropriations", "save the arts", "arts nonprofit", "philanthropy arts", "no funding for art", "grant application artist"],
+        searchQuery: toSearchQuery("Arts Funding Grants", ["arts funding", "NEA grant", "arts budget cuts", "arts council"]),
+        threeElevenSignals: ["arts grant inquiry", "cultural funding request"],
+        billLanguage: ["national endowment for the arts", "arts appropriation", "cultural funding", "creative economy investment", "arts tax credit"],
+      },
+      {
+        id: "cultural-venues-spaces",
+        name: "Cultural Venues & Spaces",
+        socialKeywords: ["museum closing", "theater shutdown", "community center arts", "gallery space", "performance venue", "concert hall", "cultural center", "art space", "makerspace", "studio space", "venue rent", "losing our theater", "nowhere to perform", "art gallery closing", "creative hub"],
+        searchQuery: toSearchQuery("Cultural Venues Spaces", ["museum closing", "theater shutdown", "performance venue", "cultural center"]),
+        threeElevenSignals: ["venue permit", "noise complaint venue", "building code cultural space"],
+        billLanguage: ["cultural district designation", "historic theater preservation", "cultural space zoning", "arts venue tax exemption"],
+      },
+      {
+        id: "community-events-festivals",
+        name: "Community Events & Festivals",
+        socialKeywords: ["local festival", "community event", "street fair", "block party", "cultural festival", "art walk", "first friday", "open mic", "farmers market art", "parade", "outdoor concert", "free event", "neighborhood event", "food and art festival", "canceled event", "permit denied"],
+        searchQuery: toSearchQuery("Community Events Festivals", ["local festival", "community event", "street fair", "cultural festival"]),
+        threeElevenSignals: ["event permit request", "street closure request", "noise complaint event", "festival vendor permit"],
+        billLanguage: ["special event permit", "community gathering ordinance", "festival funding", "public assembly regulation"],
+      },
+      {
+        id: "arts-education",
+        name: "Arts Education",
+        socialKeywords: ["art class cut", "music program", "school arts budget", "drama club", "art teacher", "afterschool art", "creative education", "STEAM not STEM", "music education", "dance program", "no more art class", "school play canceled", "band funding", "art supplies needed", "youth arts"],
+        searchQuery: toSearchQuery("Arts Education", ["art class cut", "music program", "school arts budget", "creative education"]),
+        threeElevenSignals: ["school program complaint", "arts education inquiry"],
+        billLanguage: ["arts education mandate", "creative learning", "arts integration", "music education funding", "arts in schools"],
+      },
+      {
+        id: "cultural-preservation-heritage",
+        name: "Cultural Preservation & Heritage",
+        socialKeywords: ["historic preservation", "cultural heritage", "landmark demolition", "heritage site", "indigenous art", "cultural erasure", "gentrification culture", "historic building", "oral history", "tradition dying", "cultural identity", "save our history", "heritage language", "monument removal", "cultural appropriation", "ancestral land"],
+        searchQuery: toSearchQuery("Cultural Preservation Heritage", ["historic preservation", "cultural heritage", "landmark demolition", "heritage site"]),
+        threeElevenSignals: ["historic landmark complaint", "demolition permit", "heritage site maintenance"],
+        billLanguage: ["historic preservation act", "cultural heritage protection", "landmark designation", "indigenous cultural preservation", "heritage conservation"],
+      },
+      {
+        id: "creative-economy-jobs",
+        name: "Creative Economy & Jobs",
+        socialKeywords: ["artist salary", "gig economy creative", "freelance artist", "starving artist", "creative jobs", "art career", "musician income", "creative industry", "artist housing", "can't live off art", "side hustle creative", "art market", "NFT artist", "creative worker rights", "artist residency", "content creator economy"],
+        searchQuery: toSearchQuery("Creative Economy Jobs", ["artist salary", "gig economy creative", "freelance artist", "creative jobs"]),
+        threeElevenSignals: ["business license artist", "zoning home studio"],
+        billLanguage: ["creative workforce development", "artist employment", "creative economy", "gig worker creative", "artist visa"],
+      },
+      {
+        id: "media-local-journalism",
+        name: "Media & Local Journalism",
+        socialKeywords: ["local news dying", "newspaper closing", "news desert", "community journalism", "independent media", "press freedom", "journalist safety", "media literacy", "fake news local", "investigative reporting", "public radio", "local TV news", "paywalled news", "trust in media", "media consolidation", "who covers our city"],
+        searchQuery: toSearchQuery("Media Local Journalism", ["local news dying", "newspaper closing", "news desert", "community journalism"]),
+        threeElevenSignals: ["media inquiry", "press credential request"],
+        billLanguage: ["local journalism sustainability", "press freedom", "news media tax credit", "public media funding", "journalist protection"],
       },
     ],
   },
