@@ -6,3 +6,4 @@
 {"timestamp":"2026-03-05T20:51:06.405Z","tool":"ham.write_context","scope":".","token_count":168}
 {"timestamp":"2026-03-05T20:51:33.069Z","tool":"ham.write_context","scope":".","token_count":146}
 {"timestamp":"2026-03-05T20:53:25.615Z","tool":"ham.get_stats","scope":"."}
+{"timestamp":"2026-03-05T21:08:43.097Z","tool":"ham.list_scopes","scope":"","token_count":1422}
