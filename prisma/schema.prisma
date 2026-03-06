@@ -413,3 +413,51 @@ model OrganizationInvite {
   @@index([expiresAt])
   @@map("organization_invites")
 }
+
+// HAM Pro: AI coding session telemetry
+model SessionSummary {
+  id             String   @id @default(cuid())
+  sessionId      String   @unique // Claude Code session ID
+  repoId         String            // HAM repo UUID (from .mcp.json URL)
+  engineerId     String?           // User.id if matched
+  agent          String?           // e.g. "claude-code", "cursor"
+  model          String            // e.g. "claude-sonnet-4-6"
+  tokensInput    Int
+  tokensOutput   Int
+  cost           Float             // USD
+  duration       Float             // seconds
+  messageCount   Int      @default(0)
+  hamActive      Boolean  @default(false)
+  energyWh       Float?            // estimated energy consumption
+  emissionsGco2e Float?            // estimated CO2 emissions
+
+  createdAt      DateTime @default(now())
+
+  benchmarkTasks BenchmarkTask[]
+
+  @@index([repoId])
+  @@index([engineerId])
+  @@index([createdAt])
+  @@map("session_summaries")
+}
+
+model BenchmarkTask {
+  id               String         @id @default(cuid())
+  sessionSummaryId String
+  session          SessionSummary @relation(fields: [sessionSummaryId], references: [id], onDelete: Cascade)
+  taskType         String
+  agent            String?
+  tokens           Int
+  duration         Float           // seconds
+  cost             Float           // USD
+  hamActive        Boolean  @default(false)
+  cacheImprovement Float?          // percentage 0-100
+  energyWh         Float?
+  emissionsGco2e   Float?
+
+  createdAt        DateTime @default(now())
+
+  @@index([sessionSummaryId])
+  @@index([taskType])
+  @@map("benchmark_tasks")
+}
