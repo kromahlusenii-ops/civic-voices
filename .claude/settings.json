@@ -1,5 +1,10 @@
 {
-  "enabledPlugins": {
-    "superpowers@claude-plugins-official": true
+  "hooks": {
+    "Stop": [
+      {
+        "command": ".ham/bin/ham-verify",
+        "description": "HAM enforcement — verify ham.log was called before completing work"
+      }
+    ]
   }
 }
