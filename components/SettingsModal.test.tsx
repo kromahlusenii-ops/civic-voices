@@ -59,10 +59,8 @@ describe("SettingsModal", () => {
 
     it("renders navigation items", () => {
       render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
-      expect(screen.getByText("Credit usage")).toBeInTheDocument()
       expect(screen.getByText("Plan & Billing")).toBeInTheDocument()
-      expect(screen.getByText("Team & Members")).toBeInTheDocument()
-      expect(screen.getByText("Integrations")).toBeInTheDocument()
+      expect(screen.getByText("Preferences")).toBeInTheDocument()
     })
 
     it("renders close button and calls onClose when clicked", () => {
@@ -104,50 +102,6 @@ describe("SettingsModal", () => {
       })
     })
 
-    it("shows Team & Members tab as disabled for free/pro users", async () => {
-      // Default mock returns free status
-      render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
-
-      await waitFor(() => {
-        const teamTab = screen.getByText("Team & Members")
-        expect(teamTab.closest("button")).toBeDisabled()
-      })
-    })
-
-    it("shows Team & Members tab as enabled for agency users", async () => {
-      mockFetch.mockReset()
-      mockFetch.mockImplementation(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              subscription: {
-                status: "active",
-                plan: "agency",
-                currentPeriodEnd: "2025-02-01T00:00:00Z",
-                trialEndDate: null,
-              },
-              credits: { monthly: 150, bonus: 0, total: 150, resetDate: null },
-              limits: {},
-              recentTransactions: [],
-            }),
-        })
-      )
-
-      render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
-
-      await waitFor(() => {
-        const teamTab = screen.getByText("Team & Members")
-        expect(teamTab.closest("button")).not.toBeDisabled()
-      }, { timeout: 3000 })
-    })
-
-    it("shows Coming soon tooltip for disabled Integrations tab", async () => {
-      render(<SettingsModal isOpen={true} onClose={vi.fn()} />)
-
-      const integrationsTab = screen.getByText("Integrations")
-      expect(integrationsTab.closest("button")).toBeDisabled()
-    })
   })
 
   describe("Logout functionality", () => {

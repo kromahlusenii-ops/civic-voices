@@ -19,7 +19,6 @@ function getStoredStateCode(): string | null {
 
 interface DashboardHeaderProps {
   onShowAuth: () => void
-  onShowTracked?: () => void
   onShowSettings?: () => void
   onNewResearch?: () => void
   showUserMenu?: boolean
@@ -32,7 +31,6 @@ interface DashboardHeaderProps {
 export default function DashboardHeader(props: DashboardHeaderProps) {
   const {
     onShowAuth,
-    onShowTracked,
     onShowSettings,
     onNewResearch,
     showUserMenu = false,
@@ -99,30 +97,8 @@ export default function DashboardHeader(props: DashboardHeaderProps) {
         </span>
       </div>
 
-      {/* Right: Tracked + LIVE + User */}
+      {/* Right: User */}
       <div className="flex items-center gap-3">
-        {isAuthenticated && onShowTracked && (
-          <button
-            type="button"
-            onClick={onShowTracked}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-[rgba(0,0,0,0.04)]"
-            style={{ color: "#2C2519" }}
-          >
-            <span className="h-2 w-2 rounded-full bg-[rgba(0,0,0,0.3)]" />
-            Tracked (2)
-          </button>
-        )}
-        <span
-          className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
-          style={{
-            color: "#2E7D32",
-            backgroundColor: "rgba(46,125,50,0.12)",
-            fontFamily: "var(--font-mono)",
-          }}
-        >
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#2E7D32]" />
-          LIVE
-        </span>
         {onShowSettings && (
           <button
             type="button"

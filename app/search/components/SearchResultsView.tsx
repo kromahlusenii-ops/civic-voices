@@ -6,7 +6,7 @@ import type { Post, AIAnalysis } from "@/lib/types/api"
 import SearchPostCard from "./SearchPostCard"
 import PlatformStatusBar from "./PlatformStatusBar"
 import WarningBanner from "./WarningBanner"
-import { PLATFORM_OPTIONS, SENTIMENT_OPTIONS } from "./platformConstants"
+import { PLATFORM_LABELS, SENTIMENT_OPTIONS } from "./platformConstants"
 
 interface SearchResults {
   query: string
@@ -58,6 +58,15 @@ export default function SearchResultsView({
       }
     }
   }, [results.warnings, dismissedWarnings])
+
+  // Derive platform options from posts that actually have data
+  const availablePlatforms = useMemo(() => {
+    const platforms = new Set(results.posts.map((p) => p.platform))
+    return [
+      "All",
+      ...Array.from(platforms).map((key) => PLATFORM_LABELS[key] ?? key),
+    ]
+  }, [results.posts])
 
   // Filter posts by platform and sentiment
   const filteredPosts = useMemo(() => {
@@ -364,7 +373,7 @@ export default function SearchResultsView({
                 >
                   Platform:
                 </span>
-                {PLATFORM_OPTIONS.map((p) => (
+                {availablePlatforms.map((p) => (
                   <FilterButton
                     key={p}
                     active={platformFilter === p}

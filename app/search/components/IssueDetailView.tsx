@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from "react"
 import type { TaxonomyCategory, Subcategory } from "@/lib/data/taxonomy"
 import type { GeoScope } from "./GeoScopeToggle"
 import type { LegislativeSignalsResponse, Post } from "@/lib/types/api"
-import { PLATFORM_OPTIONS, SENTIMENT_OPTIONS, PLATFORM_LABELS, PLATFORM_STYLES } from "./platformConstants"
+import { SENTIMENT_OPTIONS, PLATFORM_LABELS, PLATFORM_STYLES } from "./platformConstants"
 import SearchPostCard from "./SearchPostCard"
 import SubscriptionPaywall from "./SubscriptionPaywall"
 import { generateBriefingPdf } from "@/lib/utils/briefingPdf"
@@ -104,6 +104,15 @@ export default function IssueDetailView({
     const unique = additionalPosts.filter((p) => !baseIds.has(p.id))
     return [...data.posts, ...unique]
   }, [data?.posts, additionalPosts])
+
+  // Derive platform options from posts that actually have data
+  const availablePlatforms = useMemo(() => {
+    const platforms = new Set(allPosts.map((p) => p.platform))
+    return [
+      "All",
+      ...Array.from(platforms).map((key) => PLATFORM_LABELS[key] ?? key),
+    ]
+  }, [allPosts])
 
   const filteredPosts = useMemo(() => {
     if (allPosts.length === 0) return []
@@ -431,7 +440,7 @@ export default function IssueDetailView({
         <div className="mb-6 flex flex-nowrap gap-6 overflow-x-auto pb-2 md:flex-wrap md:overflow-visible">
           <div className="flex items-center gap-2">
             <span className="text-xs" style={{ color: "rgba(0,0,0,0.4)", fontFamily: "var(--font-mono)" }}>Platform:</span>
-            {PLATFORM_OPTIONS.map((p) => (
+            {availablePlatforms.map((p) => (
               <FilterButton key={p} active={platformFilter === p} onClick={() => setPlatformFilter(p)}>{p}</FilterButton>
             ))}
           </div>

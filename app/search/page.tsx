@@ -1100,13 +1100,6 @@ function SearchPageContent() {
       <DashboardHeader
         onShowAuth={() => setShowAuthModal(true)}
         onNewResearch={handleNewResearch}
-        onShowTracked={() => {
-          if (!isAuthenticated) setShowAuthModal(true);
-          else {
-            setShowSearchHistorySidebar(false);
-            setShowAlertHistorySidebar(true);
-          }
-        }}
         onShowSettings={() => setShowSettingsModal(true)}
         showUserMenu={showUserMenu}
         onToggleUserMenu={() => setShowUserMenu(!showUserMenu)}
