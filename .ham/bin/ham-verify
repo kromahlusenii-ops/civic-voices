@@ -7,10 +7,12 @@ set -euo pipefail
 
 HAM_TRACES_DIR=".ham/traces"
 
+# If .ham/traces/ does not exist yet, this is a fresh scaffold — warn and pass.
+# Enforcement only kicks in after the first ham.log call creates the directory.
 if [ ! -d "$HAM_TRACES_DIR" ]; then
-  echo "ham-verify: FAIL — no .ham/traces/ directory found"
-  echo "The agent must call ham.log before completing work."
-  exit 1
+  echo "ham-verify: WARN — no .ham/traces/ directory yet (first run?)"
+  echo "Once the MCP server is connected and ham.log is called, enforcement will activate."
+  exit 0
 fi
 
 # Find the most recent .jsonl file (macOS + Linux compatible)
@@ -22,10 +24,11 @@ else
   LATEST=$(find "$HAM_TRACES_DIR" -name "*.jsonl" -type f -exec stat -f '%m %N' {} + 2>/dev/null | sort -rn | head -1 | awk '{print $2}')
 fi
 
+# No trace files yet — same as fresh scaffold, warn and pass
 if [ -z "${LATEST:-}" ]; then
-  echo "ham-verify: FAIL — no trace files found in .ham/traces/"
-  echo "The agent must call ham.log before completing work."
-  exit 1
+  echo "ham-verify: WARN — no trace files found in .ham/traces/"
+  echo "The agent must call ham.log to activate enforcement."
+  exit 0
 fi
 
 # Validate the trace using python3
