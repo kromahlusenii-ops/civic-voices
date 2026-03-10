@@ -1,2 +1,0 @@
-{"task":"Remove Tracked button and LIVE badge from search nav","status":"completed","date":"2026-03-10","files_changed":["app/search/components/DashboardHeader.tsx","app/search/page.tsx"]}
-{"task":"Remove Team & Members and Integrations tabs from Settings","started":"2026-03-10T16:00:00Z","completed":"2026-03-10T16:05:00Z","files":["components/SettingsModal.tsx","components/SettingsModal.test.tsx",".ham/decisions.md"]}
