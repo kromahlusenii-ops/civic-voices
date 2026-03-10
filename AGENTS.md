@@ -55,5 +55,5 @@ Never proceed with a task that contradicts the vision without explicit user appr
 - Run `npm run lint` before committing
 <!-- /ham:section:conventions -->
 <!-- ham:section:after-work -->
-- REQUIRED: Before reporting done, call `ham.log` via MCP: ham.log({ summary: "what you did", files_changed: ["path/to/file.ts"], decision: "optional", pattern: "optional" })
+- REQUIRED: Before reporting done, call `ham.log` via MCP: ham.log({ summary: "what you did", files_changed: ["path/to/file.ts"], agent: "your-agent", model: "your-model", decision: "optional", pattern: "optional" })
 <!-- /ham:section:after-work -->
