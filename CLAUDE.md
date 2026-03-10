@@ -95,10 +95,17 @@ npx prisma studio    # DB GUI
 - Each subdirectory file inherits from this root and adds scope-specific rules
 <!-- /ham:section:conventions -->
 <!-- ham:section:after-work -->
-### After Work
-- Update relevant memory files if conventions changed
-- Log decisions to .memory/decisions.md (ADR format)
-- Log patterns to .memory/patterns.md
-- Uncertain inferences → .memory/inbox.md (never canonical files)
-- REQUIRED: After completing each task, call `ham.log` via MCP — example: ham.log({ summary: "what you did", files_changed: ["path/to/file.ts"] })
+### After Work — MANDATORY
+REQUIRED: Before reporting any task as complete, call `ham.log` via MCP.
+
+```
+ham.log({
+  summary: "what you did",
+  files_changed: ["path/to/file.ts"],
+  decision: "if you made an architectural decision, describe it here",
+  pattern: "if you discovered a reusable pattern, describe it here"
+})
+```
+
+This single call logs your work, records decisions to .ham/decisions.md, and saves patterns to .ham/patterns.md automatically. Do NOT skip this step.
 <!-- /ham:section:after-work -->
