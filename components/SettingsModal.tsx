@@ -62,34 +62,8 @@ export default function SettingsModal({ isOpen, onClose, onLocationChange, onTop
   const [activeTab, setActiveTab] = useState<SettingsTab>("plan_billing");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [userPlan, setUserPlan] = useState<string | null>(null);
-  const { signOut: supabaseSignOut, getAccessToken } = useAuth();
+  const { signOut: supabaseSignOut } = useAuth();
   const router = useRouter();
-
-  // Fetch user's subscription plan to determine team access
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const fetchPlan = async () => {
-      try {
-        const accessToken = await getAccessToken();
-        if (!accessToken) return;
-
-        const response = await fetch("/api/billing/status", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setUserPlan(data.subscription?.plan || null);
-        }
-      } catch (error) {
-        console.error("Failed to fetch plan:", error);
-      }
-    };
-
-    fetchPlan();
-  }, [isOpen, getAccessToken]);
 
   if (!isOpen) return null;
 
