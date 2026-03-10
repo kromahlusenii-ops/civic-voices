@@ -41,3 +41,19 @@ If any conflicts are detected between a requested task and the vision document, 
 3. Ask the user to clarify how to resolve the conflict before proceeding
 
 Never proceed with a task that contradicts the vision without explicit user approval.
+
+
+<!-- ham:section:conventions -->
+## Rules for Agents
+- Prefer existing patterns over introducing new ones
+- Keep changes minimal and focused — do not refactor beyond what is asked
+- Use TypeScript strict mode — avoid `any`
+- Use App Router conventions — `"use client"` only when components need browser APIs or hooks
+- Use Tailwind utility classes — do not introduce inline styles or separate CSS
+- Use Prisma for all database operations
+- Run `npm test` before marking work as done
+- Run `npm run lint` before committing
+<!-- /ham:section:conventions -->
+<!-- ham:section:after-work -->
+- REQUIRED: After completing each task, call `ham.log` via MCP — example: ham.log({ summary: "what you did", files_changed: ["path/to/file.ts"] })
+<!-- /ham:section:after-work -->

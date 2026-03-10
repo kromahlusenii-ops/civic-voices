@@ -1,4 +1,5 @@
 {
+  "pro": true,
   "hamVersion": "1.0.0",
   "enabledImporters": [
     "ham",
@@ -19,5 +20,25 @@
     "build",
     ".next"
   ],
-  "taxonomyVersion": "1.0.0"
+  "taxonomyVersion": "1.0.0",
+  "scaffolded": {
+    "claude": [
+      "CLAUDE.md",
+      "app/CLAUDE.md",
+      "components/CLAUDE.md",
+      "docs/CLAUDE.md",
+      "lib/CLAUDE.md",
+      "scripts/CLAUDE.md"
+    ],
+    "agents": [
+      "AGENTS.md",
+      "app/AGENTS.md",
+      "components/AGENTS.md",
+      "docs/AGENTS.md",
+      "lib/AGENTS.md",
+      "scripts/AGENTS.md"
+    ]
+  },
+  "migrated_from_skill": true,
+  "migrated_at": "2026-03-10T15:47:57.062Z"
 }
