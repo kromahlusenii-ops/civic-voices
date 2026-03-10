@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".ham/bin/ham-verify"
+            "command": ".ham/bin/ham-auto-log"
           }
         ]
       }

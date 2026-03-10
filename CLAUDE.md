@@ -102,6 +102,8 @@ REQUIRED: Before reporting any task as complete, call `ham.log` via MCP.
 ham.log({
   summary: "what you did",
   files_changed: ["path/to/file.ts"],
+  agent: "claude",
+  model: "claude-sonnet-4-6",
   decision: "if you made an architectural decision, describe it here",
   pattern: "if you discovered a reusable pattern, describe it here"
 })
