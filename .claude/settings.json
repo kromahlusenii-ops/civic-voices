@@ -2,8 +2,12 @@
   "hooks": {
     "Stop": [
       {
-        "command": ".ham/bin/ham-verify",
-        "description": "HAM enforcement — verify ham.log was called before completing work"
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".ham/bin/ham-verify"
+          }
+        ]
       }
     ]
   }
