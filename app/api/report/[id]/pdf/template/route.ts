@@ -116,11 +116,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     .page {
       width: 1920px;
-      height: 1080px;
-      padding: 75px;
+      min-height: 1080px;
+      padding: 80px 100px;
       position: relative;
       page-break-after: always;
+      page-break-inside: avoid;
       background: #1a1a1a;
+      overflow: hidden;
     }
 
     .page:last-child {
@@ -130,8 +132,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .page-footer {
       position: absolute;
       bottom: 40px;
-      left: 75px;
-      right: 75px;
+      left: 100px;
+      right: 100px;
       display: flex;
       justify-content: space-between;
       color: #6b7280;
@@ -141,30 +143,37 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .logo {
       position: absolute;
       bottom: 40px;
-      right: 75px;
+      right: 100px;
       font-size: 18px;
       font-weight: 600;
       color: #9ca3af;
     }
 
     /* Title Page */
+    .title-page {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
     .title-page h1 {
       font-size: 72px;
       font-weight: 700;
-      margin-top: 125px;
-      line-height: 1.1;
+      line-height: 1.15;
+      max-width: 1400px;
     }
 
     .title-page .platforms {
-      font-size: 18px;
+      font-size: 20px;
       color: #9ca3af;
-      margin-top: 40px;
+      margin-top: 32px;
+      letter-spacing: 0.5px;
     }
 
     .title-page .date-range {
       position: absolute;
       bottom: 80px;
-      left: 75px;
+      left: 100px;
       font-size: 14px;
       color: #9ca3af;
     }
@@ -173,26 +182,28 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .overview-page h2 {
       font-size: 28px;
       font-weight: 700;
-      margin-bottom: 40px;
+      margin-bottom: 32px;
     }
 
     .metrics-row {
       display: flex;
-      gap: 40px;
-      margin-bottom: 60px;
+      gap: 24px;
+      margin-bottom: 48px;
     }
 
     .metric-card {
       background: #262626;
       border-radius: 12px;
-      padding: 24px 32px;
-      min-width: 280px;
+      padding: 28px 36px;
+      flex: 1;
     }
 
     .metric-card .label {
-      font-size: 14px;
+      font-size: 13px;
       color: #9ca3af;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .metric-card .value {
@@ -207,10 +218,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     .summary-text {
-      font-size: 16px;
+      font-size: 15px;
       color: #e5e7eb;
-      line-height: 1.7;
-      max-width: 1200px;
+      line-height: 1.8;
+      max-width: 1400px;
     }
 
     .summary-text code {
@@ -225,18 +236,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .chart-container {
       background: #262626;
       border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 40px;
+      padding: 28px 32px;
+      margin-bottom: 32px;
     }
 
     .chart-title {
       font-size: 16px;
       font-weight: 600;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .chart-placeholder {
-      height: 300px;
+      height: 280px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -248,38 +259,40 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .breakdown-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 40px;
-      margin-bottom: 40px;
+      gap: 24px;
+      margin-bottom: 28px;
     }
 
     .breakdown-card {
       background: #262626;
       border-radius: 12px;
-      padding: 24px;
+      padding: 24px 28px;
     }
 
     .breakdown-card h3 {
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 600;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
+      color: #d1d5db;
     }
 
     .emotion-bar {
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     .emotion-label {
       width: 80px;
-      font-size: 14px;
+      font-size: 13px;
       color: #9ca3af;
+      text-transform: capitalize;
     }
 
     .emotion-track {
       flex: 1;
-      height: 8px;
+      height: 7px;
       background: #374151;
       border-radius: 4px;
       overflow: hidden;
@@ -291,20 +304,21 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     .emotion-value {
-      width: 50px;
+      width: 45px;
       text-align: right;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
+      color: #d1d5db;
     }
 
     /* Word Cloud */
     .word-cloud {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 10px;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 16px 12px;
     }
 
     .word-cloud span {
@@ -315,23 +329,23 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     .topic-page h2 {
       font-size: 32px;
       font-weight: 700;
-      margin-bottom: 40px;
+      margin-bottom: 32px;
     }
 
     .topic-metrics {
       display: flex;
-      gap: 40px;
-      margin-bottom: 40px;
+      gap: 24px;
+      margin-bottom: 32px;
     }
 
     .sentiment-bar-container {
-      margin-bottom: 40px;
+      margin-bottom: 32px;
     }
 
     .sentiment-bar {
-      height: 16px;
+      height: 14px;
       background: #374151;
-      border-radius: 8px;
+      border-radius: 7px;
       overflow: hidden;
       display: flex;
       margin-bottom: 12px;
@@ -368,10 +382,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     .topic-overview {
-      font-size: 16px;
+      font-size: 15px;
       color: #e5e7eb;
-      line-height: 1.7;
-      max-width: 1200px;
+      line-height: 1.8;
+      max-width: 1400px;
     }
 
     .resonance-high { color: #22c55e; }
@@ -431,7 +445,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       <div class="chart-placeholder">
         ${renderActivityChart(reportData.activityOverTime)}
       </div>
-      <div style="display: flex; gap: 24px; margin-top: 16px; font-size: 14px;">
+      <div style="display: flex; gap: 24px; margin-top: 12px; font-size: 13px; color: #9ca3af;">
         <span style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 16px; height: 3px; background: #3b82f6; border-radius: 2px;"></span>
           Views
@@ -448,7 +462,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       <div class="chart-placeholder">
         ${renderSentimentChart(reportData)}
       </div>
-      <div style="display: flex; gap: 24px; margin-top: 16px; font-size: 14px;">
+      <div style="display: flex; gap: 24px; margin-top: 12px; font-size: 13px; color: #9ca3af;">
         <span style="display: flex; align-items: center; gap: 8px;">
           <span style="width: 10px; height: 10px; background: #22c55e; border-radius: 50%;"></span>
           Positive
