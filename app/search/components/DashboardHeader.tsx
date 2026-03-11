@@ -85,16 +85,6 @@ export default function DashboardHeader(props: DashboardHeaderProps) {
         <span className="hidden font-medium sm:inline" style={{ color: "#2C2519", fontFamily: "var(--font-body)" }}>
           Civic Voices
         </span>
-        <span
-          className="rounded-full px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider"
-          style={{
-            fontFamily: "var(--font-mono)",
-            color: "rgba(0,0,0,0.5)",
-            backgroundColor: "rgba(0,0,0,0.04)",
-          }}
-        >
-          Legislative Intelligence
-        </span>
       </div>
 
       {/* Right: User */}
@@ -132,9 +122,6 @@ export default function DashboardHeader(props: DashboardHeaderProps) {
               <div className="hidden text-left sm:block">
                 <p className="text-sm font-medium" style={{ color: "#2C2519" }}>
                   {firstName || "User"}
-                </p>
-                <p className="text-[10px]" style={{ color: "rgba(0,0,0,0.5)" }}>
-                  {location}
                 </p>
               </div>
             )}
