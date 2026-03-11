@@ -15,3 +15,8 @@ Each `###` heading is a dedup key — deeper scopes override shallower ones with
 - **Status**: accepted
 - **Date**: 2026-03-11
 - **Decision**: Use minimal test-only changes where possible: refresh stale mocks, reset shared in-memory state between tests, and align assertions with current UI behavior before changing production code.
+
+### Updated the product vision and landing page pricing to a single Pro plan at 1k/month, and removed the Agency and Business pricing tiers from the homepage.
+- **Status**: accepted
+- **Date**: 2026-03-11
+- **Decision**: Aligned the vision document and landing page to a single visible Pro pricing tier at 1k/month per the user's requested product direction.
