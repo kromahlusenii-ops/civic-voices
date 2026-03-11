@@ -1,12 +1,12 @@
 {
   "revisions": {
     "session-log.md": "dc40ad495e781077ef2d523127fc9169edacf5821cf8365613e9c6d1505afe39",
-    "decisions.md": "b14f3be579c1db8a526bb46998ec596e336726db186e94b643e8e09de6b3a44e",
+    "decisions.md": "ad9bb941e435d674393bc52219b2ddd1b5fcdc8c8fb04def245aeaed860c1cc6",
     "patterns.md": "dbd644eac2d910a6d83c3498f498131006179d1e487adf55020671a45f132386"
   },
   "write_counts": {
     "session-log.md": 3,
-    "decisions.md": 2,
+    "decisions.md": 3,
     "patterns.md": 1
   },
   "last_writer": {
@@ -16,7 +16,7 @@
   },
   "last_updated": {
     "session-log.md": "2026-03-05T20:50:49.014Z",
-    "decisions.md": "2026-03-11T18:22:06.849Z",
+    "decisions.md": "2026-03-11T18:42:16.439Z",
     "patterns.md": "2026-03-05T20:51:33.069Z"
   },
   "idempotency_keys": [
