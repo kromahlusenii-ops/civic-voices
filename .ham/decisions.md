@@ -20,3 +20,8 @@ Each `###` heading is a dedup key — deeper scopes override shallower ones with
 - **Status**: accepted
 - **Date**: 2026-03-11
 - **Decision**: Aligned the vision document and landing page to a single visible Pro pricing tier at 1k/month per the user's requested product direction.
+
+### Created an initial Codex HAM skill package in ham-skill/ham-memory and then reviewed it for workflow and reliability gaps.
+- **Status**: accepted
+- **Date**: 2026-03-19
+- **Decision**: Adapt the Codex HAM skill around the ham-memory MCP workflow instead of Claude-style CLAUDE.md instructions.
