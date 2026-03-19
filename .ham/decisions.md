@@ -25,3 +25,8 @@ Each `###` heading is a dedup key — deeper scopes override shallower ones with
 - **Status**: accepted
 - **Date**: 2026-03-19
 - **Decision**: Adapt the Codex HAM skill around the ham-memory MCP workflow instead of Claude-style CLAUDE.md instructions.
+
+### Replaced the temporary ham-memory package with a canonical file-based ham Codex skill under ham/, porting the main HAM command workflow and scope guidance from the existing ham-skill source.
+- **Status**: accepted
+- **Date**: 2026-03-19
+- **Decision**: The Codex HAM skill should be a faithful file-based port of ham-skill using CLAUDE.md, .memory, and .ham files, not an MCP-driven workflow.
