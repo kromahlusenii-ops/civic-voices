@@ -46,3 +46,9 @@
 ### Session b6a40b28-7f1e-4758-8a17-b235be9fb43b — completed
 - **Ended**: 2026-03-23T20:01:18.994Z
 - **Summary**: Completed static audit of HAM MCP context selection, routing, telemetry, and savings measurement paths.
+
+## Session 8b969834-32f6-4797-b68c-89dd1b29c2ac
+- **Status**: active
+- **Started**: 2026-03-25T01:20:57.198Z
+- **Branch**: main
+- **Headline**: Implement install-first onboarding and pricing entry flow
