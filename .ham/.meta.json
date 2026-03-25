@@ -1,21 +1,21 @@
 {
   "revisions": {
-    "session-log.md": "4aaa99bffb1bf962d10eeb022ce8f5ad02460ae8b8f8afdb399ecfaf8164be1e",
+    "session-log.md": "765e7b1c59f93d197c99bd6a7a12ed6f092eb626ddaac50ccb7d7f10ccf18352",
     "decisions.md": "5ba00b1249204a6ef27b90afd329078d60a8b014c6e93975ac27477399184bd3",
     "patterns.md": "dbd644eac2d910a6d83c3498f498131006179d1e487adf55020671a45f132386"
   },
   "write_counts": {
-    "session-log.md": 10,
+    "session-log.md": 11,
     "decisions.md": 6,
     "patterns.md": 1
   },
   "last_writer": {
-    "session-log.md": "ham.session_start",
+    "session-log.md": "ham.session_end",
     "decisions.md": "ham.log",
     "patterns.md": "mcp"
   },
   "last_updated": {
-    "session-log.md": "2026-03-25T01:20:57.199Z",
+    "session-log.md": "2026-03-25T01:27:49.715Z",
     "decisions.md": "2026-03-19T03:34:22.504Z",
     "patterns.md": "2026-03-05T20:51:33.069Z"
   },
